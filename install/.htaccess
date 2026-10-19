@@ -1,0 +1,11 @@
+# Only the installer entry point may be reached; schema, logs and the lock
+# file stay private.
+<FilesMatch "\.(sql|log|md|lock)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

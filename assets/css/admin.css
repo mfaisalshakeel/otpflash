@@ -1,0 +1,1190 @@
+/* ===========================================================================
+   Admin panel styles - direction A (light sidebar).
+   Lifted from mockups/admin-a.html; the mockup stays as the reference.
+   =========================================================================== */
+:root{
+  --page:#f5f6fa; --surface:#ffffff; --hover:#f6f7fb;
+  --ink:#141726; --ink-2:#4a5068; --muted:#838aa0;
+  --line:#e8eaf1; --line-2:#d5d9e5;
+  --acc:#4f46e5; --acc-on:#ffffff; --acc-soft:#eef0fe; --acc-ink:#4338ca;
+  --ok:#16a34a; --warn:#d97706; --danger:#dc2626; --danger-soft:#fdeaea;
+  --side:#ffffff; --side-line:#e8eaf1; --side-hover:#f3f4fa;
+  --side-ink:#141726; --side-ink-2:#4a5068; --side-muted:#8e94a8;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--page);color:var(--ink);
+  line-height:1.55;font-size:15px;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+h1,h2,h3,h4{margin:0;line-height:1.2;letter-spacing:-.02em}
+p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit}
+svg{max-width:100%}
+.icon{width:1em;height:1em;display:inline-block;vertical-align:-.125em;fill:currentColor;flex:none}
+.mono{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+.muted{color:var(--muted);font-size:13px}
+.ta-r{text-align:right}
+.up{color:var(--ok)}
+.warn{color:var(--warn)}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:10px;
+  padding:10px 17px;font-weight:600;font-size:14px;cursor:pointer;white-space:nowrap;
+  transition:background .15s, border-color .15s, transform .1s}
+.btn:active{transform:translateY(1px)}
+.btn-primary{background:var(--acc);color:var(--acc-on)}
+.btn-primary:hover{filter:brightness(1.08)}
+.btn-ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+.btn-ghost:hover{border-color:var(--line-2);background:var(--hover)}
+.btn-ghost.on{background:var(--acc);color:var(--acc-on);border-color:var(--acc)}
+.btn-danger{background:var(--danger-soft);color:var(--danger);border:1px solid transparent}
+.btn-danger:hover{background:var(--danger);color:#fff}
+.btn-sm{padding:7px 13px;font-size:13px;border-radius:9px}
+.btn-lg{padding:13px 22px;font-size:15px}
+.btn-block{width:100%}
+
+/* shell */
+.shell{display:flex;min-height:100vh}
+.side{width:254px;flex:none;background:var(--side);border-right:1px solid var(--side-line);
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh;z-index:50}
+.brand{display:flex;align-items:center;gap:11px;padding:19px 18px;border-bottom:1px solid var(--side-line);
+  font-weight:700;font-size:17px;color:var(--side-ink)}
+.logo-mark{width:34px;height:34px;border-radius:10px;background:var(--acc);color:var(--acc-on);display:grid;
+  place-items:center;font-size:17px;flex:none}
+.brand small{display:block;font-size:10.5px;font-weight:600;color:var(--side-muted);letter-spacing:.07em;
+  text-transform:uppercase;line-height:1.3}
+.sideclose{display:none;margin-left:auto;background:none;border:0;font-size:24px;color:var(--side-muted);cursor:pointer;line-height:1}
+.snav{flex:1;overflow-y:auto;padding:14px 12px}
+.sgroup{display:block;font-size:10.5px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--side-muted);padding:14px 10px 7px}
+.snav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:9px;font-size:14.5px;
+  font-weight:600;color:var(--side-ink-2);margin-bottom:2px;transition:background .15s, color .15s}
+.snav a .icon{font-size:17px;opacity:.85}
+.snav a:hover{background:var(--side-hover);color:var(--side-ink)}
+.snav a.on{background:var(--acc);color:var(--acc-on)}
+.snav a.on .icon{opacity:1}
+.pill{margin-left:auto;background:var(--danger);color:#fff;font-size:11px;font-weight:700;
+  padding:2px 8px;border-radius:999px}
+.snav a.on .pill{background:rgba(255,255,255,.26)}
+.sfoot{padding:14px;border-top:1px solid var(--side-line)}
+.bal-mini{background:var(--side-hover);border-radius:11px;padding:13px 14px}
+.bal-mini small{display:block;font-size:11px;font-weight:600;color:var(--side-muted);text-transform:uppercase;letter-spacing:.07em}
+.bal-mini b{font-size:18px;font-weight:700;color:var(--side-ink);display:block}
+/* Said plainly rather than folded into the total: a balance with no rate
+   on file is not zero, it is unknown, and a total that quietly drops it
+   is worse than one that admits the gap. */
+.bal-mini .bal-warn{margin-top:4px;text-transform:none;letter-spacing:0;
+  font-size:10.5px;font-weight:700;color:var(--warn)}
+
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;gap:16px;background:var(--surface);border-bottom:1px solid var(--line);
+  padding:0 22px;height:68px;position:sticky;top:0;z-index:30}
+.burger{display:none;background:none;border:1px solid var(--line);border-radius:9px;padding:8px 10px;cursor:pointer}
+.crumb b{display:block;font-size:17px;font-weight:700}
+.crumb small{color:var(--muted);font-size:12.5px}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.search{display:flex;align-items:center;gap:9px;background:var(--page);border:1px solid var(--line);
+  border-radius:10px;padding:0 13px;height:40px;min-width:240px}
+.search .icon{color:var(--muted);font-size:16px}
+.search input{border:0;background:none;outline:none;width:100%;font-size:14px}
+.search.wide{min-width:280px;flex:1;max-width:420px}
+.iconbtn{position:relative;background:var(--page);border:1px solid var(--line);width:40px;height:40px;
+  border-radius:10px;display:grid;place-items:center;cursor:pointer;font-size:17px;color:var(--ink-2)}
+.iconbtn .dot{position:absolute;top:8px;right:9px;width:7px;height:7px;border-radius:50%;background:var(--danger)}
+.me{display:flex;align-items:center;gap:10px}
+.avatar{width:38px;height:38px;border-radius:11px;background:var(--acc);color:var(--acc-on);display:grid;
+  place-items:center;font-size:13.5px;font-weight:700;flex:none}
+.me-txt b{display:block;font-size:14px;font-weight:700;line-height:1.3}
+.me-txt small{color:var(--muted);font-size:12px}
+
+.content{padding:22px;flex:1}
+.view{display:none}
+.view.on{display:block;animation:fade .22s ease}
+@keyframes fade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+
+/* stat cards */
+.cards4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:18px}
+.scard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;gap:14px}
+.scard .si{width:46px;height:46px;border-radius:13px;display:grid;place-items:center;font-size:21px;flex:none}
+.si-a{background:rgba(99,102,241,.14);color:#6366f1}
+.si-b{background:rgba(22,163,74,.14);color:#16a34a}
+.si-c{background:rgba(245,158,11,.16);color:#d97706}
+.si-d{background:rgba(236,72,153,.14);color:#ec4899}
+.scard small{display:block;color:var(--muted);font-size:12.5px;font-weight:600}
+.scard b{display:block;font-size:25px;font-weight:700;letter-spacing:-.02em;line-height:1.25}
+.scard span{font-size:12px;font-weight:600}
+
+/* minmax(0,...) rather than a bare 1fr: `1fr` means `minmax(auto,1fr)`,
+   and that auto floor is the item's min-content width - a column then
+   refuses to go narrower than the widest unbreakable thing inside it and
+   the item spills out of the grid. Nothing scrolls sideways here, so what
+   spills is clipped: on a phone that was every Run now button on Cron. */
+.split{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:16px}
+.split2{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+/* While a select's popup is open the card has to let it out; the rounded
+   corners only need clipping the rest of the time. */
+.box.is-overflowing,.pad.is-overflowing,.filters.is-overflowing{overflow:visible}
+.box + .box{margin-top:16px}
+.box-head{display:flex;align-items:center;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line)}
+.box-head b{font-size:15.5px;font-weight:700}
+.box-head .lnk,.box-head .btn,.box-head .muted,.box-head .st{margin-left:auto}
+.lnk{color:var(--acc);font-weight:600;font-size:13.5px}
+.lnk.back{display:inline-block;margin-bottom:14px}
+.pad{padding:18px}
+
+/* tables */
+.tbl-wrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:14px;min-width:620px}
+.tbl th{text-align:left;font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--muted);padding:11px 14px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--page)}
+.tbl td{padding:13px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tbl tbody tr:last-child td{border-bottom:0}
+.tbl tbody tr:hover{background:var(--hover);cursor:pointer}
+.tbl tr.dim td{opacity:.62}
+.tbl .sub{display:block;color:var(--muted);font-size:12px;font-weight:500;margin-top:2px}
+/* The glyph a category tab carries, shown beside the name so the admin can
+   see what the storefront will draw without opening the form. */
+.cat-ico{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:8px;
+  margin-right:9px;vertical-align:-7px;background:var(--acc-soft);color:var(--acc);font-size:14px}
+.tbl .empty{text-align:center;color:var(--muted);padding:40px 14px;cursor:default}
+.tbl input[type=checkbox]{width:17px;height:17px;accent-color:var(--acc);cursor:pointer}
+.chipx{background:var(--acc-soft);color:var(--acc-ink);border-radius:7px;padding:3px 9px;font-size:11.5px;font-weight:700}
+/* A row of them, for counts that wrap on a narrow screen. */
+.chiprow{display:flex;flex-wrap:wrap;gap:6px}
+
+/* status tags */
+.st{display:inline-block;border-radius:999px;padding:4px 11px;font-size:11.5px;font-weight:700;
+  text-transform:capitalize;white-space:nowrap}
+.st-pending{background:rgba(245,158,11,.16);color:#b45309}
+.st-paid{background:rgba(37,99,235,.14);color:#1d4ed8}
+.st-processing{background:rgba(139,92,246,.16);color:#7c3aed}
+.st-completed{background:rgba(22,163,74,.15);color:#15803d}
+.st-cancelled{background:var(--hover);color:var(--muted)}
+.st-api_error{background:rgba(220,38,38,.14);color:#dc2626}
+
+/* providers */
+.provs{padding:8px 18px 18px}
+.prov{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.prov:last-child{border-bottom:0}
+.pv-main{flex:1;min-width:0}
+.pv-main b{display:block;font-size:14.5px;font-weight:700}
+.pv-main small{color:var(--muted);font-size:12px;word-break:break-all}
+.pv-bal{text-align:right;flex:none}
+.pv-bal b{display:block;font-size:16px;font-weight:700}
+
+/* filters */
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.filters select,.filters input[type=date]{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  padding:0 13px;height:40px;font-size:14px;outline:none;cursor:pointer}
+.filters select:focus,.filters input:focus{border-color:var(--acc)}
+
+/* bulk bar */
+.bulkbar{display:none;align-items:center;gap:9px;flex-wrap:wrap;background:var(--acc-soft);
+  border:1px solid var(--acc);border-radius:12px;padding:11px 15px;margin-bottom:14px}
+.bulkbar.on{display:flex}
+.bulkbar b{font-size:13.5px;font-weight:700;margin-right:5px}
+
+.pager{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px;border-top:1px solid var(--line);
+  color:var(--muted);font-size:13.5px}
+.pbtns{margin-left:auto;display:flex;gap:6px}
+
+/* detail rows */
+.drow{display:flex;justify-content:space-between;gap:16px;padding:11px 0;border-bottom:1px solid var(--line);font-size:14px}
+.drow:last-child{border-bottom:0}
+.drow span{color:var(--muted);font-weight:600}
+.drow b{text-align:right;word-break:break-all;font-weight:600}
+.acts{display:grid;gap:9px}
+.log{list-style:none;padding:0;margin:0 0 18px}
+.log li{font-size:13.5px;color:var(--ink-2);padding:8px 0;border-bottom:1px dashed var(--line)}
+.log li:last-child{border-bottom:0}
+.log b{color:var(--muted);font-weight:700;margin-right:8px;font-variant-numeric:tabular-nums}
+
+/* fields */
+.field{margin-bottom:15px}
+.field label{display:block;font-size:12.5px;font-weight:700;margin-bottom:7px;color:var(--ink-2)}
+.field input,.field select,.field textarea{width:100%;background:var(--page);border:1px solid var(--line);
+  border-radius:10px;padding:11px 13px;font-size:14.5px;outline:none;transition:border-color .15s}
+.field textarea{resize:vertical;font-family:ui-monospace,monospace;font-size:13px}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--acc)}
+.field small{display:block;color:var(--muted);font-size:12px;margin-top:6px}
+.field2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.colorrow{display:flex;gap:10px}
+.colorrow input[type=color]{width:52px;padding:4px;height:44px;cursor:pointer}
+.copyrow{display:flex;gap:9px}
+.copyrow input{font-family:ui-monospace,monospace}
+.upload{display:flex;align-items:center;gap:9px;background:var(--page);border:1.5px dashed var(--line-2);
+  border-radius:10px;padding:13px;font-size:13.5px;color:var(--muted);cursor:pointer;font-weight:600}
+.upload:hover{border-color:var(--acc);color:var(--acc)}
+
+/* switches */
+.switch{display:inline-flex;align-items:center;gap:10px;font-size:13.5px;font-weight:600;cursor:pointer}
+.switch.block{display:flex;padding:11px 0;border-bottom:1px solid var(--line)}
+.switch input{position:absolute;opacity:0;width:0;height:0}
+.track{width:40px;height:23px;border-radius:999px;background:var(--line-2);position:relative;flex:none;transition:background .2s}
+.track::after{content:"";position:absolute;top:2.5px;left:2.5px;width:18px;height:18px;border-radius:50%;
+  background:#fff;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.switch input:checked + .track{background:var(--acc)}
+.switch input:checked + .track::after{transform:translateX(17px)}
+
+/* channel picker: which chat button goes where.
+   A tick rather than a switch, because the question is "which of these",
+   not "on or off" - and a channel with no address filled in yet is shown
+   greyed instead of hidden, so the screen answers why it is unavailable
+   instead of leaving the admin to work it out. */
+.chanpick{display:flex;flex-wrap:wrap;gap:8px}
+.chanopt{display:inline-flex;align-items:center;gap:8px;cursor:pointer;
+  border:1.5px solid var(--line);border-radius:999px;padding:8px 14px;
+  font-size:13.5px;font-weight:700;background:var(--surface);transition:border-color .15s,background .15s}
+.chanopt:hover{border-color:var(--acc)}
+.chanopt .icon{font-size:16px;color:var(--muted)}
+.chanopt input{width:15px;height:15px;accent-color:var(--acc);margin:0}
+.chanopt:has(input:checked){border-color:var(--acc);background:var(--acc-soft)}
+.chanopt:has(input:checked) .icon{color:var(--acc)}
+.chanopt small{color:var(--muted);font-size:11.5px;font-weight:600}
+.chanopt-unset{opacity:.65}
+
+/* import */
+.irow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1fr) auto;gap:12px;align-items:end;margin-bottom:16px}
+.optbar{display:flex;align-items:center;gap:20px;flex-wrap:wrap;background:var(--page);border:1px solid var(--line);
+  border-radius:12px;padding:13px 16px;margin-bottom:14px}
+.markup{display:flex;align-items:center;gap:10px}
+.markup label{font-size:13.5px;font-weight:600}
+.mk{display:flex;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.mk input{width:66px;border:0;background:none;outline:none;padding:8px 11px;font-size:14px;font-weight:600;text-align:right}
+.mk input::-webkit-outer-spin-button,.mk input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.mk span{padding:8px 11px 8px 0;color:var(--muted);font-size:13.5px;font-weight:600}
+.impfoot{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:16px}
+.impfoot .btn{margin-left:auto}
+
+/* flash */
+.ok{display:none;background:rgba(22,163,74,.13);color:#15803d;border-radius:10px;padding:11px 14px;
+  font-size:13.5px;font-weight:700;margin-top:12px}
+.ok.show{display:block}
+.ok.inline{margin-top:0;padding:7px 12px}
+
+.scrim{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:45}
+
+/* responsive */
+@media (max-width:1200px){ .cards4{grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:1050px){
+  .split,.split2{grid-template-columns:minmax(0,1fr)}
+  .irow{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:1000px){
+  .side{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,.3)}
+  body.side-open .side{transform:none}
+  body.side-open .scrim{display:block}
+  .sideclose{display:block}
+  .burger{display:grid;place-items:center}
+  .search{min-width:0;width:44px;padding:0 12px}
+  .search input{display:none}
+  .me-txt{display:none}
+}
+@media (max-width:760px){
+  .content{padding:15px}
+  .topbar{padding:0 15px;height:62px;gap:11px}
+  .cards4{grid-template-columns:minmax(0,1fr);gap:11px}
+  .scard b{font-size:22px}
+  .irow{grid-template-columns:minmax(0,1fr)}
+  .field2{grid-template-columns:minmax(0,1fr)}
+  .tbl{min-width:0}
+  .tbl th,.tbl td{padding:11px 10px}
+  .filters{gap:8px}
+  .filters>*{margin-left:0!important}
+  .filters select,.filters input[type=date],.search.wide{width:100%;max-width:none;flex:none}
+  .optbar{gap:13px}
+  .impfoot .btn{margin-left:0;width:100%}
+  .crumb small{display:none}
+}
+
+/* ===========================================================================
+   Additions beyond the mockup: flash messages, the login screen and the
+   sidebar log-out button (a form button that has to look like a nav link).
+   =========================================================================== */
+
+.alert{border-radius:11px;padding:13px 16px;font-size:14px;font-weight:600;margin-bottom:16px;
+  border:1px solid transparent}
+.alert a{text-decoration:underline;font-weight:700}
+.alert-success{background:rgba(22,163,74,.12);border-color:rgba(22,163,74,.25);color:#15803d}
+.alert-error{background:var(--danger-soft);border-color:rgba(220,38,38,.22);color:#b91c1c}
+.alert-warning{background:rgba(217,119,6,.12);border-color:rgba(217,119,6,.25);color:#92400e}
+.alert-info{background:var(--acc-soft);border-color:rgba(79,70,229,.2);color:var(--acc-ink)}
+
+.snav-btn{display:flex;align-items:center;gap:11px;width:100%;padding:10px 12px;border:0;border-radius:9px;
+  background:none;font:inherit;font-size:14.5px;font-weight:600;color:var(--side-ink-2);cursor:pointer;
+  text-align:left;transition:background .15s, color .15s}
+.snav-btn .icon{font-size:17px;opacity:.85}
+.snav-btn:hover{background:var(--side-hover);color:var(--side-ink)}
+
+/* --- login screen --------------------------------------------------------- */
+.auth-body{background:var(--page);display:flex;align-items:center;justify-content:center;
+  min-height:100vh;padding:24px 18px}
+.auth-wrap{width:100%;max-width:400px}
+.auth-brand{display:flex;align-items:center;justify-content:center;gap:11px;font-weight:700;font-size:19px;
+  margin-bottom:22px;color:var(--ink)}
+.auth-brand small{display:block;font-size:10.5px;font-weight:600;color:var(--muted);letter-spacing:.07em;
+  text-transform:uppercase;line-height:1.3}
+.auth-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:28px 26px}
+.auth-card h1{font-size:21px;font-weight:700;margin-bottom:5px}
+.auth-sub{color:var(--muted);font-size:13.5px;margin:0 0 22px}
+.auth-card .btn{margin-top:6px}
+
+/* --- form-level validation text ------------------------------------------- */
+.field .err{display:block;color:var(--danger);font-size:12.5px;font-weight:600;margin-top:6px}
+.field input[aria-invalid="true"],.field select[aria-invalid="true"]{border-color:var(--danger)}
+
+/* --- scrollbars -----------------------------------------------------------
+   The browser default is a wide grey slab that fights the rest of the panel,
+   and it is the one piece of chrome a page can restyle. */
+*{scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:999px;
+  border:2.5px solid var(--page);background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:var(--muted);border-width:2px}
+::-webkit-scrollbar-corner{background:transparent}
+.side ::-webkit-scrollbar-thumb,.box ::-webkit-scrollbar-thumb{border-color:var(--surface)}
+
+/* --- spinner -------------------------------------------------------------- */
+.spin{display:inline-block;width:1em;height:1em;border-radius:50%;
+  border:2px solid currentColor;border-right-color:transparent;
+  animation:spin .62s linear infinite;vertical-align:-.15em}
+@keyframes spin{to{transform:rotate(360deg)}}
+.btn .spin{font-size:15px}
+.btn[aria-busy="true"]{pointer-events:none;opacity:.75}
+
+/* --- progress bar --------------------------------------------------------- */
+.bar{height:9px;border-radius:999px;background:var(--line);overflow:hidden;margin:4px 0 9px}
+.bar-fill{height:100%;width:0;border-radius:999px;background:var(--acc);
+  transition:width .35s cubic-bezier(.4,0,.2,1)}
+.bar-fill.busy{background-image:linear-gradient(110deg,
+  rgba(255,255,255,.32) 25%, transparent 25%, transparent 50%,
+  rgba(255,255,255,.32) 50%, rgba(255,255,255,.32) 75%, transparent 75%);
+  background-size:18px 18px;animation:barmove .7s linear infinite}
+.bar-fill.bad{background:var(--danger)}
+@keyframes barmove{to{background-position:18px 0}}
+.bar-note{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;
+  color:var(--ink-2);margin-bottom:16px}
+.bar-note b{margin-left:auto;color:var(--muted);font-weight:700}
+
+/* --- update screen -------------------------------------------------------- */
+.upd-hero-top{display:flex;align-items:center;gap:14px;padding:18px}
+.upd-hero-on .upd-hero-top{background:var(--acc-soft);border-bottom:1px solid var(--line)}
+.upd-mark{width:42px;height:42px;border-radius:12px;flex:none;display:grid;place-items:center;
+  font-size:20px;background:var(--ok);color:#fff}
+.upd-hero-on .upd-mark{background:var(--acc);color:var(--acc-on)}
+.upd-hero-txt{flex:1;min-width:0}
+.upd-hero-txt b{display:block;font-size:16px;font-weight:700}
+.upd-hero-txt small{color:var(--ink-2);font-size:13px}
+.upd-ver{flex:none;background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  padding:5px 12px;font-size:12.5px;font-weight:700;color:var(--ink-2)}
+.upd-body{padding:18px}
+.upd-lead{font-size:14px;color:var(--ink-2);margin-bottom:16px}
+.upd-steps{list-style:none;margin:0 0 18px;padding:0;counter-reset:none}
+.upd-step{display:flex;align-items:center;gap:12px;padding:11px 0;
+  border-bottom:1px solid var(--line);opacity:.55;transition:opacity .2s}
+.upd-step:last-child{border-bottom:0}
+.upd-step.on,.upd-step.ok,.upd-step.bad{opacity:1}
+.upd-dot{width:24px;height:24px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:var(--line);color:var(--muted);font-size:12px;font-weight:700}
+.upd-dot .spin{display:none;font-size:12px}
+.upd-step.on .upd-dot{background:var(--acc-soft);color:var(--acc)}
+.upd-step.on .upd-dot .spin{display:inline-block}
+.upd-step.ok .upd-dot{background:rgba(22,163,74,.16);color:var(--ok)}
+.upd-step.ok .upd-dot::after{content:"\2713"}
+.upd-step.bad .upd-dot{background:var(--danger-soft);color:var(--danger)}
+.upd-step.bad .upd-dot::after{content:"\2715"}
+.upd-step-txt{flex:1;min-width:0}
+.upd-step-txt b{display:block;font-size:14px;font-weight:600}
+.upd-step-txt small{display:block;color:var(--muted);font-size:12px;
+  font-variant-numeric:tabular-nums;word-break:break-all}
+.upd-note{flex:none;font-size:12px;font-weight:600;color:var(--muted);text-align:right}
+.upd-step.bad .upd-note{color:var(--danger)}
+.upd-done{display:flex;align-items:center;gap:12px;background:rgba(22,163,74,.12);
+  color:#15803d;border-radius:11px;padding:12px 15px;font-size:14px;margin-top:14px}
+.upd-done .btn{margin-left:auto}
+.howto{margin:0 0 14px;padding-left:20px;font-size:13.5px;color:var(--ink-2)}
+.howto li{margin-bottom:8px}
+.howto code{background:var(--page);border-radius:5px;padding:1px 5px;font-size:12.5px}
+
+/* --- "update available" nudge in the sidebar ------------------------------ */
+.snav a.has-dot{position:relative}
+.updot{width:7px;height:7px;border-radius:50%;background:var(--acc);margin-left:auto;flex:none;
+  box-shadow:0 0 0 3px var(--acc-soft)}
+
+/* --- dashboard charts -----------------------------------------------------
+   Every chart here plots one measure, so every chart is one colour. The data
+   is the only thing allowed to be loud: hairline grid, thin marks, and the
+   numbers folded underneath for anyone the plot does not reach. */
+.charts2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:16px}
+.charts3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:16px}
+.box-pad{padding:18px}
+.chart{margin:0}
+.chart-head{display:flex;align-items:baseline;gap:12px;margin-bottom:14px}
+.chart-head b{font-size:14.5px;font-weight:700}
+.chart-top{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.chart-plot{position:relative;height:200px}
+.chart-plot svg{display:block;width:100%;height:100%;overflow:visible}
+.ch-grid{stroke:var(--line);stroke-width:1;vector-effect:non-scaling-stroke}
+.ch-area{fill:var(--acc);opacity:.10}
+.ch-line{fill:none;stroke:var(--acc);stroke-width:2;stroke-linejoin:round;stroke-linecap:round;
+  vector-effect:non-scaling-stroke}
+.ch-end{fill:var(--acc);stroke:var(--surface);stroke-width:2;vector-effect:non-scaling-stroke}
+.ch-hit{fill:transparent;cursor:crosshair}
+.chart-axis{display:flex;justify-content:space-between;margin-top:9px;font-size:11.5px;
+  font-weight:600;color:var(--muted)}
+
+/* columns */
+.chart-cols{display:flex;align-items:flex-end;gap:2px}
+.ch-col{flex:1;min-width:0;height:100%;display:flex;align-items:flex-end;cursor:crosshair}
+.ch-col i{display:block;width:100%;background:var(--acc);border-radius:4px 4px 0 0;
+  transition:opacity .15s;min-height:0}
+.ch-col:hover i{opacity:.75}
+
+/* tooltip */
+.ch-tip{position:absolute;z-index:5;pointer-events:none;background:var(--ink);color:#fff;
+  border-radius:9px;padding:7px 11px;font-size:12px;font-weight:700;white-space:nowrap;
+  transform:translate(-50%,-130%);box-shadow:0 6px 18px rgba(21,21,42,.25)}
+.ch-tip small{display:block;font-weight:600;opacity:.75;font-size:11px}
+
+/* horizontal bars */
+.ch-bars{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+/* The name gets the full width and the bar sits under it: a service name is
+   long enough that a narrow column would clip it, and a clipped label is
+   worse than a taller row. */
+.ch-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;gap:4px 10px;
+  font-size:13px}
+.ch-name{display:flex;align-items:center;gap:7px;font-weight:600;color:var(--ink-2);min-width:0}
+.ch-name>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ch-name .st{width:9px;height:9px;padding:0;border-radius:50%;flex:none}
+.ch-val{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ch-track{grid-column:1/-1;height:8px;border-radius:999px;background:var(--line);overflow:hidden}
+.ch-track i{display:block;height:100%;border-radius:999px;background:var(--acc)}
+.ch-note{grid-column:1/-1;color:var(--muted);font-size:11.5px;font-weight:600}
+.ch-note:empty{display:none}
+
+/* the same numbers as text */
+.chart-data{margin-top:14px}
+.chart-data summary{font-size:12px;font-weight:700;color:var(--muted);cursor:pointer;
+  list-style:none;display:inline-flex;align-items:center;gap:6px}
+.chart-data summary::before{content:"+";font-size:14px;line-height:1}
+.chart-data[open] summary::before{content:"\2212"}
+.chart-data summary:hover{color:var(--acc)}
+.tbl-plain{min-width:0;margin-top:10px;font-size:12.5px}
+.tbl-plain caption{text-align:left;font-size:11.5px;font-weight:700;padding-bottom:6px}
+.tbl-plain td{padding:6px 0;font-variant-numeric:tabular-nums}
+.tbl-plain tbody tr:hover{background:none;cursor:default}
+.chart-none{color:var(--muted);font-size:13px;font-weight:600;padding:28px 0;text-align:center}
+.scard-plain{display:block;padding:16px 18px}
+.scard b{white-space:nowrap}
+@media (max-width:1400px){ .scard b{font-size:21px} }
+
+@media (max-width:1050px){
+  .charts3{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:760px){
+  .charts2,.charts3{grid-template-columns:minmax(0,1fr)}
+}
+
+/* ===========================================================================
+   Design pass: the pieces that still looked like a browser default.
+   =========================================================================== */
+
+/* --- selects --------------------------------------------------------------
+   A native select wears the operating system's arrow and ignores everything
+   else on the page. Drawing our own chevron is the only way the control
+   belongs to the panel rather than to Windows. */
+.field select,.filters select,.pm-select{
+  appearance:none;-webkit-appearance:none;-moz-appearance:none;
+  padding-right:38px;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23838aa0'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;background-size:19px}
+.field select::-ms-expand,.filters select::-ms-expand{display:none}
+
+/* --- fields ---------------------------------------------------------------
+   A focus ring you can actually see, and one height for every control so a
+   row of them lines up. */
+.field input,.field select,.field textarea{
+  min-height:44px;border-radius:11px;border-width:1.5px;
+  transition:border-color .15s, box-shadow .15s, background .15s}
+.field input:hover,.field select:hover,.field textarea:hover{border-color:var(--line-2)}
+.field input:focus,.field select:focus,.field textarea:focus{
+  border-color:var(--acc);background:var(--surface);box-shadow:0 0 0 3.5px var(--acc-soft)}
+.field input::placeholder,.field textarea::placeholder{color:var(--muted)}
+.field input[type=number]{font-variant-numeric:tabular-nums}
+.filters select,.filters input[type=date],.filters input[type=search]{
+  border-width:1.5px;border-radius:11px;transition:border-color .15s, box-shadow .15s}
+.filters select:focus,.filters input:focus{box-shadow:0 0 0 3.5px var(--acc-soft)}
+.btn:focus-visible,.snav a:focus-visible,.iconbtn:focus-visible{
+  outline:none;box-shadow:0 0 0 3.5px var(--acc-soft)}
+
+/* --- colour ---------------------------------------------------------------
+   A bare colour input renders as a thin strip in some browsers; give it a
+   real swatch with a frame around it. */
+.colorrow input[type=color]{width:58px;min-height:44px;height:44px;padding:4px;border-radius:11px;
+  border:1.5px solid var(--line);background:var(--surface);cursor:pointer}
+.colorrow input[type=color]::-webkit-color-swatch{border:0;border-radius:7px}
+.colorrow input[type=color]::-webkit-color-swatch-wrapper{padding:0}
+.colorrow input[type=color]::-moz-color-swatch{border:0;border-radius:7px}
+
+/* --- the image field ------------------------------------------------------
+   The real input is still the thing that submits; it is moved out of sight
+   and driven by the label, which is what a file input is built to allow. */
+.upl-input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap}
+.upl .upl-zone{display:flex;align-items:center;gap:14px;width:100%;
+  background:var(--page);border:1.5px dashed var(--line-2);border-radius:14px;
+  padding:14px;cursor:pointer;transition:border-color .15s, background .15s, box-shadow .15s}
+.upl .upl-zone:hover{border-color:var(--acc);background:var(--acc-soft)}
+.upl .upl-input:focus-visible + .upl-zone{border-color:var(--acc);box-shadow:0 0 0 3.5px var(--acc-soft)}
+.upl.is-over .upl-zone{border-color:var(--acc);background:var(--acc-soft);border-style:solid}
+.upl-thumb{width:52px;height:52px;border-radius:12px;flex:none;display:grid;place-items:center;
+  background:var(--surface);border:1px solid var(--line);overflow:hidden}
+.upl-thumb img{width:100%;height:100%;object-fit:contain;padding:5px}
+.upl-thumb[data-empty]{color:var(--muted);font-size:21px}
+.upl-txt{flex:1;min-width:0}
+.upl-txt b{display:block;font-size:13.5px;font-weight:700;color:var(--ink)}
+.upl-txt small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.upl-browse{flex:none;background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  padding:7px 14px;font-size:12.5px;font-weight:700;color:var(--ink-2)}
+.upl .upl-zone:hover .upl-browse{border-color:var(--acc);color:var(--acc)}
+.upl-chosen{display:flex;align-items:center;gap:9px;margin-top:9px;background:rgba(22,163,74,.1);
+  color:#15803d;border-radius:10px;padding:9px 12px;font-size:12.5px;font-weight:700}
+.upl-chosen span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.upl-clear{background:none;border:0;font-size:18px;line-height:1;color:inherit;cursor:pointer;
+  opacity:.7;padding:0 2px}
+.upl-clear:hover{opacity:1}
+.upl .upl-remove{margin-top:11px;font-size:12.5px}
+
+/* --- tables ---------------------------------------------------------------
+   Money and counts align on their digits, and a price never wraps mid-figure. */
+.tbl td b,.tbl td .mono,.pv-bal b,.ch-val,.count b,.drow b{font-variant-numeric:tabular-nums}
+.tbl td{white-space:normal}
+.tbl td b{white-space:nowrap}
+/* ...but a <b> in a cell is often a label, not a number. Keeping it on one
+   line gave "Send paid orders to providers" 223px of min-content, which on a
+   phone pushed the Run now column clean off the table. This has to sit after
+   the rule above, not in the breakpoint block further up: same specificity,
+   so the later one wins wherever it is. */
+@media (max-width:760px){
+  .tbl td b{white-space:normal}
+  .tbl td.num b,.tbl td.money b,.tbl td .mono{white-space:nowrap}
+}
+/* A figure split across two lines is unreadable, whatever column it is in. */
+.tbl td.num,.tbl td.money{white-space:nowrap;font-variant-numeric:tabular-nums}
+.tbl thead th{background:var(--page)}
+.tbl tbody tr{transition:background .12s}
+
+/* --- tables on a phone ----------------------------------------------------
+   A row becomes a stack of labelled lines. Six columns do not fit in 360px,
+   and the answer used to be .hide-sm on every column that would not: the
+   Providers screen showed a name and an on/off switch, and dropped the
+   balance, the service count and the API details - the three things anyone
+   opens that screen to read.
+
+   The label comes from data-label on the cell, so it is the column heading
+   the table already carries. It is positioned rather than laid out, because
+   the value keeps its own markup - a <b> with a <small class="sub"> under it
+   - and both lines have to line up at the same left edge. A float would let
+   only the first line sit beside the label; a grid or flex row would need a
+   wrapper element around the value that none of these cells has.
+   A cell with no label (the checkbox, the row actions) simply has none.
+   --------------------------------------------------------------------------- */
+@media (max-width:760px){
+  .tbl:not(.tbl-plain){display:block}
+  .tbl:not(.tbl-plain) thead{display:none}
+  .tbl:not(.tbl-plain) tbody{display:block}
+
+  .tbl:not(.tbl-plain) tbody tr{display:block;padding:12px 2px;
+    border-bottom:1px solid var(--line)}
+  .tbl:not(.tbl-plain) tbody tr:last-child{border-bottom:0}
+  .tbl:not(.tbl-plain) tbody tr:hover{background:none;cursor:default}
+
+  .tbl:not(.tbl-plain) tbody td{display:block;position:relative;
+    padding:4px 0 4px 106px;border:0;text-align:left;width:auto}
+  .tbl:not(.tbl-plain) tbody td[data-label]::before{content:attr(data-label);
+    position:absolute;left:0;top:4px;width:96px;font-size:10.5px;font-weight:700;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--muted);line-height:1.95}
+
+  /* The tick box belongs to the whole stacked row, so it sits in its corner
+     rather than on a line of its own with nothing to say. */
+  .tbl:not(.tbl-plain) tbody tr{position:relative}
+  .tbl:not(.tbl-plain) tbody td.selcell{position:absolute;right:2px;top:10px;
+    padding:0;width:auto}
+  /* ...and the values keep clear of it, or a long service name runs under
+     the box on the line it shares. */
+  .tbl:not(.tbl-plain) tbody tr:has(td.selcell) td{padding-right:34px}
+
+  /* The row actions line up with the values, not with the labels. */
+  .tbl:not(.tbl-plain) tbody td.ta-r{padding-top:9px}
+  .tbl:not(.tbl-plain) tbody td.ta-r .rowacts{justify-content:flex-start}
+
+  /* The empty state is a message, not a row of values. */
+  .tbl:not(.tbl-plain) tbody td.empty{padding:28px 10px;text-align:center}
+  .tbl:not(.tbl-plain) tbody tr:has(td.empty){padding:0}
+}
+
+/* --- cards ----------------------------------------------------------------
+   One soft shadow instead of a flat outline: the panel reads as layered
+   rather than drawn on graph paper. */
+.box{box-shadow:0 1px 2px rgba(23,33,60,.04), 0 8px 24px -14px rgba(23,33,60,.16)}
+.box-head{padding:16px 18px}
+.scard{box-shadow:0 1px 2px rgba(23,33,60,.04), 0 8px 24px -14px rgba(23,33,60,.16)}
+.btn-primary{box-shadow:0 1px 2px rgba(79,70,229,.3), 0 6px 16px -6px rgba(79,70,229,.6)}
+.btn-primary:hover{box-shadow:0 2px 4px rgba(79,70,229,.32), 0 10px 22px -8px rgba(79,70,229,.7)}
+.pad{padding:18px}
+
+/* --- the finished-update notice ------------------------------------------- */
+.upd-done{align-items:center}
+.upd-done .icon{font-size:19px;flex:none}
+.upd-done small{display:block;font-weight:600;opacity:.85}
+
+/* --- searchable select ----------------------------------------------------
+   The native control stays in the DOM and stays what submits; this is drawn
+   over it. So it keeps the same height, radius and focus ring as every other
+   field, and a browser that never runs the script shows the native one. */
+.sel{position:relative}
+.sel .sel-native{position:absolute;opacity:0;pointer-events:none;width:100%;height:0;margin:0;padding:0;border:0}
+.sel-btn{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;
+  background:var(--page);border:1.5px solid var(--line);border-radius:11px;
+  padding:9px 38px 9px 13px;font-size:14.5px;font-weight:500;color:var(--ink);
+  text-align:left;cursor:pointer;transition:border-color .15s, box-shadow .15s, background .15s;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23838aa0'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;background-size:19px}
+.sel-btn:hover{border-color:var(--line-2)}
+.sel.is-open .sel-btn,.sel-btn:focus-visible{border-color:var(--acc);background-color:var(--surface);
+  box-shadow:0 0 0 3.5px var(--acc-soft);outline:none}
+/* The whole name, wrapping rather than cut off. A service called
+   "Instagram Followers | USA | Max 100k | 100% Usa Accounts | 30 Days Refill"
+   is all signal - which country, which cap, which refill - and an ellipsis
+   removes exactly the part that tells one apart from the next. */
+.sel-label{flex:1;min-width:0;text-align:left;line-height:1.35;
+  display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.sel-pop{position:absolute;z-index:40;top:calc(100% + 6px);left:0;right:0;
+  background:var(--surface);border:1px solid var(--line);border-radius:13px;
+  box-shadow:0 10px 18px -8px rgba(23,33,60,.18), 0 26px 50px -20px rgba(23,33,60,.3);
+  overflow:hidden}
+.sel-search{padding:9px;border-bottom:1px solid var(--line)}
+.sel:not(.sel-searchable) .sel-search{display:none}
+.sel-search input{width:100%;min-height:38px;background:var(--page);border:1.5px solid var(--line);
+  border-radius:9px;padding:8px 12px;font-size:14px;outline:none}
+.sel-search input:focus{border-color:var(--acc);background:var(--surface)}
+.sel-list{list-style:none;margin:0;padding:6px;max-height:240px;overflow-y:auto}
+.sel-opt{padding:9px 11px;border-radius:9px;font-size:14px;font-weight:500;cursor:pointer;
+  line-height:1.4;display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.sel-opt:hover{background:var(--hover)}
+.sel-opt.is-on{background:var(--acc-soft);color:var(--acc);font-weight:700}
+/* The id, so a service can be told apart by number as well as by name, and
+   found by typing the number. Monospaced because it is read digit by digit. */
+.sel-badge{flex:none;background:var(--acc-soft);color:var(--acc-ink);border-radius:6px;
+  padding:1px 7px;font-size:11.5px;font-weight:800;line-height:19px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.sel-opt.is-on .sel-badge{background:var(--surface)}
+.sel-list{max-height:300px}
+
+.sel-none{padding:16px;text-align:center;color:var(--muted);font-size:13px;font-weight:600;margin:0}
+/* Inside a table the popup must not be clipped by the scroll wrapper. */
+.tbl-wrap:has(.sel.is-open){overflow:visible}
+.tbl td:has(.sel.is-open){position:relative;z-index:30}
+
+/* --- tabs -----------------------------------------------------------------
+   Every panel stays in the DOM whichever tab is showing, so one Save still
+   saves the lot. Without the script no panel is hidden and the page is the
+   long column it used to be. */
+.tabstrip{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;
+  background:var(--surface);border:1px solid var(--line);border-radius:13px;padding:5px;
+  margin-bottom:16px;box-shadow:0 1px 2px rgba(23,33,60,.04)}
+.tabstrip::-webkit-scrollbar{display:none}
+.tabitem{flex:none;padding:9px 16px;border-radius:9px;font-size:13.5px;font-weight:700;
+  color:var(--ink-2);white-space:nowrap;transition:background .15s, color .15s}
+.tabitem:hover{background:var(--hover);color:var(--ink)}
+.tabitem.on{background:var(--acc);color:var(--acc-on)}
+.tabpanel[hidden]{display:none}
+
+/* --- the save bar ---------------------------------------------------------
+   Stuck to the bottom, because the settings it saves are now spread across
+   tabs and a button at the end of one of them would be a button you have to
+   go looking for. */
+.savebar{position:sticky;bottom:0;z-index:20;display:flex;align-items:center;gap:14px;
+  flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:13px;
+  padding:13px 18px;margin-top:16px;
+  box-shadow:0 -2px 6px rgba(23,33,60,.04), 0 10px 30px -14px rgba(23,33,60,.3)}
+.savebar .btn{margin-left:auto}
+
+/* --- the missing-currency panel ------------------------------------------- */
+.curfix{display:flex;gap:14px;margin-bottom:16px}
+.curfix-mark{width:42px;height:42px;border-radius:12px;flex:none;display:grid;place-items:center;
+  background:rgba(217,119,6,.14);color:var(--warn);font-size:20px}
+.curfix b{display:block;font-size:15.5px;font-weight:700;margin-bottom:3px}
+.curfix p{font-size:13.5px;max-width:64ch}
+.curfix-acts{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.curfix-acts form{display:contents}
+
+/* --- bulk feature lines ---------------------------------------------------- */
+.featbox{background:var(--acc-soft);border:1px solid rgba(79,70,229,.2);border-radius:13px;
+  padding:16px 18px;margin-bottom:12px}
+.featbox label{display:block;font-size:12.5px;font-weight:700;color:var(--ink-2);margin-bottom:8px}
+.featbox textarea{width:100%;min-height:118px;background:var(--surface);border:1.5px solid var(--line);
+  border-radius:11px;padding:11px 13px;font-size:14px;outline:none;resize:vertical;
+  transition:border-color .15s, box-shadow .15s}
+.featbox textarea:focus{border-color:var(--acc);box-shadow:0 0 0 3.5px var(--acc-soft)}
+.featbox-acts{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:11px}
+.featbox-acts .muted{font-size:12px}
+
+/* --- the "how this works" note --------------------------------------------
+   Open the first time, shut once it has been read: the admin who needs it
+   needs it on day one, and the one who does not should not scroll past it
+   every day after. */
+.explain{background:var(--acc-soft);border:1px solid rgba(79,70,229,.18);border-radius:13px;
+  margin-bottom:16px;overflow:hidden}
+.explain summary{display:flex;align-items:center;gap:12px;padding:13px 16px;cursor:pointer;
+  list-style:none;user-select:none}
+.explain summary::-webkit-details-marker{display:none}
+.explain summary b{font-size:14px;font-weight:700;color:var(--acc-ink)}
+.explain summary small{margin-left:auto;font-size:12px;font-weight:700;color:var(--acc)}
+.explain[open] summary small::after{content:" \25B4"}
+.explain:not([open]) summary small::after{content:" \25BE"}
+.explain-mark{width:28px;height:28px;border-radius:9px;flex:none;display:grid;place-items:center;
+  background:var(--surface);color:var(--acc);font-size:15px}
+.explain-body{padding:0 16px 15px 56px}
+.explain-body ul{margin:0;padding-left:17px;display:grid;gap:7px}
+.explain-body li{font-size:13.5px;color:var(--ink-2);line-height:1.55}
+.explain-body b{color:var(--ink)}
+.explain-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
+
+/* --- row actions ----------------------------------------------------------
+   A row of grey "Packages / Edit / Delete" boxes reads as six identical
+   things and takes half the table. An icon each, coloured by what it does:
+   indigo to go somewhere, amber to switch, red to destroy. Every one keeps
+   a title and an aria-label, because an icon alone names nothing. */
+.rowacts{display:flex;align-items:center;justify-content:flex-end;gap:6px}
+.rowacts form{display:contents}
+.iact{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--surface);
+  display:inline-grid;place-items:center;font-size:16px;cursor:pointer;color:var(--ink-2);
+  transition:background .15s, border-color .15s, color .15s, transform .1s;padding:0;flex:none}
+.iact:hover{transform:translateY(-1px)}
+.iact:active{transform:translateY(0)}
+.iact:focus-visible{outline:none;box-shadow:0 0 0 3.5px var(--acc-soft)}
+.iact-edit:hover,.iact-go:hover{background:var(--acc-soft);border-color:transparent;color:var(--acc)}
+.iact-danger{color:var(--danger)}
+.iact-danger:hover{background:var(--danger);border-color:transparent;color:#fff}
+.iact-on{color:var(--ok)}
+.iact-on:hover{background:rgba(217,119,6,.14);border-color:transparent;color:var(--warn)}
+.iact-off{color:var(--muted)}
+.iact-off:hover{background:rgba(22,163,74,.14);border-color:transparent;color:var(--ok)}
+@media (max-width:760px){ .iact{width:32px;height:32px;font-size:15px} }
+
+/* ===========================================================================
+   Notifications, email templates and two-factor.
+   =========================================================================== */
+
+/* ---- choosing several things off a list ----
+   One panel, like a select is one control: a bar to search by, rows under it
+   that scroll, and the chosen ones sitting in the same list rather than in a
+   row of chips somewhere else. A chip row is a second place to look for the
+   same answer, and it moves the rows every time one is ticked. */
+.picker{border:1.5px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.picker:focus-within{border-color:var(--acc);box-shadow:0 0 0 3.5px var(--acc-soft)}
+
+/* The bar stays put while the list moves under it. */
+.picker-bar{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:9px;
+  padding:9px 12px;background:var(--hover);border-bottom:1px solid var(--line)}
+.picker-bar[hidden]{display:none}
+.picker-bar .icon{color:var(--muted);font-size:15px;flex:none}
+.picker-bar input{flex:1;min-width:0;border:0;background:none;outline:none;
+  font-size:13.5px;font-family:inherit;color:var(--ink)}
+.picker-bar input::-webkit-search-cancel-button{cursor:pointer}
+.picker-count{flex:none;font-size:12px;font-weight:700;color:var(--muted);white-space:nowrap}
+
+.picker-list{display:block}
+.picker-tall .picker-list{max-height:260px;overflow-y:auto}
+
+/* A row, not a pill: the second line is a whole link and a pill that wide
+   wraps into a wall. */
+.pick{display:flex;align-items:flex-start;gap:11px;padding:10px 13px;cursor:pointer;
+  border-bottom:1px solid var(--line);transition:background .12s}
+.pick:last-of-type{border-bottom:0}
+.pick:hover{background:var(--hover)}
+.pick[hidden]{display:none}
+.pick input{width:16px;height:16px;margin:1px 0 0;accent-color:var(--acc);flex:none;cursor:pointer}
+.pick-text{min-width:0;flex:1;display:block}
+.pick-text b{display:block;font-size:13.5px;font-weight:600;line-height:1.35;color:var(--ink)}
+.pick-text small{display:block;margin-top:2px;font-size:11.5px;color:var(--muted);
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Chosen, said by the row itself: tinted, with the accent down its edge so a
+   list scrolled half out of view still shows what is in the answer. */
+.pick:has(input:checked){background:var(--acc-soft);box-shadow:inset 3px 0 0 var(--acc)}
+.pick:has(input:checked) .pick-text b{font-weight:800;color:var(--acc-ink)}
+.pick-none{margin:0;padding:18px 13px;text-align:center;font-size:13px;color:var(--muted)}
+.pick-none[hidden]{display:none}
+
+/* ---- what a delete takes with it ----
+   Two kinds of line and they must not read alike: one is data that goes, the
+   other is data that survives in a changed shape, and the second is the one
+   people do not believe until they see it. */
+.impact{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.impact li{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border-radius:11px;
+  font-size:13.5px;line-height:1.5}
+.impact .icon{font-size:16px;flex:none;margin-top:1px}
+.impact-goes{background:var(--danger-soft);color:#8a1f1f}
+.impact-goes .icon{color:var(--danger)}
+.impact-stays{background:var(--hover);color:var(--ink-2)}
+.impact-stays .icon{color:var(--ok)}
+
+/* ---- a note between the boxes on a form ----
+   Tinted rather than boxed: it is help with the field under it, not another
+   thing to fill in. */
+.aihelp{background:var(--acc-soft);border:1px solid var(--acc-soft);border-radius:12px;
+  padding:13px 15px;margin:0 0 16px}
+.aihelp b{font-size:13.5px}
+.aihelp p{font-size:13px;line-height:1.55;margin:5px 0 11px}
+.aihelp code{background:#fff;border:1px solid var(--line);border-radius:6px;padding:1px 6px;
+  font-size:12.5px}
+
+/* ---- the import screen's action bar ----
+   Sticky, because the catalogue below it is thousands of rows and the button
+   that imports them used to be underneath all of them. */
+.impbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  background:var(--acc-soft);border:1px solid var(--acc);border-radius:12px;
+  padding:11px 15px;margin-bottom:14px}
+.impbar .btn{margin-left:auto}
+.impmore{display:flex;justify-content:center;padding:14px 0 4px}
+.impmore[hidden]{display:none}
+
+/* ---- a payment method in a list ----
+   The logo the customer sees, at the size a list can carry it. Falling back
+   to the short code rather than to an empty square, because that is exactly
+   what the storefront does when a method has no logo. */
+.pmrow{display:flex;align-items:center;gap:11px}
+.pmlogo{width:36px;height:36px;border-radius:10px;flex:none;display:grid;place-items:center;
+  background:var(--acc);color:var(--acc-on);font-size:12px;font-weight:800;overflow:hidden}
+.pmlogo img{width:100%;height:100%;object-fit:contain;background:#fff}
+
+/* ---- setting what a provider would have told us ---- */
+.progress-set{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.progress-set .field{margin-bottom:10px}
+.progress-set small{display:block;margin-top:8px;font-size:12px}
+
+/* ---- a message with no page to arrive on ----
+   Bottom right, out of the way of the thing that was just pressed, and gone
+   on its own: this answers an action rather than describing the screen. */
+.toasts{position:fixed;right:18px;bottom:18px;z-index:120;display:grid;gap:9px;
+  max-width:min(380px,calc(100vw - 36px))}
+.toast{background:var(--ink);color:#fff;border-radius:12px;padding:12px 15px;font-size:13.5px;
+  font-weight:600;line-height:1.45;box-shadow:0 12px 28px -10px rgba(20,23,38,.55);
+  animation:toastin .22s ease}
+.toast-success{background:#14532d}
+.toast-warning{background:#7c4a03}
+.toast-error{background:#7f1d1d}
+.toast.going{opacity:0;transform:translateY(6px);transition:opacity .35s, transform .35s}
+@keyframes toastin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ---- the services list ----
+   A provider writes the whole sales pitch into the name, so the cell is given
+   a width and the name wraps inside it. One line made the table wider than
+   the screen and pushed price and limits out of sight. */
+.svcname{max-width:460px;font-size:14px;line-height:1.4;display:flex;align-items:baseline;
+  gap:7px;flex-wrap:wrap}
+.svcname b{font-weight:700;overflow-wrap:anywhere}
+/* A provider writes a paragraph for a name, and `.tbl td b` keeps every <b>
+   in a cell on one line - right for a price, wrong for this. Written through
+   `.tbl td` so it outweighs that rule: `.svcname b` alone loses on
+   specificity however far down the file it sits, which is why max-width
+   above was doing nothing and the name printed straight across the three
+   columns beside it. */
+.tbl td .svcname b{white-space:normal}
+.idcell{width:1%;white-space:nowrap;vertical-align:top}
+/* The id and the way to take it are one target: nobody wants the number
+   without wanting to paste it somewhere. */
+.idcopy{display:inline-flex;align-items:center;gap:6px;background:var(--page);border:1px solid var(--line);
+  border-radius:8px;padding:5px 8px;font:inherit;font-size:12px;color:var(--ink-2);cursor:pointer}
+.idcopy:hover{border-color:var(--acc);color:var(--acc)}
+.idcopy .icon{font-size:13px;color:var(--muted)}
+.idcopy:hover .icon{color:var(--acc)}
+
+/* ---- dragging a list into order ----
+   The handle is its own target: a row you can grab anywhere is a row that
+   moves when somebody meant to press a button in it. */
+/* Just wide enough for the handle, and out of the way of the first real
+   column. */
+.dragcell{width:1%;padding-right:0;vertical-align:middle}
+.rowdrag{display:inline-grid;place-items:center;width:26px;height:28px;cursor:grab;
+  color:var(--muted);border-radius:7px;touch-action:none;user-select:none}
+.rowdrag:hover{background:var(--hover);color:var(--ink-2)}
+.rowdrag:active{cursor:grabbing}
+.rowdrag svg{width:15px;height:15px;pointer-events:none}
+tr.is-dragging,li.is-dragging{opacity:.65;background:var(--acc-soft)}
+/* While a row is held, nothing else on the page should look selectable. */
+body.is-sorting{user-select:none}
+[data-sortable].is-saving{opacity:.85}
+
+/* ---- what the gateway said ----
+   Folded away because it is a dozen rows of the gateway's own field names,
+   which is exactly what is wanted when somebody is looking for a reference
+   and noise every other time the screen is opened. */
+.gwbox{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.gwbox summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--ink-2);
+  padding:4px 0;list-style:none}
+.gwbox summary::-webkit-details-marker{display:none}
+.gwbox summary::before{content:"B8";display:inline-block;margin-right:7px;color:var(--muted);
+  transition:transform .15s}
+.gwbox[open] summary::before{transform:rotate(90deg)}
+.gwbox summary:hover{color:var(--acc)}
+.gwbox .drow{font-size:12.5px}
+
+/* ---- what a notification is about, in one glyph ----
+   The colour is the meaning of the event, not its age: money arriving stays
+   green once it has been read, a provider refusing an order stays red a week
+   later. Both the bell's dropdown and the feed draw this, from the same
+   table in notify.php, so the two cannot describe the same row differently. */
+.nicon{width:34px;height:34px;border-radius:11px;flex:none;display:grid;place-items:center;
+  font-size:16px;background:var(--hover);color:var(--muted)}
+.nicon-info{background:var(--acc-soft);color:var(--acc-ink)}
+.nicon-ok{background:rgba(22,163,74,.12);color:var(--ok)}
+.nicon-warn{background:rgba(217,119,6,.13);color:var(--warn)}
+.nicon-danger{background:var(--danger-soft);color:var(--danger)}
+.nicon-muted{background:var(--hover);color:var(--muted)}
+
+/* ---- the bell's dropdown ----
+   Anchored to the bell rather than to the header, so it stays under the
+   thing that was pressed at every width. */
+.bellwrap{position:relative;display:flex}
+.ndrop{position:absolute;right:0;top:calc(100% + 9px);width:340px;max-width:calc(100vw - 32px);
+  background:var(--surface);border:1px solid var(--line);border-radius:15px;
+  box-shadow:0 10px 15px -8px rgba(20,23,38,.12), 0 24px 48px -12px rgba(20,23,38,.18);
+  z-index:60;overflow:hidden}
+.ndrop[hidden]{display:none}
+.ndrop-head{display:flex;align-items:center;gap:9px;padding:13px 15px;border-bottom:1px solid var(--line)}
+.ndrop-head b{font-size:14px}
+.ndrop-unread{margin-left:auto;background:var(--acc-soft);color:var(--acc-ink);border-radius:999px;
+  padding:3px 9px;font-size:11.5px;font-weight:700}
+.ndrop-empty{padding:22px 16px;margin:0;color:var(--muted);font-size:13px;text-align:center}
+/* A list, not a page: eight rows and a way to see the rest. Taller than this
+   and the dropdown is the feed with worse scrolling. */
+.ndrop-list{list-style:none;margin:0;padding:0;max-height:340px;overflow-y:auto}
+.ndrop-item{display:flex;gap:11px;align-items:flex-start;padding:11px 15px;text-decoration:none;
+  color:inherit;border-bottom:1px solid var(--line)}
+.ndrop-list li:last-child .ndrop-item{border-bottom:0}
+.ndrop-item:hover{background:var(--hover)}
+.ndrop-item.is-unread{background:var(--acc-soft)}
+.ndrop-item.is-unread:hover{background:var(--acc-soft);filter:brightness(.985)}
+.ndrop-txt{min-width:0;flex:1}
+.ndrop-txt b{display:block;font-size:13.5px;font-weight:600;line-height:1.35}
+.ndrop-item.is-unread .ndrop-txt b{font-weight:800}
+.ndrop-txt small{display:block;color:var(--muted);font-size:11.5px;margin-top:3px}
+.ndrop-foot{display:flex;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid var(--line);
+  background:var(--hover)}
+.ndrop-foot .btn{flex:1;justify-content:center}
+.ndrop-foot form{flex:1;display:flex}
+
+/* ---- the feed ---- */
+.nlist{list-style:none;margin:0;padding:0}
+.nitem{display:flex;gap:13px;align-items:flex-start;padding:15px 17px;
+  border-bottom:1px solid var(--line)}
+.nitem:last-child{border-bottom:0}
+/* Unread is carried by a bar down the edge and by the weight, not by a
+   tinted row: a block of colour behind half the list reads as a warning
+   rather than as "new", and the row's own colour is already saying what
+   kind of thing happened. */
+.nitem{position:relative}
+.nitem.is-unread::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
+  background:var(--acc)}
+.nitem.is-unread .nbody b{font-weight:800}
+.nwhen{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;margin-top:5px}
+.nwhen .ntag{background:var(--hover);border-radius:999px;padding:2px 8px;font-weight:700;
+  font-size:11px;color:var(--ink-2)}
+.nbody{flex:1;min-width:0}
+.nbody b{display:block;font-size:14.5px}
+.nbody .sub{display:block;color:var(--ink-2);font-size:13px;margin-top:2px}
+.nbody .muted{display:block;font-size:12px;margin-top:4px}
+.nacts{display:flex;align-items:center;gap:7px;flex:none}
+
+/* ---- a switch that is still a checkbox underneath ---- */
+.sw{display:inline-block;position:relative;width:40px;height:23px;cursor:pointer;vertical-align:middle}
+.sw input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.sw span{position:absolute;inset:0;border-radius:999px;background:var(--line);
+  transition:background .15s;pointer-events:none}
+.sw span::after{content:"";position:absolute;top:3px;left:3px;width:17px;height:17px;
+  border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(23,33,60,.3);transition:transform .15s}
+.sw input:checked + span{background:var(--acc)}
+.sw input:checked + span::after{transform:translateX(17px)}
+.sw input:focus-visible + span{outline:2px solid var(--acc);outline-offset:2px}
+
+/* ---- email templates ---- */
+.testform{display:flex;gap:8px;align-items:center;margin-left:auto;flex-wrap:wrap}
+.testform input{border:1px solid var(--line);border-radius:9px;padding:0 11px;height:34px;
+  font-size:13px;background:var(--page);min-width:0;width:min(220px,100%)}
+.tokens{display:flex;flex-wrap:wrap;gap:7px}
+.token{border:1px dashed var(--line);background:var(--page);border-radius:8px;
+  padding:5px 10px;font-size:12.5px;font-weight:700;cursor:pointer;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--ink-2)}
+.token:hover{border-style:solid;border-color:var(--acc);color:var(--acc)}
+/* Sandboxed so a template cannot run anything against the panel it is
+   previewed in; a mail client would not run it either. */
+.mail-preview{width:100%;height:340px;border:1px solid var(--line);border-radius:11px;
+  background:#fff;display:block}
+
+/* ---- two-factor ---- */
+.qr-wrap{display:flex;justify-content:center;padding:16px;background:#fff;
+  border:1px solid var(--line);border-radius:14px;margin-bottom:14px}
+.qr{display:block;max-width:100%;height:auto}
+.secret{display:flex;align-items:center;gap:9px;justify-content:space-between;
+  background:var(--page);border:1px solid var(--line);border-radius:11px;
+  padding:11px 13px;font-size:14px;font-weight:700;letter-spacing:.06em;
+  cursor:pointer;word-break:break-all;margin-bottom:16px}
+.secret:hover{border-color:var(--acc);color:var(--acc)}
+.code-input{letter-spacing:.42em;font-size:21px;font-weight:700;text-align:center;
+  font-variant-numeric:tabular-nums}
+.rc-box{border-color:var(--warn)}
+.rc-list{columns:2;margin:0;padding-left:20px}
+.rc-list li{font-size:14.5px;font-weight:700;padding:3px 0;break-inside:avoid}
+@media (max-width:560px){ .rc-list{columns:1} }
+.inline-form{margin-top:14px}
+.inline-form .field{margin-bottom:11px;max-width:300px}
+.rule{border:0;border-top:1px solid var(--line);margin:20px 0}
+.opt-tag{font-weight:600;color:var(--muted);font-size:11.5px;text-transform:uppercase;
+  letter-spacing:.06em;margin-left:5px}
+
+/* A button that has to read as a link: an action, not a destination. */
+.linkish{background:none;border:0;padding:0;font:inherit;color:var(--acc);
+  font-weight:700;cursor:pointer;text-decoration:underline}
+.linkish:hover{text-decoration:none}
+
+/* ---- audit log and margin warnings ---- */
+.au-alert td{background:color-mix(in srgb, var(--danger) 5%, transparent)}
+.au-warn td{background:color-mix(in srgb, var(--warn) 6%, transparent)}
+.au-meta{margin:0;display:grid;gap:1px;background:var(--line);border-radius:12px;overflow:hidden}
+.au-meta>div{display:flex;justify-content:space-between;gap:16px;background:var(--surface);
+  padding:11px 14px}
+.au-meta dt{margin:0;font-size:13px;font-weight:700;color:var(--muted)}
+.au-meta dd{margin:0;font-size:14px;font-weight:700;text-align:right;word-break:break-word}
+.au-was{color:var(--muted);text-decoration:line-through}
+.au-now{color:var(--ink)}
+.pgnav{display:flex;align-items:center;gap:10px;margin-left:auto}
+/* A chip rather than a list: the names are long and what matters is the
+   number beside each one. */
+.thin-chip{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid #f6caca;
+  border-radius:8px;padding:3px 9px;font-size:12.5px;font-weight:700;margin:2px 3px 2px 0}
+
+/* ===========================================================================
+   Classes the markup was already using with no rule behind them.
+
+   A class in a view and no rule in here renders as nothing at all - the
+   Notifications empty state came out as loose text beside its own box, and
+   the whole Themes screen as an unstyled column. tools/check-admin-css.php
+   now fails the build on this, because it is invisible in a diff and obvious
+   on the screen.
+   =========================================================================== */
+
+/* ---- empty states ---- */
+.empty-state{text-align:center;padding:48px 24px}
+.empty-state b{display:block;font-size:16px;margin-bottom:6px}
+.empty-state p{margin:0;color:var(--muted);font-size:14px}
+.empty-state .icon{font-size:34px;color:var(--line-2);margin-bottom:12px}
+
+/* ---- the bar of buttons under a form ---- */
+.formfoot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:16px}
+
+/* ---- a checkbox with its label beside it ---- */
+.check{display:inline-flex;align-items:center;gap:10px;cursor:pointer;font-size:14px;
+  font-weight:600;user-select:none}
+.check input{width:17px;height:17px;accent-color:var(--acc);cursor:pointer;flex:none}
+
+/* ---- picking a gateway ----
+   .choice is the list and .opt is one gateway in it, which is the opposite of
+   what it looks like at a glance. Neither had a rule at all, so the picker
+   rendered as three lines of plain text with nothing to say they could be
+   clicked - which is how a gateway that was there the whole time read as
+   missing. The radio stays in the DOM and stays what submits. */
+.choice{display:grid;gap:10px}
+.opt{display:block;position:relative;border:1.5px solid var(--line);border-radius:12px;
+  padding:14px 44px 14px 16px;cursor:pointer;background:var(--surface);
+  transition:border-color .15s, background .15s}
+.opt:hover{border-color:var(--line-2)}
+.opt b{display:block;font-size:14.5px}
+.opt small{display:block;color:var(--muted);font-size:12.5px;margin-top:3px;line-height:1.5}
+.opt input{position:absolute;top:50%;right:15px;transform:translateY(-50%);
+  width:18px;height:18px;accent-color:var(--acc);cursor:pointer}
+.opt.on,.opt:has(input:checked){border-color:var(--acc);background:var(--acc-soft)}
+
+/* ---- things stacked with air between them ---- */
+.stack{display:grid;gap:10px}
+
+/* ---- the select-all column in a table ---- */
+.rowchk{width:17px;height:17px;accent-color:var(--acc);cursor:pointer}
+
+/* ---- a count badge, and the one that means trouble ---- */
+.pill{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;
+  padding:0 6px;border-radius:999px;background:var(--acc-soft);color:var(--acc-ink);
+  font-size:11.5px;font-weight:800;line-height:1}
+.pill-danger{background:var(--danger);color:#fff}
+
+/* ---- small print, and the line under the sign-in card ---- */
+.small{font-size:12.5px}
+.auth-foot{margin-top:16px;text-align:center;font-size:13.5px}
+
+/* ---- centred cell ---- */
+.ta-c{text-align:center}
+
+/* ---- the update screen's headline panel ---- */
+.upd-hero{overflow:hidden}
+.upd-hero-on{border-color:var(--acc)}
+
+/* ---- themes ----
+   A card per folder in themes/, with its screenshot on top. Sized so three
+   sit across a desktop and one across a phone without a media query. */
+.theme-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(260px,100%),1fr));
+  gap:16px}
+.theme-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  overflow:hidden;display:flex;flex-direction:column;transition:border-color .15s, box-shadow .15s}
+.theme-card:hover{border-color:var(--line-2)}
+.theme-card.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.theme-shot{position:relative;aspect-ratio:16/10;background:var(--page);overflow:hidden}
+.theme-shot img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+.theme-shot-empty{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;
+  gap:7px;color:var(--muted);font-size:12.5px;font-weight:600}
+.theme-shot-empty .icon{font-size:26px;color:var(--line-2)}
+.theme-live{position:absolute;top:10px;left:10px;background:var(--acc);color:var(--acc-on);
+  border-radius:999px;padding:4px 11px;font-size:11px;font-weight:800;letter-spacing:.04em}
+.theme-body{padding:15px 16px;flex:1;display:flex;flex-direction:column;gap:4px}
+.theme-body b{font-size:15px}
+.theme-body small{color:var(--muted);font-size:12px}
+.theme-body p{margin:6px 0 0;color:var(--ink-2);font-size:13px;line-height:1.5}
+.theme-foot{padding:0 16px 16px;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.theme-foot .btn{flex:1}
+
+/* ---- the unread count on the top-bar bell ----
+   A number rather than a dot: "you have something" is less use than "you have
+   four". It sits on the corner, so it keeps its own ring in the bar's colour
+   to stay readable over the icon underneath. */
+.tb-count{position:absolute;top:-5px;right:-5px;min-width:18px;height:18px;padding:0 5px;
+  border-radius:999px;background:var(--danger);color:#fff;font-size:10.5px;font-weight:800;
+  line-height:18px;text-align:center;box-shadow:0 0 0 2px var(--surface)}
+.iconbtn.has-dot{border-color:var(--danger-soft)}
+
+/* ---- the manual payment field builder ---- */
+.pf-list{display:grid;gap:12px}
+.pf-row{border:1px solid var(--line);border-radius:12px;padding:14px 15px;background:var(--page)}
+.pf-row .field{margin-bottom:10px}
+.pf-row .field:last-of-type{margin-bottom:0}
+.pf-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:12px}
+.pf-foot{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:10px;
+  padding-top:11px;border-top:1px dashed var(--line)}
+.pf-foot .iact{margin-left:auto}
+@media (max-width:760px){ .pf-grid{grid-template-columns:minmax(0,1fr)} }
+
+/* ---- the answers, on the order ---- */
+.pfa{display:grid;gap:1px;background:var(--line);border-radius:12px;overflow:hidden;margin-top:4px}
+.pfa>div{background:var(--surface);padding:11px 14px;display:flex;justify-content:space-between;
+  gap:16px;align-items:flex-start}
+.pfa dt{margin:0;font-size:13px;font-weight:700;color:var(--muted)}
+.pfa dd{margin:0;font-size:14px;font-weight:700;text-align:right;word-break:break-word}
+.pf-proof{display:inline-block;border:1px solid var(--line);border-radius:10px;overflow:hidden;
+  max-width:220px;line-height:0}
+.pf-proof img{max-width:100%;height:auto;display:block}

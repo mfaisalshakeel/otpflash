@@ -1,0 +1,17 @@
+config/config.php
+install/install.lock
+storage/logs/*.log
+storage/cache/*
+storage/*.sqlite
+storage/*.sqlite-wal
+storage/*.sqlite-shm
+uploads/branding/*
+!uploads/branding/.gitignore
+.DS_Store
+build/
+
+# Preview screenshots dropped in the root for review; never part of a release.
+/*.png
+
+# Built zips are artifacts, like build/ above.
+*.zip

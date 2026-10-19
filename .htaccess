@@ -1,0 +1,78 @@
+# ---------------------------------------------------------------
+# SMM Panel - Apache configuration
+# ---------------------------------------------------------------
+# Every directive here is either guarded by the module that understands it or
+# is one every Apache has. A directive the server does not know is not
+# skipped, it is a 500 - and on shared hosting the error log is the one thing
+# the person seeing that 500 cannot read.
+#
+# `Options` is the exception: it needs AllowOverride Options, which cPanel
+# grants and a locked-down host may not. If the site answers 500 before PHP
+# has run at all, that line is the first thing to try without. IndexIgnore
+# below says the same thing through a different override class, so dropping
+# it still leaves nothing listable.
+Options -Indexes
+DirectoryIndex index.php
+
+<IfModule mod_autoindex.c>
+    IndexIgnore *
+</IfModule>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Application internals are never served, whatever is in them. These are
+    # real directories, so the catch-all below would hand them to Apache
+    # rather than to index.php - and each one also carries its own deny file,
+    # because a rule in a parent is one upload away from being overwritten.
+    #
+    # Matched relative to this directory, so they hold just as well for a
+    # panel installed in a subfolder - which is what the RedirectMatch lines
+    # further down cannot do.
+    RewriteRule ^(app|config|storage)(/|$) - [F,L]
+    RewriteRule ^themes/[^/]+/views(/|$) - [F,L]
+    RewriteRule ^install/.*\.(sql|lock)$ - [F,L,NC]
+
+    # Nothing in uploads/ is ever executed. uploads/.htaccess says this three
+    # more ways; this is the one that does not need that file to have survived
+    # the upload.
+    RewriteRule ^uploads/.*\.(php|phtml|phps|php[0-9]|phar|pl|py|cgi|sh|htaccess)$ - [F,L,NC]
+
+    # Send everything that is not a real file or directory to index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>
+
+# The same denials for a server with no mod_rewrite, where the panel itself
+# would not run - but a missing module should not also mean a readable config.
+<IfModule mod_alias.c>
+    RedirectMatch 404 ^/(app|config|storage)(/|$)
+    # A theme's code is private; its assets folder is not.
+    RedirectMatch 404 ^/themes/[^/]+/views(/|$)
+    RedirectMatch 404 ^/install/.*\.(sql|lock)$
+</IfModule>
+
+<FilesMatch "^(\.env|composer\.(json|lock)|.*\.sql|.*\.log|.*\.md)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 7 days"
+    ExpiresByType application/javascript "access plus 7 days"
+    ExpiresByType image/png "access plus 30 days"
+    ExpiresByType image/svg+xml "access plus 30 days"
+</IfModule>

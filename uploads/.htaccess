@@ -1,0 +1,43 @@
+# Uploads are data, never code.
+#
+# The same thing said three ways, because which one works depends on how the
+# host runs PHP - and the wrong one is not ignored. An unknown directive in a
+# .htaccess is a 500 on every request in the folder, images included, which is
+# how this file once took the whole gallery down.
+
+# 1. mod_php, where the interpreter can simply be switched off.
+#
+#    Only ever `php_flag`, and only ever inside these guards. `php_admin_flag`
+#    is refused in a .htaccess outright - it is settable in httpd.conf and a
+#    vhost and nowhere else - and a bare `php_flag` is an unknown directive to
+#    a server running PHP as FastCGI, PHP-FPM or LiteSpeed, which is most
+#    cPanel hosting now. Either one is the 500.
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php5.c>
+    php_flag engine off
+</IfModule>
+
+# 2. Where a handler is what runs PHP - FastCGI, suPHP, LiteSpeed - there is
+#    no engine flag to turn off, so the handler is taken away instead.
+<IfModule mod_mime.c>
+    RemoveHandler .php .phtml .phps .php3 .php4 .php5 .php6 .php7 .php8 .phar .cgi .pl .py
+    RemoveType .php .phtml .phps .php3 .php4 .php5 .php6 .php7 .php8 .phar
+</IfModule>
+
+# 3. And whatever runs it, nothing executable is served from here at all. This
+#    is the layer that does not depend on knowing how PHP is wired up, so it
+#    is the one that has to be right.
+<FilesMatch "\.(php|phtml|phps|php[0-9]|phar|pl|py|cgi|sh|lua|rb|htaccess)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
