@@ -113,7 +113,11 @@ if ($part === 'blog') {
                    'mod' => $post['updated_at'] ?: $post['published_at'],
                    'image' => $post['cover_path'] !== '' ? url($post['cover_path']) : ''];
     }
-    foreach (optional_all('SELECT slug FROM post_categories WHERE is_active = 1 ORDER BY sort_order') as $category) {
+    // An empty category is a thin page: it waits for its first post.
+    foreach (optional_all("SELECT c.slug FROM post_categories c
+                            WHERE c.is_active = 1 AND EXISTS (SELECT 1 FROM posts p WHERE p.category_id = c.id
+                                  AND p.status = 'published' AND p.published_at <= ? AND p.noindex = 0)
+                         ORDER BY c.sort_order", [date('Y-m-d H:i:s')]) as $category) {
         $urls[] = ['loc' => url('blog/category/' . $category['slug']), 'priority' => '0.5', 'freq' => 'weekly'];
     }
     $urlset($urls);

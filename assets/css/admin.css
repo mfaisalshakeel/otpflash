@@ -69,7 +69,7 @@ svg{max-width:100%}
   padding:2px 8px;border-radius:999px}
 .snav a.on .pill{background:rgba(255,255,255,.26)}
 .sfoot{padding:14px;border-top:1px solid var(--side-line)}
-.bal-mini{background:var(--side-hover);border-radius:11px;padding:13px 14px}
+.bal-mini{display:block;background:var(--side-hover);border-radius:11px;padding:13px 14px;color:inherit}
 .bal-mini small{display:block;font-size:11px;font-weight:600;color:var(--side-muted);text-transform:uppercase;letter-spacing:.07em}
 .bal-mini b{font-size:18px;font-weight:700;color:var(--side-ink);display:block}
 /* Said plainly rather than folded into the total: a balance with no rate
@@ -123,6 +123,8 @@ svg{max-width:100%}
    spills is clipped: on a phone that was every Run now button on Cron. */
 .split{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:16px}
 .split2{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start}
+/* A detail screen whose left column is tables: the forms on the right need less room than the rows do. */
+.split2.split-wide{grid-template-columns:minmax(0,2fr) minmax(300px,1fr)}
 .box{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
 /* While a select's popup is open the card has to let it out; the rounded
    corners only need clipping the rest of the time. */
@@ -164,6 +166,14 @@ svg{max-width:100%}
 .st-completed{background:rgba(22,163,74,.15);color:#15803d}
 .st-cancelled{background:var(--hover);color:var(--muted)}
 .st-api_error{background:rgba(220,38,38,.14);color:#dc2626}
+/* Order states an OTP shop adds, and the account and rental words. */
+.st-expired{background:rgba(234,88,12,.13);color:#c2410c}
+.st-refunded{background:rgba(14,165,233,.14);color:#0369a1}
+.st-active{background:rgba(22,163,74,.15);color:#15803d}
+.st-blocked{background:rgba(220,38,38,.14);color:#dc2626}
+.st-ended{background:var(--hover);color:var(--muted)}
+.amt-in{color:#15803d;font-weight:700}
+.amt-out{color:#dc2626;font-weight:700}
 
 /* providers */
 .provs{padding:8px 18px 18px}
@@ -1188,3 +1198,52 @@ body.is-sorting{user-select:none}
 .pf-proof{display:inline-block;border:1px solid var(--line);border-radius:10px;overflow:hidden;
   max-width:220px;line-height:0}
 .pf-proof img{max-width:100%;height:auto;display:block}
+
+/* ---------------------------------------------------------------- the CMS */
+/* The post title is the biggest thing on its screen, the way it will be on
+   the page it becomes. */
+.field input.input-xl{font-size:20px;font-weight:700;height:54px}
+/* The fixed part of an address beside the part the admin types. */
+.input-prefix{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--page)}
+.input-prefix span{display:flex;align-items:center;padding:0 10px;color:var(--muted);font-size:13px;background:var(--hover);
+  border-right:1px solid var(--line);white-space:nowrap;max-width:45%;overflow:hidden;text-overflow:ellipsis}
+.field .input-prefix input{border:0;border-radius:0;background:transparent;min-width:0}
+.check-row{display:flex;gap:8px;align-items:center;font-size:13.5px;margin-top:6px;cursor:pointer}
+.check-row input{width:16px;height:16px;accent-color:var(--acc)}
+
+/* The search result as Google draws one, so the admin writes for that. */
+.serp{border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px;background:var(--surface);
+  font-family:Arial,system-ui,sans-serif}
+.serp span{display:block}
+.serp-url{color:#202124;font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.serp-title{color:#1a0dab;font-size:19px;line-height:1.3;margin:4px 0 3px;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical}
+.serp-desc{color:#4d5156;font-size:13.5px;line-height:1.55;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.field label .len{float:right;color:var(--muted);font-weight:600}
+.field label .len.warn{color:var(--danger)}
+.seo-score{margin-left:auto;border-radius:999px;padding:4px 11px;font-size:12px;font-weight:800}
+.seo-good{background:rgba(22,163,74,.15);color:#15803d}
+.seo-fair{background:rgba(245,158,11,.16);color:#b45309}
+.seo-poor{background:rgba(220,38,38,.14);color:#dc2626}
+.seo-checks{list-style:none;margin:6px 0 10px;padding:0;display:grid;gap:7px}
+.seo-checks li{display:flex;gap:8px;align-items:flex-start;font-size:13px;line-height:1.45}
+.seo-checks .icon{flex:none;width:16px;height:16px;margin-top:1px}
+.seo-checks .seo-pass{color:var(--ink-2)}
+.seo-checks .seo-pass .icon{color:var(--ok)}
+.seo-checks .seo-miss .icon{color:var(--danger)}
+/* Words meant to be read, not code: the admin's textareas default to monospace for the HTML and JSON boxes. */
+.field textarea.text{font-family:inherit;font-size:14px;line-height:1.5}
+
+.post-cell{display:flex;gap:12px;align-items:center}
+.post-cell img,.post-ph{flex:none;width:64px;height:36px;border-radius:7px;object-fit:cover;background:var(--hover)}
+.post-ph{display:grid;place-items:center;color:var(--muted)}
+
+/* Summernote, made to sit in the admin rather than look like a 2015 widget. */
+.note-editor.note-frame{border:1px solid var(--line)!important;border-radius:12px!important;overflow:hidden}
+.note-editor .note-toolbar{background:var(--hover)!important;border-bottom:1px solid var(--line)!important}
+.note-editor .note-editing-area .note-editable{font-size:15px;line-height:1.7;color:var(--ink);background:var(--surface)}
+.note-editor .note-editable h2{font-size:22px;margin:22px 0 8px}
+.note-editor .note-editable h3{font-size:18px;margin:18px 0 6px}
+.note-editor .note-editable img{max-width:100%;height:auto}
+.note-statusbar{background:var(--hover)!important}

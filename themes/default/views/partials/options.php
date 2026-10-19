@@ -108,7 +108,7 @@ $balance = $user ? (float) $user['balance'] : 0.0;
   <?php elseif ($guestOk): ?>
     <?php if ($askEmail): ?>
       <div class="field field-sm">
-        <label for="opt-email">Email for the receipt <span class="opt">(optional)</span></label>
+        <label for="opt-email">Email for the receipt <span class="optional">(optional)</span></label>
         <input id="opt-email" type="email" name="email" placeholder="you@example.com" autocomplete="email">
       </div>
     <?php endif; ?>

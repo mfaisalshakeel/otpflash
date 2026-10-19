@@ -17,7 +17,7 @@ $err = static fn (string $k): string => isset($errors[$k]) ? '<small class="err"
             <div class="field"><label for="p-email">Email</label>
               <input id="p-email" value="<?= e($user['email']) ?>" disabled>
               <small class="hint">Message us to change the email on your account.</small></div>
-            <div class="field"><label for="p-phone">Phone <span class="opt">(optional)</span></label>
+            <div class="field"><label for="p-phone">Phone <span class="optional">(optional)</span></label>
               <input id="p-phone" name="phone" value="<?= e(old('phone', $user['phone'])) ?>" autocomplete="tel" inputmode="tel"><?= $err('phone') ?></div>
             <button class="btn btn-primary" type="submit">Save</button>
           </form>

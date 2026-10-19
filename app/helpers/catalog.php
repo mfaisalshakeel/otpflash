@@ -59,6 +59,18 @@ const RENTAL_DURATIONS = [
     8640 => '1 year',
 ];
 
+/** A rental length in words: the named ones by name, anything else in days or hours. */
+function rental_duration_words(int $hours): string
+{
+    if (isset(RENTAL_DURATIONS[$hours])) {
+        return RENTAL_DURATIONS[$hours];
+    }
+    if ($hours >= 24 && $hours % 24 === 0) {
+        return ($hours / 24) . ' days';
+    }
+    return $hours . ' hours';
+}
+
 /** OTPGet, as the admin set it up. */
 function otpget(): OtpGet
 {
@@ -534,7 +546,7 @@ function offer_option_label(array $offer): string
         'premium' => trim((string) setting('server_label_premium', '')) ?: 'Premium · SMS or call',
         'cheap'   => trim((string) setting('server_label_cheap', '')) ?: 'Budget',
         'email'   => (string) $offer['provider_country'] . ' · Server ' . $offer['server'],
-        'rental'  => (RENTAL_DURATIONS[(int) $offer['provider_service']] ?? $offer['provider_service'] . ' hours')
+        'rental'  => rental_duration_words((int) $offer['provider_service'])
                      . ' · Server ' . $offer['server'],
         default   => (string) $offer['product'],
     };
@@ -892,7 +904,7 @@ function sync_unit(string $key): array
                 }
                 $rows[] = ['provider_service' => (string) (int) $price['duration_hours'],
                            'provider_name' => trim(($price['country_name'] ?? $countryName) . ' '
-                               . (RENTAL_DURATIONS[(int) $price['duration_hours']] ?? $price['duration_hours'] . 'h')),
+                               . rental_duration_words((int) $price['duration_hours'])),
                            'cost' => (float) ($price['price'] ?? 0),
                            'country_id' => $countryId, 'service_id' => null];
             }
@@ -1157,7 +1169,7 @@ function offer_title(array $offer): string
     return match ((string) $offer['product']) {
         'email'  => $service . ' · ' . $offer['provider_country'],
         'rental' => 'Rental · ' . ($offer['country_name'] ?? $offer['provider_country'])
-                    . ' · ' . (RENTAL_DURATIONS[(int) $offer['provider_service']] ?? $offer['provider_service'] . 'h'),
+                    . ' · ' . rental_duration_words((int) $offer['provider_service']),
         default  => $service . ($offer['country_name'] ? ' · ' . $offer['country_name'] : ''),
     };
 }

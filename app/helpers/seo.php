@@ -40,7 +40,9 @@ function seo_title(string $title): string
 /** A description clipped where a search result clips it, on a word. */
 function seo_clip(string $text, int $length = 158): string
 {
-    $text = trim(preg_replace('/\s+/', ' ', strip_tags(html_entity_decode($text, ENT_QUOTES, 'UTF-8'))));
+    // Tags out before entities are decoded, and as spaces, so "a</p><p>b"
+    // stays two words and an escaped "&lt;b&gt;" stays text.
+    $text = trim(preg_replace('/\s+/', ' ', html_entity_decode(strip_tags(preg_replace('/<[^>]+>/', ' ', $text)), ENT_QUOTES, 'UTF-8')));
     if (mb_strlen($text) <= $length) {
         return $text;
     }
@@ -85,6 +87,11 @@ function seo_head(array $seo): string
     $tags[] = '<meta name="robots" content="' . e($robots) . '">';
     if ($canonical !== '') {
         $tags[] = '<link rel="canonical" href="' . e($canonical) . '">';
+    }
+    foreach (['prev', 'next'] as $rel) {
+        if (!empty($seo[$rel])) {
+            $tags[] = '<link rel="' . $rel . '" href="' . e((string) $seo[$rel]) . '">';
+        }
     }
 
     $tags[] = '<meta property="og:site_name" content="' . e($site) . '">';
@@ -156,6 +163,13 @@ function schema_organization(): array
         $channel = chat_channel($key);
         return $channel && $key !== 'email' ? $channel['url'] : '';
     }, ['whatsapp', 'telegram'])));
+    // The shop's own profiles elsewhere, from SEO settings: what lets a search
+    // engine join this site to its Facebook page and its X account.
+    foreach (preg_split('/\s+/', (string) setting('seo_same_as', '')) ?: [] as $profile) {
+        if (preg_match('~^https://[^\s]+$~i', $profile)) {
+            $same[] = $profile;
+        }
+    }
     if ($same) {
         $org['sameAs'] = $same;
     }
@@ -264,7 +278,7 @@ function seo_checklist(string $title, string $metaTitle, string $metaDescription
                        string $keyword, string $slug): array
 {
     $seoTitle = $metaTitle !== '' ? $metaTitle : $title;
-    $text     = trim(preg_replace('/\s+/', ' ', strip_tags($content)));
+    $text     = trim(preg_replace('/\s+/', ' ', strip_tags(preg_replace('/<[^>]+>/', ' ', $content))));
     $words    = $text === '' ? 0 : count(preg_split('/\s+/', $text));
     $keyword  = mb_strtolower(trim($keyword));
     $checks   = [];

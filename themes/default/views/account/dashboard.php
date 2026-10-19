@@ -16,10 +16,14 @@
           <a class="btn" href="<?= e(url('account/wallet')) ?>"><svg class="icon"><use href="#i-plus"></use></svg> Add funds</a>
         </div>
         <div class="quick">
-          <a href="<?= e(url('')) ?>"><svg class="icon"><use href="#i-phone"></use></svg> Virtual number</a>
-          <?php if (isset(store_tabs()['email'])): ?><a href="<?= e(url('temporary-email')) ?>"><svg class="icon"><use href="#i-mail"></use></svg> Temp email</a><?php endif; ?>
-          <?php if (isset(store_tabs()['rental'])): ?><a href="<?= e(url('rent-number')) ?>"><svg class="icon"><use href="#i-calendar"></use></svg> Rent a number</a><?php endif; ?>
-          <a href="<?= e(url('account/orders')) ?>"><svg class="icon"><use href="#i-bag"></use></svg> All orders</a>
+          <a href="<?= e(url('')) ?>"><svg class="icon"><use href="#i-phone"></use></svg>
+            <span><b>Virtual number</b><small>Receive one code</small></span></a>
+          <?php if (isset(store_tabs()['email'])): ?><a href="<?= e(url('temporary-email')) ?>"><svg class="icon"><use href="#i-mail"></use></svg>
+            <span><b>Temp email</b><small>Inbox for a sign-up</small></span></a><?php endif; ?>
+          <?php if (isset(store_tabs()['rental'])): ?><a href="<?= e(url('rent-number')) ?>"><svg class="icon"><use href="#i-calendar"></use></svg>
+            <span><b>Rent a number</b><small>Keep it for days</small></span></a><?php endif; ?>
+          <a href="<?= e(url('account/wallet')) ?>"><svg class="icon"><use href="#i-wallet"></use></svg>
+            <span><b>Add funds</b><small>Pay in one tap</small></span></a>
         </div>
       </div>
 

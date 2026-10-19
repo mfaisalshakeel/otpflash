@@ -13,7 +13,7 @@ $items  = [
 <aside class="pside">
   <div class="pside-user">
     <span class="acct-av"><?= e(mb_strtoupper(mb_substr($user['name'], 0, 1))) ?></span>
-    <div><b><?= e($user['name']) ?></b><small><?= e($user['email']) ?></small></div>
+    <div><b><?= e($user['name']) ?></b><small title="<?= e($user['email']) ?>"><?= e($user['email']) ?></small></div>
   </div>
   <nav class="pnav" aria-label="Account">
     <?php foreach ($items as $key => [$path, $label, $icon]): ?>

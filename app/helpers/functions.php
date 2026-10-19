@@ -342,7 +342,7 @@ function qty_fmt($n): string
 
 function excerpt(?string $text, int $length = 120): string
 {
-    $text = trim(preg_replace('/\s+/', ' ', strip_tags((string) $text)));
+    $text = trim(preg_replace('/\s+/', ' ', strip_tags(preg_replace('/<[^>]+>/', ' ', (string) $text))));
     return mb_strlen($text) > $length ? mb_substr($text, 0, $length - 1) . '...' : $text;
 }
 

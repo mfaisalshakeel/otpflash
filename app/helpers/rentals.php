@@ -204,7 +204,7 @@ function rental_renew_options(array $rental): array
 
     foreach ($rows as &$row) {
         $row['sale_price'] = offer_sale_price($row);
-        $row['label']      = RENTAL_DURATIONS[(int) $row['provider_service']] ?? $row['provider_service'] . ' hours';
+        $row['label']      = rental_duration_words((int) $row['provider_service']);
     }
     return $rows;
 }
