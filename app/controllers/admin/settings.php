@@ -41,41 +41,6 @@ $GROUPS = [
             array_keys(CHAT_PLACEMENTS)
         )
     ),
-    'Catalogue' => [
-        'catalogue_mode' => ['label' => 'How a category is sold', 'type' => 'select',
-            'options' => [
-                'services' => 'Every service in the category gets its own card',
-                'single'   => 'One service per category, sold as quantity packages',
-            ],
-            'hint' => 'The second is how the big shops do it: the customer picks a quantity, '
-                    . 'not a service. Choose which service backs each category on the '
-                    . 'Categories screen.'],
-        'auto_packages' => ['label' => 'Show round quantities for a service with no packages of its own',
-            'type' => 'checkbox'],
-        // One box, because that is the whole decision: which numbers go on
-        // the cards. Only read where a category sells one service, which is
-        // the only shape a row of quantities belongs to.
-        'default_quantities' => ['label' => 'Quantities to offer',
-            'placeholder' => '100, 500, 1000, 5000',
-            'hint' => 'The quantity cards a category shows when it sells one service. '
-                    . 'Separate them with commas. Leave empty and round numbers are worked '
-                    . 'out from the service limits; write none and no quantity cards are '
-                    . 'shown at all. A category can say something different on its own form.'],
-        'default_features' => ['label' => 'Default feature lines', 'type' => 'textarea', 'rows' => 5,
-            'hint' => 'The ticked points on a card, one per line. Used by any service that has none '
-                    . 'of its own; set them per service in bulk from the Services screen.'],
-        // Off, the panel keeps a provider's service with the platform and
-        // category it was detected as, and nowhere else. On, nothing is held
-        // back: import lists every service the provider sells and any of them
-        // may be put behind any category.
-        'import_all_services' => ['label' => 'Work with every provider service, matched or not',
-            'type' => 'checkbox',
-            'hint' => 'Off, Import shows only the services we could match to one of your '
-                    . 'platforms, and a category can only be backed by a service that '
-                    . 'belongs to it. On, you see the whole catalogue a provider sells and any '
-                    . 'service can back any category - useful when a provider names things '
-                    . 'in a way the detector has never heard of.'],
-    ],
     'Customers and checkout' => [
         'guest_checkout'    => ['label' => 'Let guests buy numbers without an account', 'type' => 'checkbox',
             'hint' => 'A guest pays for each number and keeps an order code. Rentals and the '

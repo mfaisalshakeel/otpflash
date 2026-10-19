@@ -156,8 +156,7 @@ if ($tag !== '' && !$found['total']) {
     return;
 }
 
-// Page 2 of a list is its own address and says so; a search result page is
-// for the person who typed it, not for an index.
+// Page 2 of a list is its own address and says so.
 $canonical = url($base) . ($page > 1 ? '?page=' . $page : '');
 $featured  = $page === 1 && $search === '' && $category === null && $tag === ''
     ? array_values(array_filter($found['posts'], static fn ($post) => (int) $post['is_featured'] === 1))[0] ?? null
@@ -168,7 +167,9 @@ view('blog/index', [
         'title'       => $meta['title'] . ($page > 1 ? ' - page ' . $page : ''),
         'description' => $meta['description'],
         'canonical'   => $canonical,
-        'robots'      => $search !== '' ? 'noindex, follow' : null,
+        // A search result is for the person who typed it; an empty category is
+        // a thin page until its first post arrives.
+        'robots'      => $search !== '' || !$found['total'] ? 'noindex, follow' : null,
         'schema'      => [schema_breadcrumbs($trail)],
         'prev'        => $page > 1 ? url($base) . ($page > 2 ? '?page=' . ($page - 1) : '') : null,
         'next'        => $page < $pages ? url($base) . '?page=' . ($page + 1) : null,

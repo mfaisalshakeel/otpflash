@@ -208,10 +208,9 @@ function crud_save(array $spec): void
                 $errors[$name] = 'Must be at most ' . $arg . '.';
             }
             // `unique` is unique in the table; `unique:column` is unique only
-            // among the rows sharing that column's value. Categories are the
-            // reason: every platform is meant to have its own /followers, so
-            // the constraint on them is (platform_id, slug) and a check
-            // across the whole table would refuse the second platform.
+            // among the rows sharing that column's value, for a constraint
+            // that spans two columns - a check across the whole table would
+            // refuse a value that is only taken in another group.
             if ($rule === 'unique' && $value !== '') {
                 $where  = "`$name` = ?";
                 $binds  = [$value];
@@ -275,9 +274,9 @@ function crud_save(array $spec): void
         $data = $spec['before_save']($data, $id, $_POST);
     }
 
-    // Hooked once here rather than in each screen: providers, platforms,
-    // categories, payment methods, pages and FAQs all save through this, and
-    // an API key or a payment account changing is exactly what the record is
+    // Hooked once here rather than in each screen: services, countries,
+    // currencies, payment methods, FAQs and blog categories all save through
+    // this, and a payment account changing is exactly what the record is
     // for. audit_mask() keeps the secrets out of it.
     // A unique constraint the checks above did not know about must not reach
     // the customer-facing error page. Two admins saving the same new slug at

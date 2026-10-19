@@ -1261,3 +1261,43 @@ function otpget_balance_known(): array
         'at'     => (string) setting('otpget_balance_at', ''),
     ];
 }
+
+/**
+ * How a price on the shop is arrived at, and what hides an offer, in words.
+ *
+ * Written once from the live settings, and shown on Catalogue and on
+ * Connection & sync, so the two screens can never describe the same rules
+ * differently - and the numbers in it are the ones actually in force.
+ *
+ * @return string[] trusted markup: every value in it goes through e()
+ */
+function catalogue_explainer(): array
+{
+    $markup   = (float) setting('default_markup', '30');
+    $min      = (float) setting('min_price', '0');
+    $rounding = (string) setting('price_rounding', '1');
+    $own      = [];
+    foreach (array_keys(PRODUCTS) as $product) {
+        $value = trim((string) setting('markup_' . $product, ''));
+        if ($value !== '' && is_numeric($value)) {
+            $own[] = e(PRODUCTS[$product]['name']) . ' ' . e(rtrim(rtrim(number_format((float) $value, 2), '0'), '.')) . '%';
+        }
+    }
+
+    return [
+        'A price starts from <b>OTPGet\'s cost</b> in ' . e(otpget_currency())
+            . (otpget_currency() !== (string) (base_currency()['code'] ?? '')
+                ? ', converted to ' . e((string) (base_currency()['code'] ?? 'your currency')) : '')
+            . ', plus <b>' . e(rtrim(rtrim(number_format($markup, 2), '0'), '.'))
+            . '% markup</b>' . ($own ? ' (' . implode(', ', $own) . ' set their own)' : '')
+            . ($min > 0 ? ', never below <b>' . e(money($min)) . '</b>' : '')
+            . ($rounding !== '0' ? ', rounded <b>up</b> to the nearest ' . e($rounding) : '') . '.',
+        'A <b>pinned</b> price ignores all of that and stays where you put it until you unpin it - '
+            . 'even when OTPGet\'s cost moves, so check its margin now and then.',
+        'Sync re-reads OTPGet. An offer it stopped listing is marked <b>missing</b> and leaves the shop by '
+            . 'itself, and comes back by itself if it is listed again.',
+        'Switching an offer <b>off</b> hides only that offer. Switching a service or a country off on its own '
+            . 'screen hides every offer it has.',
+        'Which products and servers are synced at all, and the markup, are set on <b>Connection &amp; sync</b>.',
+    ];
+}

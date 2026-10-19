@@ -239,7 +239,7 @@ function notification_title(string $event, array $data): string
     return match ($event) {
         'admin_new_order'          => 'New order ' . ($data['order_code'] ?? ''),
         'admin_payment_submitted'  => 'Payment submitted for ' . ($data['order_code'] ?? ''),
-        'admin_api_error'          => 'Provider refused ' . ($data['order_code'] ?? ''),
+        'admin_api_error'          => 'OTPGet refused ' . ($data['order_code'] ?? ''),
         'admin_low_balance'        => ($data['provider'] ?? 'A provider') . ' is low on balance',
         'admin_new_message'        => 'Message from ' . ($data['name'] ?? 'a visitor'),
         default                    => $label,
@@ -250,8 +250,7 @@ function notification_title(string $event, array $data): string
 function notification_body(string $event, array $data): string
 {
     return match ($event) {
-        'admin_new_order' => trim(($data['quantity'] ?? '') . ' x ' . ($data['service'] ?? '')
-            . ' - ' . ($data['amount'] ?? '')),
+        'admin_new_order' => trim(($data['service'] ?? '') . ' - ' . ($data['amount'] ?? '')),
         'admin_payment_submitted' => trim(($data['amount'] ?? '') . ' by ' . ($data['method'] ?? '')
             . (($data['reference'] ?? '') !== '' ? ' - ref ' . $data['reference'] : '')),
         'admin_api_error'   => (string) ($data['error'] ?? ''),

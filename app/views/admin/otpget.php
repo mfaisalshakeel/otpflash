@@ -11,6 +11,8 @@ $email    = product_servers('email');
 $rental   = product_servers('rental');
 $value    = static fn (string $key, string $default = ''): string => (string) setting($key, $default);
 ?>
+<?php partial('admin/_explain', ['title' => 'How prices and visibility work', 'key' => 'otpget',
+    'lines' => catalogue_explainer(), 'links' => ['Open the catalogue' => 'admin/catalogue']]); ?>
 <div class="split2">
   <div>
     <?php /* -------------------------------------------------- sync ---- */ ?>

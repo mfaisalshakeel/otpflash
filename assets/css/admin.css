@@ -668,10 +668,9 @@ svg{max-width:100%}
 .sel-btn:hover{border-color:var(--line-2)}
 .sel.is-open .sel-btn,.sel-btn:focus-visible{border-color:var(--acc);background-color:var(--surface);
   box-shadow:0 0 0 3.5px var(--acc-soft);outline:none}
-/* The whole name, wrapping rather than cut off. A service called
-   "Instagram Followers | USA | Max 100k | 100% Usa Accounts | 30 Days Refill"
-   is all signal - which country, which cap, which refill - and an ellipsis
-   removes exactly the part that tells one apart from the next. */
+/* The whole name, wrapping rather than cut off. An option like
+   "Gmail · gmail.com · Server 2" is all signal, and an ellipsis removes
+   exactly the part that tells one apart from the next. */
 .sel-label{flex:1;min-width:0;text-align:left;line-height:1.35;
   display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap}
 .sel-pop{position:absolute;z-index:40;top:calc(100% + 6px);left:0;right:0;
@@ -767,7 +766,7 @@ svg{max-width:100%}
 .explain-links{display:flex;gap:8px;flex-wrap:wrap;margin-top:13px}
 
 /* --- row actions ----------------------------------------------------------
-   A row of grey "Packages / Edit / Delete" boxes reads as six identical
+   A row of grey "View / Edit / Delete" boxes reads as six identical
    things and takes half the table. An icon each, coloured by what it does:
    indigo to go somewhere, amber to switch, red to destroy. Every one keeps
    a title and an aria-label, because an icon alone names nothing. */
@@ -1247,3 +1246,9 @@ body.is-sorting{user-select:none}
 .note-editor .note-editable h3{font-size:18px;margin:18px 0 6px}
 .note-editor .note-editable img{max-width:100%;height:auto}
 .note-statusbar{background:var(--hover)!important}
+
+/* A country flag beside its name, at the size of the text around it. */
+.flag{display:inline-block;width:20px;height:15px;border-radius:3px;object-fit:cover;vertical-align:-2px;
+  box-shadow:0 0 0 1px rgba(0,0,0,.08)}
+/* A table inside a detail box: less air, because the box already has its own. */
+.tbl-tight th,.tbl-tight td{padding:9px 12px}

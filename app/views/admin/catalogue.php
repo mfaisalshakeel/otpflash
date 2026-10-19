@@ -7,6 +7,8 @@
 $backQuery = http_build_query(array_filter($filters, 'strlen') + ($paging['page'] > 1 ? ['page' => $paging['page']] : []));
 $billing   = otpget_currency();
 ?>
+<?php partial('admin/_explain', ['title' => 'How prices and visibility work', 'key' => 'catalogue',
+    'lines' => catalogue_explainer(), 'links' => ['Connection & sync' => 'admin/otpget']]); ?>
 <form class="filters" method="get" action="<?= e(url('admin/catalogue')) ?>">
   <div class="search wide">
     <svg class="icon"><use href="#i-search"></use></svg>

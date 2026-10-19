@@ -11,8 +11,8 @@
  *   /robots.txt            -> app/controllers/robots.php
  *   /admin                 -> app/controllers/admin/index.php
  *   /admin/services        -> app/controllers/admin/services.php
- *   /instagram             -> app/controllers/_fallback.php   (platform or page)
- *   /instagram/followers   -> app/controllers/_fallback.php   (platform + category)
+ *   /whatsapp              -> app/controllers/_fallback.php   (service or page)
+ *   /whatsapp/pakistan     -> app/controllers/_fallback.php   (service + country)
  *   anything else          -> app/controllers/_404.php
  *
  * Every controller under app/controllers/admin/ is preceded by
@@ -80,7 +80,7 @@ function resolve_request(): void
         return;
     }
 
-    // --- otherwise it is a platform, a category or a page -----------------
+    // --- otherwise it is a service landing page or a content page ---------
     dispatch(CONTROLLER_PATH . '/_fallback.php', $segments);
 }
 
