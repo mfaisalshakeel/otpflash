@@ -295,7 +295,7 @@
       event.preventDefault();
 
       button.setAttribute('aria-busy', 'true');
-      button.innerHTML = '<span class="spin"></span> Updating\u2026';
+      button.innerHTML = '<span class="spin"></span> ' + (button.getAttribute('data-busy') || 'Updating\u2026');
       errBox.hidden = true;
       barWrap.hidden = false;
       note.hidden = false;
@@ -318,7 +318,7 @@
         function next() {
           if (index >= total) {
             progress(total, total, false);
-            label.textContent = 'Done \u2014 now on version ' + plan.to;
+            label.textContent = plan.done || ('Done \u2014 now on version ' + plan.to);
             button.hidden = true;
             doneBox.hidden = false;
 
@@ -360,7 +360,7 @@
               if (slot) { slot.textContent = result.note || ''; }
             }
 
-            if (!result.ok) {
+            if (!result.ok && !plan.carryOn) {
               fail((result.errors || ['That step failed.']).join(' '));
               return;
             }
@@ -850,5 +850,157 @@
         } catch (error) { /* private mode: it just opens every time */ }
       });
     });
+  })();
+
+  // --- the rich text editor -----------------------------------------------
+  //
+  // Summernote, loaded only on a screen that has a [data-editor] box, from
+  // assets/vendor - so no other screen pays for it and nothing is fetched
+  // from a CDN. Until it loads (or if it never does) the box is the plain
+  // textarea it always was, and saving works either way: the editor writes
+  // its HTML back into that same textarea.
+  (function () {
+    var boxes = document.querySelectorAll('textarea[data-editor]');
+    if (!boxes.length) { return; }
+
+    var root = document.querySelector('meta[name="asset-root"]');
+    var base = root ? root.getAttribute('content') : '';
+    var token = (document.querySelector('input[name="_token"]') || {}).value || '';
+    var upload = document.querySelector('meta[name="editor-upload"]');
+
+    function load(src, done) {
+      var tag = document.createElement('script');
+      tag.src = src;
+      tag.onload = done;
+      document.head.appendChild(tag);
+    }
+    var css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = base + 'assets/vendor/summernote/summernote-lite.min.css';
+    document.head.appendChild(css);
+
+    load(base + 'assets/vendor/jquery/jquery.min.js', function () {
+      load(base + 'assets/vendor/summernote/summernote-lite.min.js', function () {
+        boxes.forEach(function (box) {
+          var $box = window.jQuery(box);
+          $box.summernote({
+            height: parseInt(box.getAttribute('data-height') || '380', 10),
+            placeholder: box.getAttribute('placeholder') || '',
+            toolbar: [
+              ['style', ['style']],
+              ['font', ['bold', 'italic', 'underline', 'strikethrough', 'clear']],
+              ['para', ['ul', 'ol', 'paragraph']],
+              ['insert', ['link', 'picture', 'video', 'table', 'hr']],
+              ['view', ['codeview', 'fullscreen', 'help']]
+            ],
+            styleTags: ['p', 'h2', 'h3', 'h4', 'blockquote', 'pre'],
+            callbacks: {
+              // Pictures are uploaded and linked, never pasted in as base64:
+              // a post carrying megabytes of inline image is a slow page and
+              // a database row nobody can back up.
+              onImageUpload: function (files) {
+                if (!upload) { return; }
+                Array.prototype.forEach.call(files, function (file) {
+                  var body = new FormData();
+                  body.append('file', file);
+                  body.append('_token', token);
+                  fetch(upload.getAttribute('content'), {
+                    method: 'POST', body: body, credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'fetch' }
+                  }).then(function (r) { return r.json(); }).then(function (data) {
+                    if (data && data.ok) {
+                      $box.summernote('insertImage', data.url, function ($image) {
+                        $image.attr('alt', (file.name || '').replace(/\.[a-z]+$/i, '').replace(/[-_]+/g, ' '));
+                        $image.attr('loading', 'lazy');
+                        $image.css('max-width', '100%');
+                      });
+                    } else {
+                      window.alert((data && data.error) || 'That image could not be uploaded.');
+                    }
+                  });
+                });
+              },
+              onChange: function () {
+                box.dispatchEvent(new Event('input', { bubbles: true }));
+              }
+            }
+          });
+        });
+      });
+    });
+  })();
+
+  // --- the SEO checklist and the search preview ---------------------------
+  //
+  // Recounted as the post is written, from the same rules the server uses
+  // when it draws the list, so the ticks move while you type.
+  (function () {
+    var form = document.querySelector('[data-seo-form]');
+    if (!form) { return; }
+
+    function field(name) { return form.querySelector('[name="' + name + '"]'); }
+    function text(name) { var f = field(name); return f ? f.value : ''; }
+
+    function update() {
+      var title = text('meta_title') || text('title');
+      var desc = text('meta_description');
+      var slug = text('slug');
+      var preview = document.querySelector('[data-serp]');
+      if (preview) {
+        preview.querySelector('[data-serp-title]').textContent = title || 'Your title';
+        preview.querySelector('[data-serp-url]').textContent = (preview.getAttribute('data-base') || '') + slug;
+        preview.querySelector('[data-serp-desc]').textContent = desc || 'Write a meta description - otherwise search engines pick a sentence for you.';
+      }
+      document.querySelectorAll('[data-len]').forEach(function (counter) {
+        var f = field(counter.getAttribute('data-len'));
+        var max = parseInt(counter.getAttribute('data-max'), 10);
+        var n = f ? f.value.length : 0;
+        counter.textContent = n + ' / ' + max;
+        counter.classList.toggle('warn', n > max);
+      });
+    }
+    form.addEventListener('input', update);
+    update();
+
+    // A slug follows the title until somebody types one of their own.
+    var title = field('title');
+    var slug = field('slug');
+    if (title && slug) {
+      var touched = slug.value !== '';
+      slug.addEventListener('input', function () { touched = slug.value !== ''; });
+      title.addEventListener('input', function () {
+        if (touched) { return; }
+        slug.value = title.value.toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '')
+          .trim().replace(/[\s_-]+/g, '-').slice(0, 90);
+        update();
+      });
+    }
+  })();
+
+  // --- ticking rows for a bulk action --------------------------------------
+  //
+  // The row boxes belong to the bulk form through their form= attribute, so
+  // they post with it from wherever they sit in the table. The bar only
+  // shows while something is ticked.
+  (function () {
+    var form = document.querySelector('[data-bulk]');
+    if (!form) { return; }
+    var bar = form.querySelector('[data-bulk-bar]');
+    var count = form.querySelector('[data-bulk-count]');
+    var all = document.querySelector('[data-bulk-all]');
+    function rows() { return Array.prototype.slice.call(document.querySelectorAll('[data-bulk-row]')); }
+    function sync() {
+      var ticked = rows().filter(function (box) { return box.checked; }).length;
+      bar.classList.toggle('on', ticked > 0);
+      count.textContent = ticked;
+      if (all) { all.checked = ticked > 0 && ticked === rows().length; }
+    }
+    document.addEventListener('change', function (event) {
+      if (event.target === all) {
+        rows().forEach(function (box) { box.checked = all.checked; });
+      }
+      if (event.target === all || event.target.matches('[data-bulk-row]')) { sync(); }
+    });
+    sync();
   })();
 })();

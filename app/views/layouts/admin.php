@@ -71,6 +71,8 @@ $nav = [
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
+<meta name="asset-root" content="<?= e(url('')) ?>">
+<meta name="editor-upload" content="<?= e(url('admin/media/upload')) ?>">
 <title><?= e($title ?? 'Admin') ?> &mdash; <?= e($siteName) ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

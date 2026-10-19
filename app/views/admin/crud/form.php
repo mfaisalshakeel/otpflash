@@ -102,7 +102,14 @@ $value  = static function (string $name, $fallback = '') use ($row) {
               <?php if (!empty($field['required'])): ?><span style="color:var(--danger)">*</span><?php endif; ?>
             </label>
 
-            <?php if ($type === 'textarea'): ?>
+            <?php if ($type === 'richtext'): ?>
+              <?php /* The editor is drawn over this box by admin.js and writes
+                       its HTML back into it, so this textarea is still the
+                       thing that saves - with or without the editor. */ ?>
+              <textarea id="f-<?= e($name) ?>" name="<?= e($name) ?>" rows="12" data-editor
+                        data-height="<?= (int) ($field['height'] ?? 380) ?>"><?= e($val) ?></textarea>
+
+            <?php elseif ($type === 'textarea'): ?>
               <textarea id="f-<?= e($name) ?>" name="<?= e($name) ?>" rows="<?= (int) ($field['rows'] ?? 4) ?>"
                 <?= $error ? 'aria-invalid="true"' : '' ?>
                 <?= !empty($field['required']) ? 'required' : '' ?>><?= e($val) ?></textarea>
