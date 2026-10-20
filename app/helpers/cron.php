@@ -218,7 +218,7 @@ function cron_sync_catalogue(): string
     if (!otpget_configured()) {
         return 'no OTPGet key yet';
     }
-    $result = sync_catalogue_batch(max(1, min(50, (int) setting('sync_batch', '8'))));
+    $result = sync_catalogue_batch(max(1, min(50, (int) setting('sync_batch', '24'))));
     $line   = sprintf('%d unit(s), %d offers', $result['units'], $result['offers']);
 
     return $result['errors'] ? $line . ' - ' . implode('; ', array_slice($result['errors'], 0, 3)) : $line;

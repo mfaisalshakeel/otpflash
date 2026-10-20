@@ -28,7 +28,7 @@ $delta = static function (float $now, float $before, string $against = 'yesterda
 <?php elseif ($stats['offers'] === 0): ?>
   <div class="alert alert-info">
     OTPGet is connected but the catalogue is empty.
-    <a href="<?= e(url('admin/otpget')) ?>">Run the first sync</a> to put numbers on the shop.
+    <a href="<?= e(url('admin/otpget?sync=1')) ?>">Run the first sync</a> to put numbers on the shop.
   </div>
 <?php endif; ?>
 

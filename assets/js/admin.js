@@ -337,7 +337,9 @@
               }
               if (seconds <= 0) {
                 clearInterval(tick);
-                window.location.reload();
+                // Without the query: a page opened with ?sync=1 starts a
+                // sync, and reloading it as it was would start another.
+                window.location.replace(window.location.pathname);
               }
             }, 1000);
             return;
@@ -380,6 +382,12 @@
         fail(error.message);
       });
     });
+
+    // A screen that knows the next step is this one runs it: the first
+    // catalogue sync after a key is saved needs nobody to press anything.
+    if (form.hasAttribute('data-autostart')) {
+      form.dispatchEvent(new Event('submit', { cancelable: true }));
+    }
   })();
 
   // --- chart tooltips ------------------------------------------------------

@@ -57,6 +57,7 @@ CREATE INDEX IF NOT EXISTS "ix_countries_active" ON "countries" ("is_active", "i
 CREATE TABLE IF NOT EXISTS "services" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "slug" TEXT NOT NULL UNIQUE,
+  "match_key" TEXT NOT NULL DEFAULT '',
   "name" TEXT NOT NULL,
   "icon" TEXT NOT NULL DEFAULT '',
   "color" TEXT NOT NULL DEFAULT '',
@@ -70,6 +71,7 @@ CREATE TABLE IF NOT EXISTS "services" (
   "created_at" TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS "ix_services_active" ON "services" ("is_active", "is_popular", "sort_order");
+CREATE INDEX IF NOT EXISTS "ix_services_match" ON "services" ("match_key");
 
 CREATE TABLE IF NOT EXISTS "offers" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -494,7 +496,7 @@ INSERT OR IGNORE INTO "settings" ("k", "v") VALUES
   ('max_numbers_per_order', '3'),
   ('number_lifetime',       '20'),
   ('sync_on_cron',          '1'),
-  ('sync_batch',            '8'),
+  ('sync_batch',            '24'),
   ('app_version',           '');
 
 INSERT OR IGNORE INTO "currencies" ("code", "name", "symbol", "rate_to_base", "is_base", "is_active", "sort_order", "updated_at") VALUES

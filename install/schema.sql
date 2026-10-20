@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS `countries` (
 CREATE TABLE IF NOT EXISTS `services` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
   `slug` VARCHAR(80) NOT NULL,
+  `match_key` VARCHAR(80) NOT NULL DEFAULT '',
   `name` VARCHAR(120) NOT NULL,
   `icon` VARCHAR(60) NOT NULL DEFAULT '',
   `color` VARCHAR(9) NOT NULL DEFAULT '',
@@ -86,6 +87,7 @@ CREATE TABLE IF NOT EXISTS `services` (
   `created_at` DATETIME NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_services_slug` (`slug`),
+  KEY `ix_services_match` (`match_key`),
   KEY `ix_services_active` (`is_active`, `is_popular`, `sort_order`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -603,7 +605,7 @@ INSERT INTO `settings` (`k`, `v`) VALUES
   ('max_numbers_per_order', '3'),
   ('number_lifetime',       '20'),
   ('sync_on_cron',          '1'),
-  ('sync_batch',            '8'),
+  ('sync_batch',            '24'),
   ('app_version',           '')
 ON DUPLICATE KEY UPDATE `k` = `k`;
 

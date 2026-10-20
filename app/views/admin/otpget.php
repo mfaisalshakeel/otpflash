@@ -31,14 +31,17 @@ $value    = static fn (string $key, string $default = ''): string => (string) se
              data-plan="<?= e(url('admin/otpget/plan')) ?>"
              data-step="<?= e(url('admin/otpget/step')) ?>"
              data-token="<?= e(csrf_token()) ?>">
-          <p class="upd-lead">Reads every country on every server you sell from OTPGet and brings prices and
-            stock up to date - one country per request, so nothing times out. Cron does the same a few
-            countries at a time in the background<?= $units ? ' (' . qty_fmt($units) . ' countries and sites last time)' : '' ?>.</p>
+          <p class="upd-lead">Reads every country on every server you sell and brings prices and stock up to
+            date - two dozen countries at a time, all at once, so a full catalogue takes about a minute and
+            nothing times out. Cron keeps it fresh in the background after that<?= $units ? ' (' . qty_fmt($units) . ' countries and sites last time)' : '' ?>.</p>
 
           <div class="bar" data-bar-wrap hidden><div class="bar-fill" data-bar style="width:0%"></div></div>
           <p class="bar-note" data-bar-note hidden><span data-bar-label>Starting&hellip;</span> <b class="mono" data-bar-count></b></p>
 
-          <form method="post" action="<?= e(url('admin/otpget/plan')) ?>" data-update-form>
+          <?php /* The first sync starts by itself: a shop with a key and nothing
+                   on sale has exactly one thing to do next. */ ?>
+          <form method="post" action="<?= e(url('admin/otpget/plan')) ?>" data-update-form
+                <?= $autoSync ? 'data-autostart' : '' ?>>
             <?= csrf_field() ?>
             <button class="btn btn-primary btn-lg btn-block" type="submit" data-update-go data-busy="Syncing&hellip;">
               <svg class="icon"><use href="#i-refresh"></use></svg> Sync the catalogue now
@@ -220,8 +223,8 @@ $value    = static fn (string $key, string $default = ''): string => (string) se
           </label>
           <div class="field" style="margin-top:12px">
             <label for="o-batch">Countries to read per cron run</label>
-            <input id="o-batch" name="sync_batch" type="number" min="1" max="50" value="<?= e($value('sync_batch', '8')) ?>">
-            <small>Each one is a request to OTPGet. Eight every ten minutes keeps a big catalogue no more than a few hours old.</small>
+            <input id="o-batch" name="sync_batch" type="number" min="1" max="50" value="<?= e($value('sync_batch', '24')) ?>">
+            <small>Read together, in one go. Twenty-four every ten minutes keeps even a very big catalogue no more than a few hours old.</small>
           </div>
         </div>
       </div>

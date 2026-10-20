@@ -20,10 +20,22 @@
  *       'both'   => ["INSERT INTO settings (`k`, `v`) VALUES ('example', '1')"],
  *   ],
  *
- * 1.0.0 is the first release, so schema.sql already carries everything and
- * the list starts empty. The next change to the database goes here, with the
- * version in app/core/version.php bumped in the same commit.
+ * The next change to the database goes here, with the version in
+ * app/core/version.php bumped in the same commit.
  */
 
 return [
+    // 1.0.1 - a service's identity for the sync, apart from its slug. The
+    // slug is the admin's to change for SEO, and a sync that found services
+    // by slug alone made a second WhatsApp the day someone renamed the first.
+    // Rows that exist were made by the sync under that very slug, so the
+    // slug is the right key to start them on.
+    '2026_10_services_match_key' => [
+        'label'  => 'Remember which OTPGet app each service is, so renaming one never duplicates it',
+        'mysql'  => ["ALTER TABLE `services` ADD COLUMN `match_key` VARCHAR(80) NOT NULL DEFAULT '' AFTER `slug`",
+                     'ALTER TABLE `services` ADD KEY `ix_services_match` (`match_key`)'],
+        'sqlite' => ['ALTER TABLE "services" ADD COLUMN "match_key" TEXT NOT NULL DEFAULT \'\'',
+                     'CREATE INDEX IF NOT EXISTS "ix_services_match" ON "services" ("match_key")'],
+        'both'   => ["UPDATE services SET match_key = slug WHERE match_key = ''"],
+    ],
 ];

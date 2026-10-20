@@ -372,7 +372,28 @@ function service_slug_for(string $name): string
     return '';
 }
 
-/** The services row for a name, made on first sight. Same bargain as countries. */
+/**
+ * What two spellings of the same app have in common, as a lookup key.
+ *
+ * A brand we know is its catalogue slug, so "WA" and "Whatsapp" are one key.
+ * Anything else is its name with the spaces squeezed out too, so "Tik Tok",
+ * "TikTok" and "tik-tok (new)" are one key - three rows of the same app is
+ * three cards a customer has to choose between for no reason.
+ */
+function service_match_key(string $name): string
+{
+    $known = service_slug_for($name);
+    return $known !== '' ? $known : substr(str_replace(' ', '', name_key($name)), 0, 80);
+}
+
+/**
+ * The services row for a name, made on first sight. Same bargain as countries.
+ *
+ * Found by `match_key`, which the sync writes and nothing else changes, and
+ * only then by slug. The slug belongs to the admin - it is the landing page's
+ * address - and finding services by slug alone made a second WhatsApp the
+ * first time somebody renamed the first one for SEO.
+ */
 function service_for_name(string $name): ?int
 {
     static $seen = [];
@@ -380,22 +401,32 @@ function service_for_name(string $name): ?int
     $slug  = service_slug_for($name);
     $known = $slug !== '' ? service_catalogue()[$slug] : null;
     $label = $known['name'] ?? trim(preg_replace('/\s+/', ' ', $name));
-    if ($label === '') {
+    $match = service_match_key($name);
+    if ($label === '' || $match === '') {
         return null;
     }
     if ($slug === '') {
         $slug = slugify($label);
     }
 
-    if (isset($seen[$slug])) {
-        return $seen[$slug];
+    if (isset($seen[$match])) {
+        return $seen[$match];
     }
 
-    $id = col('SELECT id FROM services WHERE slug = ?', [$slug]);
+    $id = col('SELECT id FROM services WHERE match_key = ? ORDER BY id LIMIT 1', [$match]);
+    if (!$id) {
+        // Made by hand, or by a sync from before match_key: adopt it, so the
+        // next lookup no longer depends on the slug staying put.
+        $id = col('SELECT id FROM services WHERE slug = ?', [$slug]);
+        if ($id) {
+            q("UPDATE services SET match_key = ? WHERE id = ? AND match_key = ''", [$match, (int) $id]);
+        }
+    }
     if (!$id) {
         try {
             $id = insert_row('services', [
                 'slug'        => $slug,
+                'match_key'   => $match,
                 'name'        => mb_substr($label, 0, 120),
                 'icon'        => (string) ($known['icon'] ?? ''),
                 'color'       => (string) ($known['color'] ?? service_color_for($label)),
@@ -406,15 +437,17 @@ function service_for_name(string $name): ?int
                 'created_at'  => date('Y-m-d H:i:s'),
             ]);
         } catch (PDOException $e) {
+            // Two syncs meeting the same new app at once: the other one won.
             require_once APP_PATH . '/helpers/guard.php';
             if (!is_duplicate_key($e)) {
                 throw $e;
             }
-            $id = col('SELECT id FROM services WHERE slug = ?', [$slug]);
+            $id = col('SELECT id FROM services WHERE match_key = ? ORDER BY id LIMIT 1', [$match])
+               ?: col('SELECT id FROM services WHERE slug = ?', [$slug]);
         }
     }
 
-    return $seen[$slug] = $id ? (int) $id : null;
+    return $seen[$match] = $id ? (int) $id : null;
 }
 
 /** The service a website belongs to, for email server 2's "site". */
@@ -588,8 +621,30 @@ function sync_lists_refresh(): array
     $lists  = catalogue_cache_read('sync-lists') ?? [];
     $errors = [];
 
+    // Every list at once: a dozen requests that used to queue behind each
+    // other now take as long as the slowest one.
+    $work = [];
     if (product_enabled('sms')) {
-        $servers = $api->smsServers();
+        $work['servers'] = static fn () => $api->smsServers();
+        foreach (product_servers('sms') as $type) {
+            $work['sms' . $type] = static fn () => $api->smsCountries((int) $type);
+        }
+    }
+    if (product_enabled('premium')) {
+        $work['premium'] = static fn () => $api->premiumCountries();
+    }
+    if (product_enabled('email') && in_array('1', product_servers('email'), true)) {
+        $work['email1'] = static fn () => $api->emailDomains();
+    }
+    if (product_enabled('rental')) {
+        foreach (product_servers('rental') as $provider) {
+            $work['rental' . $provider] = static fn () => $api->rentalCountries((int) $provider);
+        }
+    }
+    $got = $api->parallel($work);
+
+    if (product_enabled('sms')) {
+        $servers = $got['servers'];
         $active  = isset($servers['error'])
             ? product_servers('sms')
             : array_column(array_filter($servers['servers'], static fn ($s) => $s['active']), 'id');
@@ -599,7 +654,7 @@ function sync_lists_refresh(): array
                 $lists['sms'][$type] = [];
                 continue;
             }
-            $countries = $api->smsCountries((int) $type);
+            $countries = $got['sms' . $type];
             if (isset($countries['error'])) {
                 $errors[] = 'Server ' . $type . ': ' . $countries['message'];
                 continue;
@@ -608,28 +663,26 @@ function sync_lists_refresh(): array
         }
     }
 
-    if (product_enabled('premium')) {
-        $countries = $api->premiumCountries();
-        if (isset($countries['error'])) {
-            $errors[] = 'Premium: ' . $countries['message'];
+    if (isset($got['premium'])) {
+        if (isset($got['premium']['error'])) {
+            $errors[] = 'Premium: ' . $got['premium']['message'];
         } else {
-            $lists['premium'] = $countries;
+            $lists['premium'] = $got['premium'];
         }
     }
 
-    if (product_enabled('email') && in_array('1', product_servers('email'), true)) {
-        $domains = $api->emailDomains();
-        if (isset($domains['error'])) {
-            $errors[] = 'Email server 1: ' . $domains['message'];
+    if (isset($got['email1'])) {
+        if (isset($got['email1']['error'])) {
+            $errors[] = 'Email server 1: ' . $got['email1']['message'];
         } else {
             $lists['email1'] = array_values(array_filter(array_map(
-                static fn ($d) => strtolower(trim((string) ($d['domain'] ?? ''))), $domains['domains'])));
+                static fn ($d) => strtolower(trim((string) ($d['domain'] ?? ''))), $got['email1']['domains'])));
         }
     }
 
     if (product_enabled('rental')) {
         foreach (product_servers('rental') as $provider) {
-            $reply = $api->rentalCountries((int) $provider);
+            $reply = $got['rental' . $provider];
             if (isset($reply['error'])) {
                 $errors[] = 'Rental server ' . $provider . ': ' . $reply['message'];
                 continue;
@@ -753,6 +806,10 @@ function email_sites(): array
 
 /**
  * Read one unit from OTPGet and bring its offers up to date.
+ *
+ * Every case asks OTPGet first and writes after. Keep it that way:
+ * sync_units_run() batches units through OtpGet::parallel(), which runs each
+ * one up to its first request and throws that run away.
  *
  * @return array{ok: bool, count: int, message: string}
  */
@@ -919,6 +976,28 @@ function sync_unit(string $key): array
     return ['ok' => true, 'count' => $count, 'message' => ''];
 }
 
+/** How many units one press of the sync stepper reads - all at once. */
+const SYNC_STEP_UNITS = 24;
+
+/**
+ * Sync several units at once.
+ *
+ * Their requests go out together (OtpGet::parallel), so a step of two dozen
+ * countries costs about what one used to. Each unit is still stored on its
+ * own, so one country that fails does not cost the others.
+ *
+ * @param string[] $keys
+ * @return array<string, array{ok: bool, count: int, message: string}>
+ */
+function sync_units_run(array $keys): array
+{
+    $work = [];
+    foreach (array_unique($keys) as $key) {
+        $work[$key] = static fn () => sync_unit($key);
+    }
+    return otpget()->parallel($work, 16);
+}
+
 /**
  * Write one unit's offers, and retire the ones it no longer lists.
  *
@@ -957,18 +1036,37 @@ function offers_store(string $product, string $server, ?string $country, array $
         $id = col('SELECT id FROM offers WHERE product = ? AND server = ? AND provider_country = ?
                      AND provider_service = ?', [$product, $server, $providerCountry, $providerService]);
 
-        if ($id) {
-            update_row('offers', $fields, 'id = ?', [$id]);
-        } else {
-            $id = insert_row('offers', $fields + [
-                'product'          => $product,
-                'server'           => $server,
-                'provider_country' => $providerCountry,
-                'provider_service' => $providerService,
-                'is_active'        => 1,
-                'created_at'       => $now,
-            ]);
+        if (!$id) {
+            try {
+                $id = insert_row('offers', $fields + [
+                    'product'          => $product,
+                    'server'           => $server,
+                    'provider_country' => $providerCountry,
+                    'provider_service' => $providerService,
+                    'is_active'        => 1,
+                    'created_at'       => $now,
+                ]);
+                $kept[] = (int) $id;
+                continue;
+            } catch (PDOException $e) {
+                // The cron sync and the admin's sync stored it a moment ago:
+                // one offer, so update that row rather than fail the unit.
+                require_once APP_PATH . '/helpers/guard.php';
+                if (!is_duplicate_key($e)) {
+                    throw $e;
+                }
+                $id = col('SELECT id FROM offers WHERE product = ? AND server = ? AND provider_country = ?
+                             AND provider_service = ?', [$product, $server, $providerCountry, $providerService]);
+            }
         }
+        // A sync that cannot name the country or app this time (its list
+        // cache was cleared) must not unlink an offer that was placed before.
+        foreach (['country_id', 'service_id'] as $link) {
+            if ($fields[$link] === null) {
+                unset($fields[$link]);
+            }
+        }
+        update_row('offers', $fields, 'id = ?', [$id]);
         $kept[] = (int) $id;
     }
 
@@ -1016,19 +1114,23 @@ function sync_catalogue_batch(int $limit): array
     $units = sync_units($lists);
     usort($units, static fn ($a, $b) => ($state[$a['key']] ?? 0) <=> ($state[$b['key']] ?? 0));
 
-    $done   = 0;
-    $offers = 0;
+    // Only units that are actually due. A shop with twenty units and a
+    // batch of eight should not re-read the whole of OTPGet every minute.
+    $due = [];
     foreach (array_slice($units, 0, max(1, $limit)) as $unit) {
-        // Only units that are actually due. A shop with twenty units and a
-        // batch of eight should not re-read the whole of OTPGet every minute.
         if (($state[$unit['key']] ?? 0) > time() - 3 * 3600) {
             break;
         }
-        $result = sync_unit($unit['key']);
+        $due[$unit['key']] = $unit['label'];
+    }
+
+    $done   = 0;
+    $offers = 0;
+    foreach (sync_units_run(array_keys($due)) as $key => $result) {
         $done++;
         $offers += $result['count'];
         if (!$result['ok']) {
-            $errors[] = $unit['label'] . ': ' . $result['message'];
+            $errors[] = $due[$key] . ': ' . $result['message'];
         }
     }
 

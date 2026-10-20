@@ -85,7 +85,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     set_setting('price_rounding', in_array($rounding, ['0', '0.5', '1', '5', '10'], true) ? $rounding : '1');
 
     set_setting('sync_on_cron', isset($_POST['sync_on_cron']) ? '1' : '0');
-    set_setting('sync_batch', (string) max(1, min(50, (int) ($_POST['sync_batch'] ?? 8))));
+    set_setting('sync_batch', (string) max(1, min(50, (int) ($_POST['sync_batch'] ?? 24))));
 
     foreach (['1', '2', '3', '4', '5', '6', 'premium', 'cheap'] as $server) {
         set_setting('server_label_' . $server, mb_substr(trim((string) ($_POST['server_label_' . $server] ?? '')), 0, 40));
@@ -123,6 +123,10 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         flash($result['ok'] ? 'success' : 'error', $result['ok']
             ? 'OTPGet accepted the key. Balance: ' . $result['shown'] . '.'
             : 'OTPGet did not accept that: ' . $result['message']);
+        // An accepted key and an empty shop: start filling it straight away.
+        if ($result['ok'] && !col('SELECT 1 FROM offers LIMIT 1')) {
+            redirect('admin/otpget?sync=1');
+        }
     }
     redirect('admin/otpget');
 }
@@ -158,7 +162,14 @@ if ($action === 'plan' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         'carryOn' => true,
         'done'    => 'Done - the catalogue is up to date.',
         'errors'  => $refresh['errors'],
-        'steps'   => array_map(static fn ($u) => ['key' => $u['key'], 'label' => $u['label'], 'detail' => ''], $units),
+        'steps'   => array_map(static function (array $batch): array {
+            $first = $batch[0]['label'];
+            return [
+                'key'    => implode('|', array_column($batch, 'key')),
+                'label'  => count($batch) > 1 ? $first . ' and ' . (count($batch) - 1) . ' more' : $first,
+                'detail' => '',
+            ];
+        }, array_chunk($units, SYNC_STEP_UNITS)),
     ]);
 }
 
@@ -166,15 +177,27 @@ if ($action === 'plan' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'step' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     ignore_user_abort(true);
     @set_time_limit(60);
-    $key    = (string) ($_POST['key'] ?? '');
-    $result = sync_unit($key);
+    // A step is a batch of units, joined with |; their requests go out
+    // together. Capped, so a hand-made request cannot ask for the world.
+    $keys    = array_slice(array_filter(explode('|', (string) ($_POST['key'] ?? ''))), 0, SYNC_STEP_UNITS * 2);
+    $labels  = array_column(sync_units(), 'label', 'key');
+    $results = sync_units_run($keys);
     set_setting('catalogue_synced_at', date('Y-m-d H:i:s'));
 
+    $offers = 0;
+    $errors = [];
+    foreach ($results as $key => $result) {
+        $offers += $result['count'];
+        if (!$result['ok']) {
+            $errors[] = ($labels[$key] ?? $key) . ': ' . $result['message'];
+        }
+    }
+
     $respond([
-        'ok'     => $result['ok'],
-        'key'    => $key,
-        'note'   => $result['ok'] ? $result['count'] . ' offers' : $result['message'],
-        'errors' => $result['ok'] ? [] : [$result['message']],
+        'ok'     => !$errors || count($errors) < count($results),
+        'key'    => (string) ($_POST['key'] ?? ''),
+        'note'   => $offers . ' offers' . ($errors ? ', ' . count($errors) . ' failed' : ''),
+        'errors' => $errors,
     ]);
 }
 
@@ -199,5 +222,6 @@ view('admin/otpget', [
     'counts'     => $counts,
     'syncedAt'   => (string) setting('catalogue_synced_at', ''),
     'units'      => count(sync_units()),
+    'autoSync'   => otpget_configured() && isset($_GET['sync']),
     'currencies' => array_keys(currencies()),
 ], 'layouts/admin');

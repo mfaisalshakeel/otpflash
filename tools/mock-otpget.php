@@ -16,6 +16,10 @@
  *
  *   MOCK_SMS_DELAY=20      seconds after purchase before the code arrives
  *   MOCK_CANCEL_AFTER=10   seconds after purchase before a cancel is allowed
+ *   MOCK_LATENCY_MS=400    how long every reply takes, like the real network
+ *
+ * To see requests that go out together (the catalogue sync) arrive together,
+ * give the built-in server workers: PHP_CLI_SERVER_WORKERS=16 php -S ...
  *
  * And a few choices that misbehave on purpose:
  *
@@ -32,6 +36,10 @@ $state = sys_get_temp_dir() . '/mock-otpget-state.json';
 
 $smsDelay    = (int) (getenv('MOCK_SMS_DELAY') ?: 20);
 $cancelAfter = (int) (getenv('MOCK_CANCEL_AFTER') ?: 10);
+
+if (($latency = (int) getenv('MOCK_LATENCY_MS')) > 0) {
+    usleep($latency * 1000);
+}
 
 header('Content-Type: text/plain; charset=utf-8');
 

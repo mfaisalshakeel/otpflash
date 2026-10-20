@@ -85,6 +85,116 @@ final class OtpGet
         $this->baseUrl = rtrim($baseUrl, '/');
     }
 
+    /** Set while parallel() is learning what its work will ask. */
+    private bool $recording = false;
+
+    /** The request the work under recording tried to make. */
+    private ?array $recorded = null;
+
+    /** Replies fetched together by parallel(), keyed by URL, each used once. */
+    private array $prefetched = [];
+
+    private const DEFERRED = 7301;
+
+    /**
+     * Run several pieces of work whose OTPGet requests go out together.
+     *
+     * OTPGet has no bulk listing: a catalogue is one request per server and
+     * country, and nine hundred of them one after another is a quarter of an
+     * hour. Here each piece runs twice. The first time it is stopped at its
+     * first request, which is only noted; then every noted request goes out
+     * at once, `$width` at a time; then each piece runs for real and is
+     * answered from what came back. So the parsing stays in the one method
+     * that already does it, and nothing here knows what a reply looks like.
+     *
+     * The rule this rests on: a piece must make its first OTPGet request
+     * before it writes anything, because the first run is thrown away at
+     * that request. Every sync unit does. A piece that makes a second
+     * request makes it live, which is slower but still correct.
+     *
+     * @param array<int|string, callable> $work
+     * @return array<int|string, mixed> each piece's return value, same keys
+     */
+    public function parallel(array $work, int $width = 12): array
+    {
+        $requests = [];
+        $this->recording = true;
+        try {
+            foreach ($work as $name => $piece) {
+                $this->recorded = null;
+                try {
+                    $piece();
+                } catch (RuntimeException $e) {
+                    if ($e->getCode() !== self::DEFERRED) {
+                        throw $e;
+                    }
+                }
+                if ($this->recorded !== null) {
+                    $requests[$this->recorded['url']] = $this->recorded;
+                }
+            }
+        } finally {
+            $this->recording = false;
+            $this->recorded  = null;
+        }
+
+        $this->fetchAll(array_values($requests), max(1, $width));
+
+        $results = [];
+        try {
+            foreach ($work as $name => $piece) {
+                $results[$name] = $piece();
+            }
+        } finally {
+            $this->prefetched = [];
+        }
+        return $results;
+    }
+
+    /** Fetch many URLs at once, at most $width in flight, into $prefetched. */
+    private function fetchAll(array $requests, int $width): void
+    {
+        if (!$requests) {
+            return;
+        }
+        $multi   = curl_multi_init();
+        $flying  = [];
+        $next    = 0;
+        $launch  = function () use (&$next, &$flying, $requests, $multi): void {
+            $request = $requests[$next++];
+            $handle  = $this->handle($request['url'], $request['timeout']);
+            curl_multi_add_handle($multi, $handle);
+            $flying[spl_object_id($handle)] = [$handle, $request['url']];
+        };
+
+        while ($next < count($requests) && count($flying) < $width) {
+            $launch();
+        }
+        do {
+            curl_multi_exec($multi, $active);
+            if ($active) {
+                curl_multi_select($multi, 1.0);
+            }
+            while ($info = curl_multi_info_read($multi)) {
+                $handle = $info['handle'];
+                [, $url] = $flying[spl_object_id($handle)];
+                $this->prefetched[$url] = $this->answer(
+                    curl_multi_getcontent($handle),
+                    (int) $info['result'],
+                    $info['result'] ? curl_strerror($info['result']) : '',
+                    (int) curl_getinfo($handle, CURLINFO_HTTP_CODE)
+                );
+                unset($flying[spl_object_id($handle)]);
+                curl_multi_remove_handle($multi, $handle);
+                curl_close($handle);
+                if ($next < count($requests)) {
+                    $launch();
+                }
+            }
+        } while ($flying);
+        curl_multi_close($multi);
+    }
+
     // =======================================================================
     // Account
     // =======================================================================
@@ -612,8 +722,29 @@ final class OtpGet
         if ($this->currency !== '' && strtoupper($this->currency) !== 'PKR') {
             $query['currency'] = $this->currency;
         }
+        $url = $this->baseUrl . '/' . $file . '?' . http_build_query($query);
 
-        $ch = curl_init($this->baseUrl . '/' . $file . '?' . http_build_query($query));
+        if ($this->recording) {
+            $this->recorded = ['url' => $url, 'timeout' => $timeout];
+            throw new RuntimeException('Deferred to a parallel fetch.', self::DEFERRED);
+        }
+        if (array_key_exists($url, $this->prefetched)) {
+            $reply = $this->prefetched[$url];
+            unset($this->prefetched[$url]);
+            return $reply;
+        }
+
+        $ch     = $this->handle($url, $timeout);
+        $body   = curl_exec($ch);
+        $reply  = $this->answer($body, curl_errno($ch), curl_error($ch), (int) curl_getinfo($ch, CURLINFO_HTTP_CODE));
+        curl_close($ch);
+        return $reply;
+    }
+
+    /** One request, set up the same way whether it goes alone or in a crowd. */
+    private function handle(string $url, int $timeout): CurlHandle
+    {
+        $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => min($timeout, $this->timeout * 2),
@@ -624,13 +755,12 @@ final class OtpGet
             CURLOPT_USERAGENT      => 'OTPFlash/' . (defined('APP_VERSION') ? APP_VERSION : '1'),
             CURLOPT_HTTPHEADER     => ['Accept: application/json, text/plain'],
         ]);
+        return $ch;
+    }
 
-        $body   = curl_exec($ch);
-        $errNo  = curl_errno($ch);
-        $errMsg = curl_error($ch);
-        $code   = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
+    /** What a finished request means: its text, or why there is none. */
+    private function answer(string|false|null $body, int $errNo, string $errMsg, int $code): array
+    {
         if ($errNo !== 0) {
             return ['error' => 'CONNECTION', 'message' => self::MESSAGES['CONNECTION'] . ' ' . $errMsg];
         }
