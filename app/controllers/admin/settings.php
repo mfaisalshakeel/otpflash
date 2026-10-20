@@ -70,8 +70,14 @@ $GROUPS = [
             'hint' => 'When a number expires with no SMS, or OTPGet cannot supply one, the '
                     . 'money goes straight back to the customer\'s wallet.'],
         'loss_guard'            => ['label' => 'Never buy a number for more than it sold for', 'type' => 'checkbox',
-            'hint' => 'If OTPGet\'s price rose above yours since the last sync, the order waits '
-                    . 'for you instead of being filled at a loss.'],
+            'hint' => 'If OTPGet\'s price is now above what the customer paid, the number is not bought: '
+                    . 'an account holder is refunded at once, a guest\'s order waits for you.'],
+        'price_check_minutes'   => ['label' => 'Check OTPGet\'s live price when it is older than', 'type' => 'select',
+            'options' => ['0' => 'Never - trust the last sync', '5' => '5 minutes', '10' => '10 minutes (recommended)',
+                          '30' => '30 minutes', '60' => '1 hour'],
+            'hint' => 'Asked once when someone orders and again before the number is bought - one quick request, '
+                    . 'shared by everyone buying the same thing for those minutes. A price that went up is shown '
+                    . 'to the customer before they pay it.'],
     ],
     'Protection' => [
         'rate_sanity_factor' => ['label' => 'Reject an exchange rate that moves more than', 'type' => 'number',

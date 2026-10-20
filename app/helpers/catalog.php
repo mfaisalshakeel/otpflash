@@ -21,6 +21,7 @@
 
 require_once APP_PATH . '/helpers/OtpGet.php';
 require_once APP_PATH . '/helpers/currency.php';
+require_once APP_PATH . '/helpers/audit.php';
 
 /**
  * Every product OTPGet sells, in the order the shop offers them.
@@ -529,7 +530,9 @@ function offer_price(string $product, float $cost, string $currency = ''): float
         return 0.0;
     }
 
-    $price = $base * (1 + product_markup($product) / 100);
+    // The markup, but never less than the minimum profit: thirty per cent
+    // of a ten-rupee number is three rupees, which a payment fee eats.
+    $price = max($base * (1 + product_markup($product) / 100), $base + (float) setting('min_profit', '0'));
     $price = max($price, (float) setting('min_price', '0'));
 
     // Rounded up, never down: rounding is a presentation choice and must not
@@ -583,6 +586,86 @@ function offer_option_label(array $offer): string
                      . ' · Server ' . $offer['server'],
         default   => (string) $offer['product'],
     };
+}
+
+/**
+ * The least this offer may sell for: what OTPGet charges, in our currency,
+ * plus the minimum profit. A pin below it is refused, and a pin the cost has
+ * risen past is lifted at the next sync.
+ */
+function offer_cost_floor(array $offer): float
+{
+    $cost = to_base((float) $offer['cost'], (string) ($offer['cost_currency'] ?: otpget_currency()));
+    return round((float) ($cost ?? 0) + (float) setting('min_profit', '0'), 2);
+}
+
+/** The sync unit that re-reads this offer: one request to OTPGet. */
+function offer_unit_key(array $offer): string
+{
+    return match ((string) $offer['product']) {
+        'sms'     => 'sms:' . $offer['server'] . ':' . $offer['provider_country'],
+        'premium' => 'premium::' . $offer['provider_country'],
+        'cheap'   => 'cheap::',
+        'email'   => (string) $offer['server'] === '2'
+                     ? 'email:2:' . $offer['provider_service'] : 'email:1:' . $offer['provider_country'],
+        'rental'  => 'rental:' . $offer['server'] . ':' . $offer['provider_country'],
+        default   => '',
+    };
+}
+
+/**
+ * The offer with OTPGet's cost as of a few minutes ago at most.
+ *
+ * The sync keeps costs a few hours fresh, and a cost that rose in between is
+ * a number sold below what it costs - OTPGet only says what it charged after
+ * it has charged it, and an SMS number cannot be handed back for two
+ * minutes. So when the cost is older than `price_check_minutes`, its unit is
+ * read again first: one request, and every customer after this one in the
+ * next few minutes is served from it.
+ *
+ * Returns the offer as it is now, or null when OTPGet no longer sells it. If
+ * OTPGet cannot be reached the last known cost stands; the loss guard still
+ * stands behind it at the moment of buying.
+ */
+function offer_refresh(array $offer): ?array
+{
+    $minutes = (int) setting('price_check_minutes', '10');
+    if ($minutes <= 0 || strtotime((string) ($offer['synced_at'] ?? '')) > time() - $minutes * 60) {
+        return $offer;
+    }
+    $key = offer_unit_key($offer);
+    if ($key === '' || !sync_unit($key)['ok']) {
+        return $offer;
+    }
+    return sellable_offer((int) $offer['id']);
+}
+
+/**
+ * Would filling this order now cost more than it sold for?
+ *
+ * Asks with the offer's cost refreshed first (offer_refresh), so the answer
+ * is about today's price. The one rule behind every purchase from OTPGet -
+ * a number, a rental, a renewal - so they cannot disagree about what a loss
+ * is. Switched off by `loss_guard`, for an admin who means to sell at a loss.
+ *
+ * @return string|null why not, in words for the order log; null to go ahead
+ */
+function order_loss_refusal(array $order): ?string
+{
+    if (setting('loss_guard', '1') !== '1' || empty($order['offer_id'])) {
+        return null;
+    }
+    $offer = one('SELECT * FROM offers WHERE id = ?', [(int) $order['offer_id']]);
+    if (!$offer) {
+        return null;
+    }
+    $offer = offer_refresh($offer) ?? one('SELECT * FROM offers WHERE id = ?', [(int) $order['offer_id']]);
+    $cost  = to_base((float) $offer['cost'], (string) ($offer['cost_currency'] ?: otpget_currency()));
+    if ($cost === null || $cost <= (float) $order['price'] + 0.009) {
+        return null;
+    }
+    return 'OTPGet now charges ' . money($cost) . ' for this, more than the ' . money((float) $order['price'])
+        . ' it sold for.';
 }
 
 // ===========================================================================
@@ -1033,8 +1116,26 @@ function offers_store(string $product, string $server, ?string $country, array $
             'synced_at'     => $now,
         ];
 
-        $id = col('SELECT id FROM offers WHERE product = ? AND server = ? AND provider_country = ?
-                     AND provider_service = ?', [$product, $server, $providerCountry, $providerService]);
+        $existing = one('SELECT id, price_override, provider_name FROM offers WHERE product = ? AND server = ?
+                           AND provider_country = ? AND provider_service = ?',
+                        [$product, $server, $providerCountry, $providerService]);
+        $id = $existing['id'] ?? null;
+
+        // A pinned price is the admin's - until OTPGet's cost rises past it.
+        // Then it is a loss on every sale, so the pin goes and the automatic
+        // price takes over, and the admin is told rather than finding out
+        // from the dashboard's profit figure.
+        if ($existing && $existing['price_override'] !== null) {
+            $floor = (float) (to_base($cost, $currency) ?? 0) + (float) setting('min_profit', '0');
+            if ($floor > 0 && (float) $existing['price_override'] < $floor) {
+                $fields['price_override'] = null;
+                audit('catalogue.unpinned', ['entity' => 'offers', 'entity_id' => (int) $id, 'severity' => 'warn',
+                    'summary' => ($existing['provider_name'] ?: 'An offer') . ': pinned at '
+                        . money((float) $existing['price_override']) . ' but OTPGet now charges '
+                        . money((float) to_base($cost, $currency)) . ' - back to the automatic '
+                        . money($fields['price'])]);
+            }
+        }
 
         if (!$id) {
             try {

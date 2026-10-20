@@ -37,7 +37,7 @@ const REBASE_MONEY = [
 ];
 
 /** Settings whose value is an amount in the base currency. */
-const REBASE_MONEY_SETTINGS = ['low_balance_threshold', 'min_price', 'min_deposit'];
+const REBASE_MONEY_SETTINGS = ['low_balance_threshold', 'min_price', 'min_profit', 'min_deposit'];
 
 /**
  * What changing the base to $code would touch, without touching it.

@@ -418,6 +418,16 @@
           return;
         }
         busy(button, false);
+        // The price moved: the server sends the options again, priced as
+        // they are now, and the message goes on the new form.
+        if (data && data.repick) {
+          var holder = form.parentNode;
+          holder.innerHTML = data.repick;
+          bindOptions(holder);
+          var fresh = $('[data-order-form]', holder);
+          if (fresh) { formError(fresh, data.error, data); }
+          return;
+        }
         formError(form, (data && data.error) || 'That did not go through. Please try again.', data);
       }).catch(function () {
         busy(button, false);

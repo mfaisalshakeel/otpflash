@@ -33,7 +33,10 @@ function rental_start(int $orderId): array
     }
 
     $hours = (int) $target['provider_service'];
-    $reply = otpget()->rentNumber($target['provider_country'], (int) $target['server'], $hours);
+    $loss  = order_loss_refusal($order);
+    $reply = $loss !== null
+        ? ['error' => 'PRICE_UP', 'message' => $loss]
+        : otpget()->rentNumber($target['provider_country'], (int) $target['server'], $hours);
 
     if (isset($reply['error']) || empty($reply['phone'])) {
         $message = (string) ($reply['message'] ?? 'OTPGet did not return a number.');
@@ -229,9 +232,12 @@ function rental_renew_from_order(int $orderId): array
     $hours  = (int) ($meta['hours'] ?? 0);
 
     $providerId = $rental ? rental_find_provider_id((int) $rental['id']) : '';
-    $reply = $providerId !== '' && $hours > 0
-        ? otpget()->renewRental($providerId, $hours)
-        : ['error' => 'MISSING', 'message' => 'OTPGet has not told us this rental\'s id yet.'];
+    $loss  = $order ? order_loss_refusal($order) : null;
+    $reply = match (true) {
+        $loss !== null                   => ['error' => 'PRICE_UP', 'message' => $loss],
+        $providerId !== '' && $hours > 0 => otpget()->renewRental($providerId, $hours),
+        default                          => ['error' => 'MISSING', 'message' => 'OTPGet has not told us this rental\'s id yet.'],
+    };
 
     if (isset($reply['error'])) {
         update_row('orders', ['status' => 'api_error', 'api_error' => mb_substr((string) $reply['message'], 0, 500),

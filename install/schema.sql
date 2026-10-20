@@ -596,6 +596,8 @@ INSERT INTO `settings` (`k`, `v`) VALUES
   ('blog_per_page',         '9'),
   ('sms_servers',           '1,2,3,4,5,6'),
   ('default_markup',        '30'),
+  ('min_profit',            '0'),
+  ('price_check_minutes',   '10'),
   ('min_price',             '0'),
   ('price_rounding',        '1'),
   ('auto_buy_number',       '1'),

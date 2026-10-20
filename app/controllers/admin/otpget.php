@@ -27,7 +27,7 @@ $respond = static function (array $payload): never {
 
 /** The settings this screen owns, and how each is read back from the form. */
 $OWNED = [
-    'otpget_base_url', 'otpget_currency', 'products', 'sms_servers', 'email_servers',
+    'otpget_base_url', 'otpget_currency', 'products', 'sms_servers', 'email_servers', 'min_profit',
     'rental_providers', 'email_sites', 'default_markup', 'markup_sms', 'markup_premium',
     'markup_cheap', 'markup_email', 'markup_rental', 'min_price', 'price_rounding',
     'sync_on_cron', 'sync_batch', 'low_balance_threshold',
@@ -74,7 +74,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         preg_split('/[\s,]+/', (string) ($_POST['email_sites'] ?? '')) ?: []
     ), static fn ($s) => (bool) preg_match('/^[a-z0-9.-]+\.[a-z]{2,}$/', $s)))));
 
-    foreach (['default_markup', 'min_price', 'low_balance_threshold'] as $name) {
+    foreach (['default_markup', 'min_price', 'min_profit', 'low_balance_threshold'] as $name) {
         set_setting($name, (string) max(0, round((float) ($_POST[$name] ?? 0), 2)));
     }
     foreach (array_keys(PRODUCTS) as $product) {
@@ -102,7 +102,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     // What was sold or how it was priced may have moved: prices follow now,
     // and the next sync re-reads the lists rather than trusting old ones.
     $changed = reprice_offers();
-    $pricing = ['default_markup', 'min_price', 'price_rounding', 'otpget_currency',
+    $pricing = ['default_markup', 'min_price', 'min_profit', 'price_rounding', 'otpget_currency',
                 'markup_sms', 'markup_premium', 'markup_cheap', 'markup_email', 'markup_rental'];
     foreach (['products', 'sms_servers', 'email_servers', 'rental_providers', 'email_sites'] as $name) {
         if (($before[$name] ?? '') !== ($after[$name] ?? '')) {

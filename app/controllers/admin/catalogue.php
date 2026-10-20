@@ -26,6 +26,12 @@ if ($action === 'price' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $typed = trim((string) ($_POST['price'] ?? ''));
     $value = $typed === '' ? null : round(max(0, (float) $typed), 2);
     $offer = one('SELECT * FROM offers WHERE id = ?', [$id]);
+    if ($offer && $value !== null && $value < offer_cost_floor($offer)) {
+        flash('error', 'OTPGet charges ' . money((float) to_base((float) $offer['cost'], (string) $offer['cost_currency']))
+            . ' for this, so ' . money($value) . ' would sell it at a loss. The lowest you can pin is '
+            . money(offer_cost_floor($offer)) . '.');
+        $back();
+    }
     if ($offer) {
         update_row('offers', ['price_override' => $value], 'id = ?', [$id]);
         audit('offer.price', ['entity' => 'offers', 'entity_id' => $id, 'severity' => 'warn',
@@ -66,7 +72,24 @@ if ($action === 'bulk' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 flash('error', 'Type the price to pin first.');
                 $back();
             }
-            q("UPDATE offers SET price_override = ? WHERE id IN ({$in})", array_merge([$price], $ids));
+            // Only the offers this price still makes money on.
+            $pinned = [];
+            foreach (all("SELECT * FROM offers WHERE id IN ({$in})", $ids) as $offer) {
+                if ($price >= offer_cost_floor($offer)) {
+                    $pinned[] = (int) $offer['id'];
+                }
+            }
+            if (!$pinned) {
+                flash('error', 'OTPGet charges more than ' . money($price) . ' for every offer ticked, so nothing was pinned.');
+                $back();
+            }
+            q('UPDATE offers SET price_override = ? WHERE id IN (' . implode(',', array_fill(0, count($pinned), '?')) . ')',
+                array_merge([$price], $pinned));
+            if (count($pinned) < count($ids)) {
+                flash('warning', qty_fmt(count($ids) - count($pinned)) . ' offer(s) cost more than '
+                    . money($price) . ' and were left on their automatic price.');
+            }
+            $ids = $pinned;
             break;
         default:
             flash('error', 'Unknown action.');

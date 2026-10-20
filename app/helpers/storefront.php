@@ -215,3 +215,30 @@ function service_intro(array $service, ?array $country = null): string
         . 'numbers in many countries, receive the ' . $name . ' OTP online, and get a free '
         . 'replacement if the SMS never arrives.';
 }
+
+/**
+ * The picker's last step for the choice an offer belongs to, as HTML.
+ *
+ * What the order form answers with when the price moved under the customer:
+ * the same options, freshly priced, so the button they press next says what
+ * they will pay.
+ */
+function picker_options_html(array $offer): string
+{
+    $tab = match ((string) $offer['product']) {
+        'email'  => 'email',
+        'rental' => 'rental',
+        default  => 'numbers',
+    };
+    $state = picker_state(
+        $tab,
+        $tab !== 'rental' && !empty($offer['service_id']) ? (int) $offer['service_id'] : null,
+        $tab !== 'email' && !empty($offer['country_id']) ? (int) $offer['country_id'] : null
+    );
+    return render('partials/options', [
+        'state'    => $state,
+        'user'     => current_user(),
+        'guestOk'  => setting('guest_checkout', '1') === '1',
+        'askEmail' => setting('ask_email', '0') === '1',
+    ]);
+}

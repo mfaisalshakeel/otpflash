@@ -134,20 +134,20 @@ function number_buy(int $orderId): array
         q('UPDATE orders SET sending_at = NULL WHERE id = ?', [$id]);
     };
 
-    $order  = one('SELECT * FROM orders WHERE id = ?', [$orderId]);
+    $order = one('SELECT * FROM orders WHERE id = ?', [$orderId]);
+
+    // Never buy at a loss without being asked to - judged on OTPGet's cost
+    // as it is now, since a manual payment can be confirmed an hour after
+    // the order was placed. This also refreshes the offer the target reads.
+    $loss   = $order ? order_loss_refusal($order) : null;
     $target = $order ? order_purchase_target($order) : null;
     if (!$order || !$target) {
         $release($orderId);
         return [false, 'This order no longer says what to buy.'];
     }
-
-    // Never buy at a loss without being asked to. The cost is the last one
-    // the sync saw, which is the best guess available before buying.
-    $costNow = to_base($target['cost'], $target['cost_currency']);
-    if (setting('loss_guard', '1') === '1' && $costNow !== null && $costNow > (float) $order['price'] + 0.009) {
-        return number_failed($order, 'PRICE_UP', 'OTPGet now charges ' . money($costNow)
-            . ' for this, more than the ' . money((float) $order['price']) . ' it sold for. '
-            . 'Sync the catalogue, then retry from the admin.');
+    if ($loss !== null) {
+        return number_failed($order, 'PRICE_UP', $loss . ' Its price is corrected for new orders; '
+            . 'refund this one, or switch the loss guard off and retry it.');
     }
 
     $api = otpget();
@@ -201,6 +201,23 @@ function number_buy(int $orderId): array
     ], 'id = ?', [$orderId]);
     order_recost($orderId);
 
+    // OTPGet says what it charged only now. If that is not what the offer
+    // thought, the offer learns it, so the next customer pays enough - and a
+    // number that did cost more than it sold for is said out loud.
+    if (!empty($order['offer_id']) && abs($cost - (float) $target['cost']) > 0.0001) {
+        update_row('offers', [
+            'cost'      => $cost,
+            'price'     => offer_price($target['product'], $cost, $target['cost_currency']),
+            'synced_at' => date('Y-m-d H:i:s'),
+        ], 'id = ?', [(int) $order['offer_id']]);
+    }
+    if ($costBase > (float) $order['price'] + 0.009) {
+        order_log($orderId, 'OTPGet charged ' . money($costBase) . ' for this number, more than the '
+            . money((float) $order['price']) . ' it sold for. The price has been corrected for the next customer.');
+        audit('order.loss', ['entity' => 'orders', 'entity_id' => $orderId, 'severity' => 'warn',
+            'summary' => $order['code'] . ' cost ' . money($costBase) . ', sold for ' . money((float) $order['price'])]);
+    }
+
     order_log($orderId, ($order['attempts'] > 0 ? 'Replacement' : 'Number') . ' ' . $number
         . ' bought from OTPGet (' . $target['product'] . ($target['server'] !== '' ? ' ' . $target['server'] : '')
         . ', order ' . $orderRef . ', cost ' . money($costBase) . ').');
@@ -216,8 +233,8 @@ function number_buy(int $orderId): array
 /**
  * OTPGet refused the purchase. Park the order with its words.
  *
- * A wallet customer whose order cannot be filled at all - nothing in stock
- * on the first try - is refunded on the spot rather than left looking at a
+ * A wallet customer whose order cannot be filled - no code has arrived on
+ * any number it had - is refunded on the spot rather than left looking at a
  * paid order with nothing in it. A guest keeps the order and the Try again
  * button, and the admin is told either way.
  */
@@ -252,7 +269,9 @@ function number_failed(array $order, string $code, string $message): array
         ]);
     }
 
-    if (!empty($order['user_id']) && (int) $order['attempts'] === 0 && setting('auto_refund', '1') === '1') {
+    // Refunded whenever no code ever arrived - the first number or a
+    // replacement, it is the same customer holding nothing for their money.
+    if (!empty($order['user_id']) && (string) ($order['otp_code'] ?? '') === '' && setting('auto_refund', '1') === '1') {
         $fresh = one('SELECT * FROM orders WHERE id = ?', [$orderId]);
         refund_order_to_wallet($fresh ?: $order, 'OTPGet could not supply a number', ['api_error']);
     }
@@ -267,7 +286,8 @@ function number_trouble(string $code): string
         in_array($code, ['NO_NUMBERS', 'NO_SERVICE', 'BAD_SERVICE', 'BAD_COUNTRY', 'STATUS_404'], true)
             => 'No numbers are available for this right now. Try again in a minute, or pick another country or server.',
         $code === 'PRICE_UP'
-            => 'The price for this changed a moment ago. We have been told and will sort it out shortly.',
+            => 'The price for this went up a moment ago, so we did not buy it. Account holders are refunded '
+               . 'to their wallet at once; otherwise we have been told and will sort it out shortly.',
         default
             => 'We could not get a number just now. Please try again in a minute.',
     };

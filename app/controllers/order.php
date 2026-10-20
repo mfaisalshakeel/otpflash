@@ -84,7 +84,22 @@ if ($code === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $fail('That email address does not look right. Leave it blank if you would rather not give one.', 'email');
     }
 
+    // The price the customer was shown, against OTPGet's price now. A cost
+    // the sync last saw hours ago is read again first (offer_refresh), and a
+    // price that went up is shown before it is charged - never after.
+    $shown = offer_sale_price($offer);
+    $fresh = offer_refresh($offer);
+    if (!$fresh) {
+        require_once APP_PATH . '/helpers/storefront.php';
+        $fail('That option has just sold out. Please pick another.', null, ['repick' => picker_options_html($offer)]);
+    }
+    $offer = $fresh;
     $price = offer_sale_price($offer);
+    if ($price > $shown + 0.009) {
+        require_once APP_PATH . '/helpers/storefront.php';
+        $fail('The price went up to ' . money($price) . ' a moment ago (it was ' . money($shown) . '). '
+            . 'Tap the button again to buy at the new price.', null, ['repick' => picker_options_html($offer)]);
+    }
 
     // Checked before the order exists, so a wallet that is short leaves no
     // stray unpaid order behind - just the way to top it up.

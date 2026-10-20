@@ -173,6 +173,12 @@ $value    = static fn (string $key, string $default = ''): string => (string) se
               <input id="o-min" name="min_price" type="number" min="0" step="1" value="<?= e($value('min_price', '0')) ?>">
             </div>
           </div>
+          <div class="field">
+            <label for="o-profit">Least profit on every sale (<?= e(trim(base_currency_symbol())) ?>)</label>
+            <input id="o-profit" name="min_profit" type="number" min="0" step="0.5" value="<?= e($value('min_profit', '0')) ?>">
+            <small>On a cheap number a percentage is a few paisa, which a payment fee eats. With this set, every
+              price is at least OTPGet's cost plus this much - and no price can be pinned below it.</small>
+          </div>
           <div class="field2">
             <?php foreach (PRODUCTS as $key => $product): ?>
               <div class="field">
