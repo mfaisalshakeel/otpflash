@@ -160,7 +160,7 @@ function number_buy(int $orderId, array $tried = []): array
             . 'refund this one, or switch the loss guard off and retry it.');
     }
 
-    $api = otpget();
+    $api = otpget()->about($orderId);
     try {
         $reply = $target['product'] === 'email'
             ? $api->buyEmail((int) $target['server'], $target['provider_country'], $target['provider_service'])
@@ -461,7 +461,7 @@ function number_check(int $orderId, bool $force = false): void
         return;
     }
 
-    $api   = otpget();
+    $api   = otpget()->about($orderId);
     $reply = $activation['product'] === 'email'
         ? $api->emailCode((string) $activation['provider_order_id'])
         : $api->status((string) $activation['product'], (string) $activation['provider_order_id']);
@@ -548,7 +548,7 @@ function number_received(array $order, array $activation, string $code): void
  */
 function number_expire(array $order, array $activation): void
 {
-    $api   = otpget();
+    $api   = otpget()->about((int) $order['id']);
     $reply = $activation['product'] === 'email'
         ? $api->cancelEmail((string) $activation['provider_order_id'])
         : $api->cancel((string) $activation['product'], (string) $activation['provider_order_id']);
@@ -629,7 +629,7 @@ function number_can_release(array $order, ?array $activation): array
 /** Give the current number back to OTPGet. */
 function number_release(array $order, array $activation): array
 {
-    $api   = otpget();
+    $api   = otpget()->about((int) $order['id']);
     $reply = $activation['product'] === 'email'
         ? $api->cancelEmail((string) $activation['provider_order_id'])
         : $api->cancel((string) $activation['product'], (string) $activation['provider_order_id']);
@@ -726,7 +726,7 @@ function numbers_finish_due(int $limit = 50): int
     foreach (all("SELECT * FROM activations WHERE status = 'received' AND expires_at < ? ORDER BY id LIMIT "
             . max(1, $limit), [date('Y-m-d H:i:s')]) as $activation) {
         if ($activation['product'] !== 'email') {
-            otpget()->finish((string) $activation['product'], (string) $activation['provider_order_id']);
+            otpget()->about((int) $activation['order_id'])->finish((string) $activation['product'], (string) $activation['provider_order_id']);
         }
         q("UPDATE activations SET status = 'finished', closed_at = ? WHERE id = ?",
             [date('Y-m-d H:i:s'), $activation['id']]);

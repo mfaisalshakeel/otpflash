@@ -65,6 +65,7 @@ function paypal_token(array $config): array
     $raw   = curl_exec($ch);
     $errNo = curl_errno($ch);
     $error = curl_error($ch);
+    payment_wire($ch, $raw);
     curl_close($ch);
 
     if ($errNo !== 0) {
@@ -109,6 +110,7 @@ function paypal_call(array $config, string $token, string $path, ?array $payload
     $errNo = curl_errno($ch);
     $error = curl_error($ch);
     $code  = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    payment_wire($ch, $raw);
     curl_close($ch);
 
     if ($errNo !== 0) {

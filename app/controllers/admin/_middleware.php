@@ -52,6 +52,7 @@ $arrivesWith = [
     'notifications' => 'notifications',
     'emails'        => 'email_templates',
     'audit'         => 'audit_log',
+    'api-log'       => 'order_calls',
 ];
 if (isset($arrivesWith[$adminAction]) && !table_exists($arrivesWith[$adminAction])) {
     flash('error', 'That screen arrives with the database update, which has not run yet. '

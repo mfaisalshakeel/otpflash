@@ -115,6 +115,37 @@ svg{max-width:100%}
 .scard small{display:block;color:var(--muted);font-size:12.5px;font-weight:600}
 .scard b{display:block;font-size:25px;font-weight:700;letter-spacing:-.02em;line-height:1.25}
 .scard span{font-size:12px;font-weight:600}
+.cards2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:18px}
+a.scard{color:inherit;text-decoration:none}
+a.scard:hover{border-color:var(--acc)}
+
+/* Calls to OTPGet and the gateways: one line each, opening onto the raw
+   request and reply. Green and red say how it went before anything is read. */
+.calls{display:grid;gap:8px}
+.calls-empty{margin:0}
+.call{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.call summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:auto minmax(0,auto) minmax(0,1fr) auto;
+  align-items:center;gap:10px;padding:10px 12px;font-size:13.5px}
+.call summary::-webkit-details-marker{display:none}
+.call summary:hover{background:var(--hover)}
+.call-dot{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 18%,transparent)}
+.call-bad .call-dot{background:var(--danger);box-shadow:0 0 0 3px var(--danger-soft)}
+.call-bad{border-color:color-mix(in srgb,var(--danger) 35%,var(--line))}
+.call-who{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.call-order{font-size:12.5px}
+.call-what{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)}
+.call-bad .call-what{color:var(--danger);font-weight:600}
+.call-when{color:var(--muted);font-size:12.5px;white-space:nowrap;display:flex;gap:6px;align-items:center}
+.call-rep{background:var(--hover);border:1px solid var(--line);border-radius:999px;padding:0 7px;font-weight:700;font-size:11.5px}
+.call-body{border-top:1px solid var(--line);padding:10px 12px 12px;background:var(--page)}
+.call-body small{display:block;font-size:12px;font-weight:700;color:var(--muted);margin:6px 0 4px}
+.call-body pre{margin:0;padding:10px 12px;border-radius:10px;background:var(--surface);border:1px solid var(--line);
+  font-size:12.5px;line-height:1.5;white-space:pre-wrap;word-break:break-all;max-height:320px;overflow:auto}
+@media (max-width:760px){
+  .cards2{grid-template-columns:minmax(0,1fr)}
+  .call summary{grid-template-columns:auto minmax(0,1fr);row-gap:4px}
+  .call-what,.call-when{grid-column:2}
+}
 
 /* minmax(0,...) rather than a bare 1fr: `1fr` means `minmax(auto,1fr)`,
    and that auto floor is the item's min-content width - a column then

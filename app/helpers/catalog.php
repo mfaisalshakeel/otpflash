@@ -76,11 +76,21 @@ function rental_duration_words(int $hours): string
 function otpget(): OtpGet
 {
     static $api = null;
-    return $api ??= new OtpGet(
-        (string) setting('otpget_base_url', 'https://otpget.com/stubs'),
-        trim((string) setting('otpget_api_key', '')),
-        strtoupper(trim((string) setting('otpget_currency', 'PKR')))
-    );
+    if ($api === null) {
+        $api = new OtpGet(
+            (string) setting('otpget_base_url', 'https://otpget.com/stubs'),
+            trim((string) setting('otpget_api_key', '')),
+            strtoupper(trim((string) setting('otpget_currency', 'PKR')))
+        );
+        // Only requests made through otpget()->about($orderId) reach this;
+        // the catalogue sync, with nobody's order behind it, never does.
+        $api->observe(static function (int $orderId, array $exchange): void {
+            if (function_exists('order_call')) {
+                order_call($orderId, ['source' => 'otpget', 'party' => 'OTPGet'] + $exchange);
+            }
+        });
+    }
+    return $api;
 }
 
 /** What OTPGet bills us in. Every cost column is in this. */

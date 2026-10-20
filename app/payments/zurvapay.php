@@ -65,6 +65,7 @@ function zurvapay_call(array $config, string $path, ?array $payload = null, int 
     $errNo = curl_errno($ch);
     $error = curl_error($ch);
     $code  = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    payment_wire($ch, $raw);
     curl_close($ch);
 
     if ($errNo !== 0) {

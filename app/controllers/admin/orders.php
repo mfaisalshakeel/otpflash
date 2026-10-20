@@ -224,6 +224,9 @@ if (ctype_digit((string) $action)) {
         'rental'      => !empty(order_meta($order)['rental_id'])
                            ? one('SELECT * FROM rentals WHERE id = ?', [(int) order_meta($order)['rental_id']]) : null,
         'logs'        => all('SELECT * FROM order_logs WHERE order_id = ? ORDER BY created_at DESC, id DESC', [$id]),
+        // optional_all: the table arrives with a migration, and an order has
+        // to open on a database that has not run it yet.
+        'calls'       => optional_all('SELECT * FROM order_calls WHERE order_id = ? ORDER BY id DESC LIMIT 200', [$id]),
     ], 'layouts/admin');
 }
 

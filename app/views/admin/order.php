@@ -18,6 +18,11 @@ $button = static function (string $do, string $label, string $class = 'btn-ghost
 ?>
 <a class="lnk back" href="<?= e(url('admin/orders')) ?>">&larr; Back to orders</a>
 
+<?php
+// Failed calls, counted for the heading: the box is the first place to look
+// when an order is stuck, and a number on it says whether to.
+$failedCalls = count(array_filter($calls, static fn (array $call): bool => (int) $call['ok'] === 0));
+?>
 <div class="split2">
   <div>
     <div class="box">
@@ -39,7 +44,9 @@ $button = static function (string $do, string $label, string $class = 'btn-ghost
           <?php endif; ?>
         </b></div>
         <?php if (($order['whatsapp'] ?? '') !== ''): ?>
-          <div class="drow"><span>WhatsApp</span><b><?= e($order['whatsapp']) ?></b></div>
+          <div class="drow"><span>WhatsApp</span><b><?= e($order['whatsapp']) ?>
+            <a class="lnk" target="_blank" rel="noopener"
+               href="https://wa.me/<?= e(preg_replace('/\D/', '', (string) $order['whatsapp'])) ?>?text=<?= rawurlencode('Hi, about your order ' . $order['code']) ?>">Message</a></b></div>
         <?php endif; ?>
         <div class="drow"><span>Charge / cost</span>
           <b><?= e(money($order['price'])) ?> / <?= e(money($order['cost'])) ?></b></div>
@@ -191,6 +198,15 @@ $button = static function (string $do, string $label, string $class = 'btn-ghost
             <?php endforeach; ?>
           </dl>
         <?php endif; ?>
+      </div>
+    </div>
+
+    <div class="box">
+      <div class="box-head"><b>OTPGet &amp; gateway calls</b>
+        <?php if ($failedCalls): ?><span class="st st-api_error"><?= $failedCalls ?> failed</span><?php endif; ?>
+      </div>
+      <div class="pad">
+        <?php partial('admin/_calls', ['calls' => $calls]); ?>
       </div>
     </div>
   </div>

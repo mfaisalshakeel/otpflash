@@ -77,6 +77,7 @@ return [
 
         $response = curl_exec($ch);
         $error    = curl_error($ch);
+        payment_wire($ch, $response);
         curl_close($ch);
 
         if ($error !== '') {

@@ -65,6 +65,7 @@ function binance_transactions(array $config, int $days = 7): array
     $raw   = curl_exec($ch);
     $errNo = curl_errno($ch);
     $error = curl_error($ch);
+    payment_wire($ch, $raw);
     curl_close($ch);
 
     if ($errNo !== 0) {

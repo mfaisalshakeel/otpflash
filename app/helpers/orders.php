@@ -191,6 +191,93 @@ function order_paid_notices(array $order, string $methodName, string $reference)
     }
 }
 
+/**
+ * Keep one exchange with OTPGet or a payment gateway on its order.
+ *
+ * The admin's question after anything goes wrong is "what did they actually
+ * say?", and the order log only holds our reading of it. This holds the
+ * request and the reply as they were, secrets masked. A poll that hears the
+ * same thing again only bumps `repeats` and `last_at` - a number waiting for
+ * its SMS is asked every four seconds, and three hundred identical rows would
+ * bury the one that matters.
+ *
+ * Never throws: on a database that has not run its migration yet, or a full
+ * disk, the sale goes on and the line goes to the log file instead.
+ *
+ * @param array{source?: string, party?: string, action?: string, ok?: bool, summary?: string,
+ *              request?: string, response?: string, status?: int, ms?: int} $call
+ */
+function order_call(int $orderId, array $call): void
+{
+    // The client has read the reply it reported a moment ago and found a
+    // refusal in it: the last row is put right, not a second one written.
+    if (!empty($call['amend'])) {
+        try {
+            // Two statements: MySQL will not UPDATE a table it is selecting from.
+            $lastId = (int) col('SELECT MAX(id) FROM order_calls WHERE order_id = ?', [$orderId], 0);
+            q('UPDATE order_calls SET ok = 0, summary = ? WHERE id = ?',
+                [mb_substr((string) ($call['summary'] ?? ''), 0, 500), $lastId]);
+        } catch (Throwable $e) {
+            log_line('order_call amend (' . $orderId . '): ' . $e->getMessage());
+        }
+        return;
+    }
+
+    $call += ['source' => '', 'party' => '', 'action' => '', 'ok' => false, 'summary' => '',
+              'request' => '', 'response' => '', 'status' => 0, 'ms' => 0];
+    $response = mb_substr(call_mask(trim((string) $call['response'])), 0, 6000);
+    $summary  = trim((string) $call['summary']) !== ''
+        ? (string) $call['summary']
+        : mb_substr(trim((string) preg_replace('/\s+/', ' ', strip_tags($response))), 0, 200);
+    $now = date('Y-m-d H:i:s');
+
+    try {
+        // The same reply to the same question is the same answer, whatever
+        // was later made of it - so the raw reply is what is compared.
+        $last = one('SELECT id, source, action, response FROM order_calls
+                      WHERE order_id = ? ORDER BY id DESC LIMIT 1', [$orderId]);
+        if ($last && $last['source'] === $call['source'] && $last['action'] === $call['action']
+            && (string) $last['response'] === $response) {
+            q('UPDATE order_calls SET repeats = repeats + 1, last_at = ?, ms = ? WHERE id = ?',
+                [$now, (int) $call['ms'], (int) $last['id']]);
+            return;
+        }
+        insert_row('order_calls', [
+            'order_id'    => $orderId,
+            'source'      => mb_substr((string) $call['source'], 0, 20),
+            'party'       => mb_substr((string) $call['party'], 0, 120),
+            'action'      => mb_substr((string) $call['action'], 0, 60),
+            'ok'          => $call['ok'] ? 1 : 0,
+            'summary'     => mb_substr($summary, 0, 500),
+            'request'     => mb_substr(call_mask((string) $call['request']), 0, 2000),
+            'response'    => $response,
+            'http_status' => (int) $call['status'],
+            'ms'          => (int) $call['ms'],
+            'repeats'     => 1,
+            'created_at'  => $now,
+            'last_at'     => $now,
+        ]);
+    } catch (Throwable $e) {
+        log_line('order_call(' . $orderId . ', ' . $call['source'] . ' ' . $call['action'] . '): '
+            . mb_substr($summary, 0, 200) . ' [not stored: ' . $e->getMessage() . ']');
+    }
+}
+
+/**
+ * Take the secrets out of a request or a reply before it is kept.
+ *
+ * Keys, tokens, signatures and passwords, in a query string or in JSON. What
+ * is left is still enough to see what was asked and what came back, which
+ * is the point; a key in a support screenshot is not.
+ */
+function call_mask(string $text): string
+{
+    $secret = '(?:api_?key|apikey|key|secret[a-z_]*|[a-z_]*token|sign(?:ature)?|password|pass|mid|merchant_?key|checksum[a-z_]*)';
+    $text = (string) preg_replace('/([?&]' . $secret . '=)[^&\s"]*/i', '$1***', $text);
+    $text = (string) preg_replace('/("' . $secret . '"\s*:\s*")[^"]*"/i', '$1***"', $text);
+    return $text;
+}
+
 /** Where a customer can be written to about an order: theirs, or their account's. */
 function order_email(array $order): string
 {

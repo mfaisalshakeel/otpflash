@@ -203,6 +203,7 @@ return [
         $errNo = curl_errno($ch);
         $error = curl_error($ch);
         $code  = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        payment_wire($ch, $body);
         curl_close($ch);
 
         // Unreachable is not unpaid: say so and let the next check decide.

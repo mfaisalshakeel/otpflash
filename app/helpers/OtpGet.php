@@ -108,6 +108,30 @@ final class OtpGet
     private const DEFERRED = 7301;
 
     /**
+     * The order the next requests are about, and who to tell what was said.
+     *
+     * Set only on a copy made by about(), so a context never outlives the
+     * calls it was made for: a sync that runs after a number check in the
+     * same cron run is not filed under that order.
+     */
+    private ?int $context = null;
+    private ?Closure $observer = null;
+
+    /** Hear every exchange made through a copy from about(). */
+    public function observe(?Closure $observer): void
+    {
+        $this->observer = $observer;
+    }
+
+    /** This client, with every request it makes filed under one order. */
+    public function about(int $orderId): static
+    {
+        $copy = clone $this;
+        $copy->context = $orderId;
+        return $copy;
+    }
+
+    /**
      * How many requests may be with OTPGet at once.
      *
      * Measured against otpget.com: one at a time on an open connection runs
@@ -722,8 +746,29 @@ final class OtpGet
             : 0.0;
     }
 
+    /**
+     * Tell the observer that the reply it just heard was a refusal.
+     *
+     * get() reports every exchange as it happens, before anything has read
+     * the body; whether "ERROR_PROVIDER_1" is a no is only known here, where
+     * the reply is understood. So the record is corrected rather than guessed.
+     */
+    private function refused(array $error): array
+    {
+        if ($this->context !== null && $this->observer !== null) {
+            ($this->observer)($this->context, ['amend' => true, 'ok' => false,
+                'summary' => $error['error'] . ': ' . $error['message']]);
+        }
+        return $error;
+    }
+
     /** A plain-text refusal as an error, with words beside the code. */
     private function refusal(string $text): array
+    {
+        return $this->refused($this->readRefusal($text));
+    }
+
+    private function readRefusal(string $text): array
     {
         $text = trim($text);
         if ($text === '') {
@@ -767,9 +812,9 @@ final class OtpGet
             $status = (string) $data['status'];
             if ($status !== '200' && !in_array($status, $alsoOk, true)) {
                 $message = trim((string) ($data['message'] ?? ''));
-                return ['error' => 'STATUS_' . $status,
+                return $this->refused(['error' => 'STATUS_' . $status,
                         'message' => $message !== '' ? 'OTPGet said: ' . mb_substr($message, 0, 200)
-                                                     : 'OTPGet refused the request (' . $status . ').'];
+                                                     : 'OTPGet refused the request (' . $status . ').']);
             }
         }
 
@@ -809,10 +854,24 @@ final class OtpGet
         $action = (string) ($query['action'] ?? '');
         $tries  = str_starts_with($action, 'get') && $action !== 'getNumber' ? count(self::RETRY_AFTER) : 0;
         for ($attempt = 0; ; $attempt++) {
+            $started = microtime(true);
             $ch    = $this->handle($url, $timeout);
             $body  = curl_exec($ch);
-            $reply = $this->answer($body, curl_errno($ch), curl_error($ch), (int) curl_getinfo($ch, CURLINFO_HTTP_CODE));
+            $code  = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            $reply = $this->answer($body, curl_errno($ch), $error, $code);
             curl_close($ch);
+            if ($this->context !== null && $this->observer !== null) {
+                unset($query['api_key']);
+                ($this->observer)($this->context, [
+                    'action'   => $action !== '' ? $action : $file,
+                    'request'  => $file . '?' . http_build_query($query),
+                    'status'   => $code,
+                    'response' => $error !== '' ? 'Connection error: ' . $error : (string) $body,
+                    'ms'       => (int) round((microtime(true) - $started) * 1000),
+                    'ok'       => !isset($reply['error']),
+                ]);
+            }
             if ($attempt >= $tries || !self::worthRetrying($reply)) {
                 return $reply;
             }

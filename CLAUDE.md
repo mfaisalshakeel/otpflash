@@ -280,6 +280,31 @@ and everything else to `number_buy()` when `auto_buy_number` is on.
   number or a replacement. They are holding nothing for their money either
   way. A guest has no wallet, so a guest's order waits for the admin.
 
+## What OTPGet and the gateways said
+
+Every request made for an order - to OTPGet or to a payment gateway - is
+kept in `order_calls` with the request (keys, tokens and signatures masked by
+`call_mask()`), the reply **word for word**, the HTTP status and the time.
+The order page shows them under *OTPGet & gateway calls*; `/admin/api-log`
+shows them across all orders, filterable to payments or OTPGet and to
+failures, with the last day's failures counted on the sidebar.
+
+- **OTPGet:** order work asks `otpget()->about($orderId)`, a copy of the
+  client carrying the order, and only such a copy reports what it hears - a
+  context set on the shared client would file the next sync under the last
+  order cron touched. `get()` reports each exchange as it happens; when the
+  reply is later read as a refusal, `refused()` corrects that same row, so a
+  200 that says `NO_NUMBERS` is red, not green.
+- **Gateways:** each gateway file calls `payment_wire($ch, $body)` right after
+  its `curl_exec`; `payment_start/verify/qr/poll/ipn_check` collect what was
+  said while they ran and write one row through `payment_record()`. A gateway
+  answering HTTP 4xx/5xx, or unreachable, fails the call whatever its file
+  made of it. A manual submission is kept too, with what the customer typed.
+- **A poll that hears the same reply again** bumps `repeats` and `last_at`
+  instead of writing a row every four seconds.
+- `order_call()` never throws: before the migration, or on a full disk, the
+  sale goes on and the line goes to the log file.
+
 ## Rentals
 
 Rentals need an account: the inbox lives in the portal, renewal is from the

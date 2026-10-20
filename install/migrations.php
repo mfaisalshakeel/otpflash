@@ -53,4 +53,48 @@ return [
         'both'  => ["UPDATE settings SET v = '1' WHERE k = 'ask_email' AND v = '0'",
                     "INSERT INTO settings (`k`, `v`) VALUES ('ask_whatsapp', '1')"],
     ],
+    // What OTPGet and the gateways actually answered, per order.
+    '2026_10_order_calls' => [
+        'label'  => 'Keep every OTPGet and payment gateway reply on its order',
+        'mysql'  => ["CREATE TABLE IF NOT EXISTS `order_calls` (
+            `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            `order_id` INT UNSIGNED NOT NULL,
+            `source` VARCHAR(20) NOT NULL DEFAULT '',
+            `party` VARCHAR(120) NOT NULL DEFAULT '',
+            `action` VARCHAR(60) NOT NULL DEFAULT '',
+            `ok` TINYINT(1) NOT NULL DEFAULT 0,
+            `summary` VARCHAR(500) NOT NULL DEFAULT '',
+            `request` TEXT NULL,
+            `response` TEXT NULL,
+            `http_status` INT NOT NULL DEFAULT 0,
+            `ms` INT NOT NULL DEFAULT 0,
+            `repeats` INT NOT NULL DEFAULT 1,
+            `created_at` DATETIME NOT NULL,
+            `last_at` DATETIME NOT NULL,
+            PRIMARY KEY (`id`),
+            KEY `ix_order_calls_order` (`order_id`, `id`),
+            KEY `ix_order_calls_source` (`source`, `ok`, `id`),
+            CONSTRAINT `fk_order_calls_order` FOREIGN KEY (`order_id`)
+              REFERENCES `orders` (`id`) ON DELETE CASCADE
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"],
+        'sqlite' => ['CREATE TABLE IF NOT EXISTS "order_calls" (
+            "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+            "order_id" INTEGER NOT NULL,
+            "source" TEXT NOT NULL DEFAULT \'\',
+            "party" TEXT NOT NULL DEFAULT \'\',
+            "action" TEXT NOT NULL DEFAULT \'\',
+            "ok" INTEGER NOT NULL DEFAULT 0,
+            "summary" TEXT NOT NULL DEFAULT \'\',
+            "request" TEXT NULL,
+            "response" TEXT NULL,
+            "http_status" INTEGER NOT NULL DEFAULT 0,
+            "ms" INTEGER NOT NULL DEFAULT 0,
+            "repeats" INTEGER NOT NULL DEFAULT 1,
+            "created_at" TEXT NOT NULL,
+            "last_at" TEXT NOT NULL,
+            FOREIGN KEY ("order_id") REFERENCES "orders" ("id") ON DELETE CASCADE
+          )',
+                     'CREATE INDEX IF NOT EXISTS "ix_order_calls_order" ON "order_calls" ("order_id", "id")',
+                     'CREATE INDEX IF NOT EXISTS "ix_order_calls_source" ON "order_calls" ("source", "ok", "id")'],
+    ],
 ];

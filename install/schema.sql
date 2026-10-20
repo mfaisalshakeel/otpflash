@@ -353,6 +353,33 @@ CREATE TABLE IF NOT EXISTS `order_logs` (
     REFERENCES `orders` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- --- order_calls: every request made to OTPGet or a payment gateway for an
+-- order, with what came back - the admin's answer to "what did they say?".
+-- A poll that gets the same answer again bumps `repeats` and `last_at`
+-- instead of writing a row every four seconds. Secrets are masked before
+-- anything is written.
+CREATE TABLE IF NOT EXISTS `order_calls` (
+  `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `order_id` INT UNSIGNED NOT NULL,
+  `source` VARCHAR(20) NOT NULL DEFAULT '',
+  `party` VARCHAR(120) NOT NULL DEFAULT '',
+  `action` VARCHAR(60) NOT NULL DEFAULT '',
+  `ok` TINYINT(1) NOT NULL DEFAULT 0,
+  `summary` VARCHAR(500) NOT NULL DEFAULT '',
+  `request` TEXT NULL,
+  `response` TEXT NULL,
+  `http_status` INT NOT NULL DEFAULT 0,
+  `ms` INT NOT NULL DEFAULT 0,
+  `repeats` INT NOT NULL DEFAULT 1,
+  `created_at` DATETIME NOT NULL,
+  `last_at` DATETIME NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ix_order_calls_order` (`order_id`, `id`),
+  KEY `ix_order_calls_source` (`source`, `ok`, `id`),
+  CONSTRAINT `fk_order_calls_order` FOREIGN KEY (`order_id`)
+    REFERENCES `orders` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- --- content pages ---------------------------------------------------------
 CREATE TABLE IF NOT EXISTS `pages` (
   `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,

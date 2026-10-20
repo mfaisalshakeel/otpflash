@@ -22,6 +22,10 @@ $balance  = otpget_balance_known();
 require_once APP_PATH . '/helpers/notify.php';   // the bell's dropdown
 $alerts      = optional_count('SELECT COUNT(*) FROM notifications WHERE is_read = 0');
 $auditAlerts = optional_count("SELECT COUNT(*) FROM audit_log WHERE severity = 'alert'");
+// optional_count: the table arrives with a migration, and the sidebar is drawn
+// on the update screen too.
+$failedCalls = optional_count('SELECT COUNT(*) FROM order_calls WHERE ok = 0 AND created_at >= ?',
+    [date('Y-m-d H:i:s', time() - 86400)]);
 
 $nav = [
     ['group' => 'Main'],
@@ -35,6 +39,8 @@ $nav = [
      'badge' => $unread ?: null],
     ['key' => 'notifications', 'label' => 'Notifications', 'icon' => 'i-bell',
      'href' => 'admin/notifications', 'badge' => $alerts ?: null],
+    ['key' => 'api-log',   'label' => 'API log',         'icon' => 'i-signal', 'href' => 'admin/api-log',
+     'badge' => $failedCalls ?: null],
     ['group' => 'OTPGet'],
     ['key' => 'otpget',    'label' => 'Connection & sync', 'icon' => 'i-plug', 'href' => 'admin/otpget'],
     ['key' => 'catalogue', 'label' => 'Catalogue',       'icon' => 'i-layers', 'href' => 'admin/catalogue'],

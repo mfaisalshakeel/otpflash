@@ -274,6 +274,26 @@ CREATE TABLE IF NOT EXISTS "order_logs" (
 );
 CREATE INDEX IF NOT EXISTS "ix_order_logs_order" ON "order_logs" ("order_id", "created_at");
 
+CREATE TABLE IF NOT EXISTS "order_calls" (
+  "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+  "order_id" INTEGER NOT NULL,
+  "source" TEXT NOT NULL DEFAULT '',
+  "party" TEXT NOT NULL DEFAULT '',
+  "action" TEXT NOT NULL DEFAULT '',
+  "ok" INTEGER NOT NULL DEFAULT 0,
+  "summary" TEXT NOT NULL DEFAULT '',
+  "request" TEXT NULL,
+  "response" TEXT NULL,
+  "http_status" INTEGER NOT NULL DEFAULT 0,
+  "ms" INTEGER NOT NULL DEFAULT 0,
+  "repeats" INTEGER NOT NULL DEFAULT 1,
+  "created_at" TEXT NOT NULL,
+  "last_at" TEXT NOT NULL,
+  FOREIGN KEY ("order_id") REFERENCES "orders" ("id") ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS "ix_order_calls_order" ON "order_calls" ("order_id", "id");
+CREATE INDEX IF NOT EXISTS "ix_order_calls_source" ON "order_calls" ("source", "ok", "id");
+
 CREATE TABLE IF NOT EXISTS "pages" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
   "slug" TEXT NOT NULL UNIQUE,

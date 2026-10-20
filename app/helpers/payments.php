@@ -126,6 +126,82 @@ function payment_instructions(array $method, array $order): string
 }
 
 /**
+ * A gateway's raw exchange, as it happened.
+ *
+ * Each gateway file calls this right after its curl_exec, and the four calls
+ * below - start, submit, check, webhook - collect what was said while they
+ * ran and keep it on the order (order_call). So the admin can read the
+ * gateway's own words when a payment fails, without a gateway knowing about
+ * orders or tables.
+ */
+function payment_wire(CurlHandle $ch, string|bool|null $body): void
+{
+    payment_wires([
+        'url'    => (string) curl_getinfo($ch, CURLINFO_EFFECTIVE_URL),
+        'status' => (int) curl_getinfo($ch, CURLINFO_HTTP_CODE),
+        'ms'     => (int) round((float) curl_getinfo($ch, CURLINFO_TOTAL_TIME) * 1000),
+        'body'   => curl_errno($ch) !== 0 ? 'Connection error: ' . curl_error($ch) : trim((string) $body),
+    ]);
+}
+
+/**
+ * Add one exchange; or look at the ones so far; or (with neither) hand them
+ * back and forget them, which is what each call below starts and ends with.
+ */
+function payment_wires(?array $add = null, bool $peek = false): array
+{
+    static $seen = [];
+    if ($add !== null) {
+        $seen[] = $add;
+        return [];
+    }
+    if ($peek) {
+        return $seen;
+    }
+    [$taken, $seen] = [$seen, []];
+    return $taken;
+}
+
+/**
+ * Keep one payment call on its order: what we asked, what the gateway said
+ * back word for word, and what we made of it.
+ */
+function payment_record(array $method, array $order, string $action, bool $ok, string $summary, mixed $fallback = null, string $request = ''): void
+{
+    $wires = payment_wires();
+    if (empty($order['id'])) {
+        return;
+    }
+    require_once APP_PATH . '/helpers/orders.php';
+    $last = $wires ? $wires[count($wires) - 1] : null;
+    // A gateway that answered with an HTTP error, or could not be reached,
+    // failed this call whatever the gateway file decided to make of it -
+    // "waiting" after a 401 is a key problem, not a slow customer.
+    foreach ($wires as $wire) {
+        if ($wire['status'] === 0 || $wire['status'] >= 400) {
+            $ok = false;
+            if ($summary === '' || stripos($summary, 'waiting') === 0) {
+                $summary = trim($summary . ' - HTTP ' . $wire['status'] . ': '
+                    . mb_substr((string) preg_replace('/\s+/', ' ', $wire['body']), 0, 200), ' -');
+            }
+        }
+    }
+    order_call((int) $order['id'], [
+        'source'   => 'payment',
+        'party'    => (string) ($method['name'] ?? $method['driver'] ?? 'Payment'),
+        'action'   => $action,
+        'ok'       => $ok,
+        'summary'  => $summary,
+        'request'  => $request !== '' ? $request : implode("\n", array_column($wires, 'url')),
+        'response' => $wires
+            ? implode("\n\n", array_map(static fn (array $w): string => 'HTTP ' . $w['status'] . "\n" . $w['body'], $wires))
+            : ($fallback === null ? '' : (string) json_encode($fallback, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)),
+        'status'   => (int) ($last['status'] ?? 0),
+        'ms'       => (int) array_sum(array_column($wires, 'ms')),
+    ]);
+}
+
+/**
  * Begin a payment.
  *
  * Returns ['redirect' => url] to send the customer away, or an empty array to
@@ -136,8 +212,17 @@ function payment_start(array $method, array $order): array
     $gateway = payment_gateway((string) ($method['driver'] ?? 'manual'));
 
     if ($gateway && isset($gateway['start']) && is_callable($gateway['start'])) {
+        payment_wires();
+        payment_trouble_detail('');
         $result = ($gateway['start'])($method, $order);
-        return is_array($result) ? $result : [];
+        $result = is_array($result) ? $result : [];
+        $error  = trim((string) ($result['error'] ?? ''));
+        // The customer was shown PAYMENT_TROUBLE; the admin gets the reason.
+        $detail = payment_trouble_detail();
+        payment_record($method, $order, 'start', $error === '',
+            $error !== '' ? ($detail !== '' ? $detail : $error)
+                          : (!empty($result['redirect']) ? 'Payment page created' : 'Started'), $result);
+        return $result;
     }
 
     return [];
@@ -157,19 +242,28 @@ function payment_verify(array $method, array $order, array $input): array
     $gateway = payment_gateway((string) ($method['driver'] ?? 'manual'));
 
     if ($gateway && isset($gateway['verify']) && is_callable($gateway['verify'])) {
+        payment_wires();
         $result = ($gateway['verify'])($method, $order, $input);
-        return is_array($result) ? $result + [
+        $result = is_array($result) ? $result + [
             'ok' => false, 'reference' => '', 'message' => '', 'confirmed' => false,
         ] : ['ok' => false, 'reference' => '', 'message' => 'The gateway said nothing.', 'confirmed' => false];
+        payment_record($method, $order, 'submit', (bool) $result['ok'],
+            $result['ok'] ? 'Reference ' . $result['reference'] . ($result['confirmed'] ? ', confirmed' : ', to confirm')
+                          : (string) $result['message'], $result);
+        return $result;
     }
 
     $reference = trim((string) ($input['trx_id'] ?? ''));
 
     if (setting('require_trx_id', '1') === '1' && mb_strlen($reference) < 4) {
+        payment_record($method, $order, 'submit', false, 'Refused: no transaction id given',
+            ['trx_id' => $reference]);
         return ['ok' => false, 'reference' => '', 'confirmed' => false,
                 'message' => 'Please enter the transaction id from your payment receipt.'];
     }
 
+    payment_record($method, $order, 'submit', true, 'Customer says paid, reference ' . $reference,
+        array_diff_key($input, ['_token' => 1, 'website' => 1]));
     return ['ok' => true, 'reference' => $reference, 'confirmed' => false, 'message' => ''];
 }
 
@@ -191,7 +285,14 @@ function payment_qr(array $method, array $order): array
         return [];
     }
 
+    payment_wires();
     $result = ($gateway['qr'])($method, $order);
+    // Most QR codes are drawn from settings alone; one that asked the
+    // gateway, or could not be drawn, is worth keeping.
+    $failed = is_array($result) && !empty($result['error']);
+    if (payment_wires(null, true) || $failed) {
+        payment_record($method, $order, 'qr', !$failed, $failed ? (string) $result['error'] : 'QR code made', $result);
+    }
 
     return is_array($result)
         ? $result + ['text' => '', 'amount' => '', 'reference' => '', 'caption' => '', 'error' => '']
@@ -221,8 +322,10 @@ function payment_poll(array $method, array $order): array
         return $blank;
     }
 
+    payment_wires();
     $result = ($gateway['poll'])($method, $order);
     if (!is_array($result)) {
+        payment_record($method, $order, 'check', false, 'The gateway said nothing readable', $result);
         return $blank;
     }
 
@@ -230,6 +333,9 @@ function payment_poll(array $method, array $order): array
     if (!in_array($result['state'], ['paid', 'failed', 'waiting'], true)) {
         $result['state'] = 'waiting';
     }
+    payment_record($method, $order, 'check', $result['state'] !== 'failed',
+        ucfirst($result['state']) . ($result['summary'] !== '' ? ': ' . $result['summary']
+            : ($result['message'] !== '' ? ': ' . $result['message'] : '')), $result);
 
     return $result;
 }
@@ -289,15 +395,16 @@ function payment_ipn_check(array $method, array $order, array $input): array
         return $blank;
     }
 
+    payment_wires();
     $result = ($gateway['ipn'])($method, $order, $input);
-    if (!is_array($result)) {
-        return $blank;
-    }
-
-    $result += $blank;
+    $result = is_array($result) ? $result + $blank : $blank;
     if (!in_array($result['verdict'], ['check', 'ignore', 'reject'], true)) {
         $result['verdict'] = 'reject';
     }
+    // What the gateway sent us is the request here; what we made of it, the reply.
+    payment_record($method, $order, 'webhook', $result['verdict'] !== 'reject',
+        ucfirst($result['verdict']) . ($result['summary'] !== '' ? ': ' . $result['summary'] : ''),
+        $result, (string) json_encode($input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
     return $result;
 }
@@ -380,6 +487,7 @@ const PAYMENT_TROUBLE = 'This payment method is having trouble right now. Please
 function payment_trouble(array $method, array $order, string $detail): string
 {
     $detail = trim($detail);
+    payment_trouble_detail($detail);
 
     if ($detail !== '') {
         log_line('Payment start failed on ' . ($method['name'] ?? 'a method') . ' for order '
@@ -393,6 +501,16 @@ function payment_trouble(array $method, array $order, string $detail): string
     }
 
     return PAYMENT_TROUBLE;
+}
+
+/** The last reason payment_trouble() was given, for the call record. */
+function payment_trouble_detail(?string $set = null): string
+{
+    static $detail = '';
+    if ($set !== null) {
+        $detail = $set;
+    }
+    return $detail;
 }
 
 /**
