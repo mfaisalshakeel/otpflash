@@ -642,6 +642,11 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
   .pside-user{display:none}
 }
 @media (max-width:640px){
+  /* All three products in view at once: a tab scrolled off the edge of a
+     phone is a product nobody finds. The icons go first, the words stay. */
+  .buy-tab{flex:1 1 0;justify-content:center;padding:9px 4px;font-size:13px;line-height:1.2;text-align:center;white-space:normal}
+  .buy-tabs{gap:4px;padding:8px}
+  .buy-tab .icon{display:none}
   .wrap{padding:0 16px}
   .hide-sm{display:none!important}
   .hero-compact .hero-in{padding:100px 16px 108px}
