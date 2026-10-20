@@ -26,6 +26,7 @@
   <symbol id="i-list" viewBox="0 0 24 24"><path d="M4 5.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm0 5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3Zm0 5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3ZM9 6h12v2H9V6Zm0 5h12v2H9v-2Zm0 5h12v2H9v-2Z"/></symbol>
   <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 3v10.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4L10 13.2V3h2ZM4 19h16v2H4v-2Z"/></symbol>
   <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 21V10.8l-3.6 3.6L7 13l6-6 6 6-1.4 1.4L14 10.8V21h-2ZM4 3h16v2H4V3Z"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m12 15.4-6-6L7.4 8l4.6 4.6L16.6 8 18 9.4l-6 6Z"/></symbol>
   <symbol id="i-gear" viewBox="0 0 24 24"><path d="m19.4 13-.1-1 2-1.6-2-3.4-2.4.9-1.7-1-.4-2.5h-4l-.4 2.5-1.7 1-2.4-.9-2 3.4 2 1.6-.1 1 .1 1-2 1.6 2 3.4 2.4-.9 1.7 1 .4 2.5h4l.4-2.5 1.7-1 2.4.9 2-3.4-2-1.6.1-1Zm-7.4 3.2a3.2 3.2 0 1 1 0-6.4 3.2 3.2 0 0 1 0 6.4Z"/></symbol>
   <symbol id="i-out" viewBox="0 0 24 24"><path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5V3Zm6.2 4.6-1.4 1.4 2 2H8v2h8.8l-2 2 1.4 1.4L21 12l-4.8-4.4Z"/></symbol>
   <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M12 5V2L7.5 6.5 12 11V8a5 5 0 0 1 4.3 7.5l1.5 1.5A7 7 0 0 0 12 5Zm0 11a5 5 0 0 1-4.3-7.5L6.2 7A7 7 0 0 0 12 19v3l4.5-4.5L12 13v3Z"/></symbol>

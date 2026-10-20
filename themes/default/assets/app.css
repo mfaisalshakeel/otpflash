@@ -680,21 +680,6 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
 .auth-perks .icon{color:var(--ok)}
 
 /* ---------- account portal ---------- */
-.portal{padding:28px 20px 70px}
-.portal-grid{display:grid;grid-template-columns:240px minmax(0,1fr);gap:24px;align-items:start}
-.pside{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:12px;position:sticky;top:90px}
-.pside-user{display:flex;gap:10px;align-items:center;padding:8px 8px 14px;border-bottom:1px solid var(--line);margin-bottom:8px}
-.pside-user .acct-av{width:42px;height:42px;font-size:17px;flex:none}
-.pside-user > div{min-width:0}
-.pside-user b{display:block;line-height:1.2;font-size:15px}
-.pside-user small{display:block;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pnav{display:grid;gap:3px}
-.pnav a,.pnav button{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:12px;font-weight:600;color:var(--ink-2);
-  border:0;background:none;width:100%;text-align:left;cursor:pointer;font-size:15px}
-.pnav a .icon,.pnav button .icon{font-size:18px}
-.pnav a:hover,.pnav button:hover{background:var(--bg-soft)}
-.pnav a.on{background:var(--brand-soft);color:var(--brand)}
-.pnav .pill{margin-left:auto;background:var(--brand);color:#fff;font-size:11.5px;padding:2px 8px;border-radius:999px}
 .phead{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:18px}
 .phead h1{font-size:28px;font-weight:800;letter-spacing:-.03em}
 .phead p{color:var(--ink-2)}
@@ -766,17 +751,9 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
 @media (max-width:860px){
   /* minmax(0,1fr), not 1fr: a plain 1fr track grows to its widest child,
      and a table in it pushed the whole account page off the side of a phone. */
-  .ogrid,.blog-layout,.portal-grid,.dash-top{grid-template-columns:minmax(0,1fr)}
+  .ogrid,.blog-layout,.dash-top{grid-template-columns:minmax(0,1fr)}
   /* The account menu becomes one row of pills that scrolls sideways - a
      three-column grid of icons left "Sign out" on a row of its own. */
-  .pside{position:static;padding:6px;border-radius:16px}
-  .pnav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-  .pnav::-webkit-scrollbar{display:none}
-  .pnav a,.pnav button{flex:none;width:auto;gap:7px;font-size:13.5px;padding:8px 13px;border-radius:10px;white-space:nowrap}
-  .pnav a .icon,.pnav button .icon{font-size:16px}
-  .pnav form{flex:none}
-  .pnav .pill{display:none}
-  .pside-user{display:none}
 }
 /* Phones: a table of orders becomes a stack of cards, each cell labelled
    from its column - six columns side by side do not fit in 360 pixels. */
@@ -796,10 +773,15 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
 }
 @media (max-width:640px){
   /* All three products in view at once: a tab scrolled off the edge of a
-     phone is a product nobody finds. The icons go first, the words stay. */
-  .buy-tab{flex:1 1 0;justify-content:center;padding:9px 4px;font-size:13px;line-height:1.2;text-align:center;white-space:normal}
-  .buy-tabs{gap:4px;padding:10px 8px 14px}
-  .buy-tab .icon{display:none}
+     phone is a product nobody finds. So each is a tile - its icon over its
+     name, which may take two lines - and the chosen one is filled, so which
+     of the three is open reads at a glance. */
+  .buy-tabs{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:8px;padding:12px 10px 14px;overflow:visible}
+  .buy-tab{flex-direction:column;justify-content:flex-start;gap:6px;padding:10px 6px;font-size:12.5px;line-height:1.25;
+    text-align:center;white-space:normal;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+  .buy-tab .icon{width:34px;height:34px;padding:8px;border-radius:10px;background:var(--brand-soft);color:var(--brand)}
+  .buy-tab.on{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 6px 16px var(--glow)}
+  .buy-tab.on .icon{background:rgba(255,255,255,.2);color:#fff}
   .wrap{padding:0 16px}
   .hide-sm{display:none!important}
   .hero-compact .hero-in{padding:100px 16px 108px}
@@ -845,3 +827,126 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
 .quote form{margin:0}
 .quote-foot{margin:0;text-align:center}
 .quote.is-over .quote-price{opacity:.5}
+
+/* ---------- the account menu, from the avatar ---------- */
+.acctnav{position:relative}
+.acct-chip{cursor:pointer;color:var(--ink)}
+.acct-caret{font-size:13px;color:var(--muted);transition:transform .15s}
+.acctnav.open .acct-caret{transform:rotate(180deg)}
+body:has(.hero) .site-head .acct-caret{color:rgba(255,255,255,.85)}
+.acct-menu{position:absolute;right:0;top:calc(100% + 10px);width:292px;max-width:calc(100vw - 24px);z-index:60;
+  background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow-lg);padding:8px;color:var(--ink)}
+.acct-menu-head{display:flex;gap:11px;align-items:center;padding:10px 10px 12px}
+.acct-menu-head .acct-av{width:40px;height:40px;font-size:16px;flex:none}
+.acct-menu-head div{min-width:0}
+.acct-menu-head b{display:block;line-height:1.25}
+.acct-menu-head small{display:block;color:var(--muted);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.acct-menu-bal{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px;border-radius:14px;
+  background:var(--brand-soft);margin-bottom:6px}
+.acct-menu-bal small{display:block;font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.acct-menu-bal b{font-size:18px}
+.acct-menu-links{display:grid}
+.acct-menu-links a,.acct-menu-out button{display:flex;align-items:center;gap:11px;width:100%;padding:10px 12px;border-radius:11px;
+  font:inherit;font-weight:600;font-size:14.5px;color:var(--ink-2);background:none;border:0;cursor:pointer;text-align:left}
+.acct-menu-links a:hover,.acct-menu-out button:hover{background:var(--bg-soft);color:var(--ink)}
+.acct-menu-links .icon,.acct-menu-out .icon{font-size:18px;color:var(--muted)}
+.acct-menu-out{margin:4px 0 0;padding-top:4px;border-top:1px solid var(--line)}
+.acct-menu-out button,.acct-menu-out button .icon{color:var(--bad)}
+
+/* ---------- the portal: an app's shape ---------- */
+.is-portal{background:var(--bg)}
+.app{display:grid;grid-template-columns:268px minmax(0,1fr);min-height:100vh}
+.app-side{position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;gap:16px;padding:18px 14px;
+  background:var(--surface);border-right:1px solid var(--line)}
+.app-brand{display:flex;align-items:center;justify-content:space-between;padding:2px 6px 0}
+.app-x{display:none}
+.app-wallet{display:grid;gap:3px;padding:16px;border-radius:18px;background:var(--grad-deep);color:#fff;box-shadow:0 10px 24px var(--glow)}
+.app-wallet small{font-size:11px;text-transform:uppercase;letter-spacing:.07em;opacity:.8;font-weight:700}
+.app-wallet b{font-size:26px;letter-spacing:-.02em;line-height:1.15}
+.app-wallet .btn{justify-self:start;margin-top:8px;background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.35)}
+.app-nav{display:grid;gap:2px}
+.app-nav a,.app-side-foot a,.app-side-foot button{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border-radius:12px;
+  font:inherit;font-weight:600;font-size:14.5px;color:var(--ink-2);background:none;border:0;cursor:pointer;text-align:left}
+.app-nav .icon,.app-side-foot .icon{font-size:19px;color:var(--muted)}
+.app-nav a:hover,.app-side-foot a:hover,.app-side-foot button:hover{background:var(--bg-soft);color:var(--ink)}
+.app-nav a.on{background:var(--brand-soft);color:var(--brand)}
+.app-nav a.on .icon{color:var(--brand)}
+.app-nav .pill{margin-left:auto;background:var(--brand);color:#fff;font-size:11.5px;padding:1px 8px;border-radius:999px}
+.app-group > small{display:block;padding:0 12px 4px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.app-side-foot{margin-top:auto;padding-top:10px;border-top:1px solid var(--line);display:grid;gap:2px}
+.app-side-foot form{margin:0}
+.app-main{min-width:0;display:flex;flex-direction:column}
+.app-top{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:10px;padding:12px 28px;
+  background:color-mix(in srgb, var(--bg) 86%, transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.app-top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.app-burger,.app-top-logo{display:none}
+.app-content{width:100%;max-width:1120px;padding:26px 28px 60px}
+.app-flash{padding:14px 28px 0;max-width:1120px}
+.app-tabs,.app-scrim,.show-sm{display:none}
+.portal-page > .phead:first-child{margin-top:0}
+
+/* A customer's orders, one row each. */
+.ord-list{list-style:none;margin:0;padding:0}
+.ord-list li + li{border-top:1px solid var(--line)}
+.ord-row{display:flex;align-items:center;gap:12px;padding:13px 8px;border-radius:12px;color:var(--ink)}
+.ord-row:hover{background:var(--bg-soft)}
+.ord-main{flex:1;min-width:0;display:grid;gap:1px}
+.ord-main > b{font-size:15px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ord-main small{color:var(--muted);font-size:12.5px}
+.ord-num{display:flex;flex-wrap:wrap;gap:3px 12px;margin-top:3px;font-size:13px;color:var(--ink-2)}
+.ord-code{color:var(--ok);font-weight:600}
+.ord-code b{font-size:14.5px}
+.ord-side{display:grid;justify-items:end;gap:5px;flex:none;text-align:right}
+.ord-side > b{font-size:15px}
+.empty-state .btn{margin-top:14px}
+
+@media (max-width:960px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .app-side{position:fixed;inset:0 auto 0 0;width:min(300px,86vw);z-index:80;transform:translateX(-102%);
+    transition:transform .22s ease;box-shadow:var(--shadow-lg)}
+  .side-open .app-side{transform:none}
+  .app-scrim{display:block;position:fixed;inset:0;z-index:70;background:rgba(15,15,35,.45);opacity:0;pointer-events:none;transition:opacity .2s}
+  .side-open .app-scrim{opacity:1;pointer-events:auto}
+  .side-open{overflow:hidden}
+  .app-x{display:grid;place-items:center;width:38px;height:38px;border-radius:10px;border:1px solid var(--line);background:none;
+    cursor:pointer;font-size:18px;color:var(--ink-2)}
+  .app-burger{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;border:1.5px solid var(--line);
+    background:var(--surface);font-size:20px;cursor:pointer;color:var(--ink)}
+  .app-top-logo{display:flex}
+  .app-top{padding:10px 16px}
+  .app-content{padding:18px 16px 100px}
+  .app-flash{padding:12px 16px 0}
+  .app-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;position:fixed;left:0;right:0;bottom:0;z-index:50;
+    background:var(--surface);border-top:1px solid var(--line);padding:6px 8px calc(6px + env(safe-area-inset-bottom));
+    box-shadow:0 -6px 20px rgba(20,20,50,.06)}
+  .app-tabs a{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:7px 2px 6px;border-radius:12px;
+    font-size:11.5px;font-weight:700;color:var(--muted)}
+  .app-tabs .icon{font-size:21px}
+  .app-tabs a.on{color:var(--brand);background:var(--brand-soft)}
+  .app-tabs .dot{position:absolute;top:5px;left:calc(50% + 7px);width:8px;height:8px;border-radius:50%;background:var(--warn);
+    box-shadow:0 0 0 2px var(--surface)}
+}
+@media (max-width:640px){
+  .show-sm{display:inline}
+  .acct-caret{display:none}
+  .ord-row{padding:12px 2px;gap:10px}
+  .ord-main > b{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .ord-row .svc-ico{width:34px;height:34px}
+}
+
+/* ---------- sign-in: Google, and the emailed code ---------- */
+.btn-google{background:var(--surface);color:var(--ink);border:1.5px solid var(--line);font-weight:700;gap:10px}
+.btn-google:hover{background:var(--bg-soft);border-color:var(--brand-line)}
+.g-logo{width:20px;height:20px;flex:none}
+.auth-or{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--muted);font-size:13px;font-weight:600}
+.auth-or::before,.auth-or::after{content:"";flex:1;height:1px;background:var(--line)}
+.auth-ico{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;background:var(--brand-soft);color:var(--brand);
+  font-size:24px;margin-bottom:14px}
+.code-input{font-size:26px;font-weight:800;letter-spacing:.35em;text-align:center;font-variant-numeric:tabular-nums}
+.auth-alt .lnk-btn{font-size:inherit;color:var(--brand);font-weight:700}
+.tf-state{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;margin-bottom:14px;font-size:14.5px;
+  background:var(--bg-soft);border:1px solid var(--line);color:var(--ink-2)}
+.tf-state.on{background:var(--ok-soft);border-color:transparent;color:#166534}
+.tf-state .icon{font-size:20px;flex:none}
+.tf-form{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.tf-form .field{flex:1;min-width:200px;margin:0}

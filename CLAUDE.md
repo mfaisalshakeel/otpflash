@@ -401,6 +401,31 @@ never says whether the address has an account. `safe_next()` only ever
 returns a path on this site. A blocked account is simply not found by
 `current_user()`, which signs it out at its next click.
 
+- **Two-step sign-in** is the customer's choice (Profile, password to change
+  it; an admin can switch it off on the customer's screen). After the
+  password, `user_code_start()` mails a six-digit code (`login_code`, an
+  `always` event) and keeps only its HMAC in the session, for ten minutes and
+  five tries; `/login/code` finishes the sign-in. It cannot be turned on while
+  the shop cannot send mail.
+- **Google** (`/login/google`) is the OAuth code flow with a state bound to
+  the session; who the person is comes from Google's userinfo endpoint over a
+  verified connection, and only a verified address is taken. An account is
+  found by `google_id`, then by that address (which links it), else made.
+  Google skips the emailed code - it has just proved the same inbox. Shown
+  only when both client fields are set in Settings.
+- `current_user()` reads a fixed list of columns every release has, so a
+  screen that needs a newer one (`two_factor`, `google_id`) reads the row.
+- An email template with no row yet is sent from its default
+  (`render_email_template()`), so a new event works before the Emails screen
+  has written it out.
+
+**The portal has its own layout** (`layouts/portal`): a sidebar with the
+balance on top, which slides in from the menu button on a phone, and a bar of
+four shortcuts along the bottom there. The avatar opens the same account menu
+(`partials/account-menu`) on every page, signed-in or shop. `swapPage()` only
+swaps pages drawn in the same layout (`body[data-layout]`); anything else is a
+full load.
+
 ## The storefront
 
 - **The picker is the home page**: tabs for numbers, email and rentals, then

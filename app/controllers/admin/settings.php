@@ -46,6 +46,11 @@ $GROUPS = [
             'hint' => 'A guest pays for each number and keeps an order code. Rentals and the '
                     . 'wallet always need an account.'],
         'registration_open' => ['label' => 'Let customers create accounts', 'type' => 'checkbox'],
+        'google_client_id'     => ['label' => 'Google sign-in: client ID',
+            'hint' => 'From Google Cloud Console > APIs & Services > Credentials > OAuth client ID (type: Web '
+                    . 'application). Add this as an authorised redirect URI: ' . url('login/google')
+                    . ' - and leave both boxes empty to hide "Continue with Google".'],
+        'google_client_secret' => ['label' => 'Google sign-in: client secret', 'type' => 'password'],
         'min_deposit'       => ['label' => 'Smallest wallet deposit', 'type' => 'number',
             'hint' => 'In your base currency. Gateways charge per payment, so a floor keeps '
                     . 'a deposit worth what it costs to take.'],

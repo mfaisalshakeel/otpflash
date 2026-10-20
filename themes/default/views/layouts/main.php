@@ -9,8 +9,6 @@
  */
 require_once APP_PATH . '/helpers/seo.php';
 
-$siteName = setting('site_name', 'OTP Flash');
-$themeCss = ':root{--brand:' . preg_replace('/[^#0-9a-fA-F]/', '', setting('theme_color', '#6c4df6')) . '}';
 $seo      = $seo ?? ['title' => $title ?? '', 'robots' => $meta_robots ?? null];
 if (empty($seo['robots']) && !empty($meta_robots)) {
     $seo['robots'] = $meta_robots;
@@ -21,24 +19,9 @@ $seo['schema'] = array_merge([schema_organization()], (array) ($seo['schema'] ??
 ?><!doctype html>
 <html lang="en" class="no-js" data-currency="<?= e(base_currency_symbol()) ?>">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<?= seo_head($seo) ?>
-
-<meta name="theme-color" content="<?= e(preg_replace('/[^#0-9a-fA-F]/', '', setting('theme_color', '#6c4df6'))) ?>">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="<?= e(theme_asset('app.css')) ?>">
-<?php if ($icon = setting('favicon_path')): ?>
-<link rel="icon" href="<?= e(url($icon)) ?>">
-<?php endif; ?>
-<link rel="alternate" type="application/rss+xml" title="<?= e($siteName) ?> blog" href="<?= e(url('blog/feed')) ?>">
-<style><?= $themeCss ?></style>
-<?= setting('head_code', '') /* trusted: pasted by an admin in Settings */ ?>
+<?php partial('partials/head', ['seo' => $seo]); ?>
 </head>
-<body class="<?= e($body_class ?? '') ?>">
+<body class="<?= e($body_class ?? '') ?>" data-layout="main">
 <a class="skip" href="#main">Skip to content</a>
 <?php partial('partials/icons'); ?>
 <?php partial('partials/header'); ?>
@@ -68,12 +51,6 @@ $seo['schema'] = array_merge([schema_organization()], (array) ($seo['schema'] ??
 </div>
 <?php endif; ?>
 
-<script>window.OTPF = <?= json_encode([
-    'base'     => url(''),
-    'token'    => csrf_token(),
-    'currency' => base_currency_symbol(),
-    'user'     => is_logged_in() ? ['balance' => (float) current_user()['balance']] : null,
-], JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;</script>
-<script src="<?= e(theme_asset('app.js')) ?>" defer></script>
+<?php partial('partials/scripts'); ?>
 </body>
 </html>

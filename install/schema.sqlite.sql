@@ -128,10 +128,13 @@ CREATE TABLE IF NOT EXISTS "users" (
   "reset_expires_at" TEXT,
   "last_login_at" TEXT,
   "last_login_ip" TEXT NOT NULL DEFAULT '',
+  "two_factor" INTEGER NOT NULL DEFAULT 0,
+  "google_id" TEXT,
   "created_at" TEXT NOT NULL,
   "updated_at" TEXT
 );
 CREATE INDEX IF NOT EXISTS "ix_users_created" ON "users" ("created_at");
+CREATE UNIQUE INDEX IF NOT EXISTS "uq_users_google" ON "users" ("google_id");
 
 CREATE TABLE IF NOT EXISTS "wallet_transactions" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,

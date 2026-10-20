@@ -40,4 +40,5 @@ view('auth/register', [
     'errors' => $errors,
     'input'  => $input,
     'next'   => $next,
+    'google' => google_ready(),
 ]);

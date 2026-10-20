@@ -1,22 +1,42 @@
-<?php /** A table of a customer's orders. @var array $orders */ ?>
-<div class="tbl-wrap">
-  <table class="tbl tbl-cards">
-    <thead><tr><th>Order</th><th>What</th><th>Number</th><th>Code</th><th>Paid</th><th>Status</th></tr></thead>
-    <tbody>
-    <?php if (!$orders): ?>
-      <tr><td colspan="6" class="pempty">Nothing yet. <a class="row-link" href="<?= e(url('')) ?>">Buy your first number</a></td></tr>
-    <?php endif; ?>
+<?php
+/**
+ * A customer's orders, one row each.
+ *
+ * A list rather than a table: on a phone a six-column table became six
+ * labelled lines per order, and what a customer scans for is which app,
+ * whether the code came, and the code itself. So each row leads with the
+ * app's icon and name, keeps the status and price on the right, and shows
+ * the number - and the code, large, once it is there - underneath.
+ *
+ * @var array $orders  with service_icon and service_color joined on
+ */
+?>
+<?php if (!$orders): ?>
+  <div class="empty-state"><b>Nothing yet</b>Every number, inbox and rental you buy shows up here, with its code.
+    <a class="btn btn-primary btn-sm" href="<?= e(url('')) ?>">Buy your first number</a></div>
+<?php else: ?>
+  <ul class="ord-list">
     <?php foreach ($orders as $order): ?>
-      <tr>
-        <td data-label="Order"><a class="row-link" href="<?= e(url('order/' . $order['code'])) ?>"><?= e($order['code']) ?></a>
-          <small class="sub"><?= e(when($order['created_at'], 'd M, H:i')) ?></small></td>
-        <td data-label="What"><?= e(order_label($order)) ?></td>
-        <td data-label="Number" class="mono"><?= e($order['number'] !== '' ? $order['number'] : '-') ?></td>
-        <td data-label="Code" class="mono"><b><?= e($order['otp_code'] !== '' ? $order['otp_code'] : '-') ?></b></td>
-        <td data-label="Paid"><?= e(money($order['price'])) ?><small class="sub"><?= $order['pay_source'] === 'wallet' ? 'from wallet' : 'paid directly' ?></small></td>
-        <td data-label="Status"><span class="st st-<?= e($order['status']) ?>"><?= e(ORDER_STATUS_WORDS[$order['status']] ?? $order['status']) ?></span></td>
-      </tr>
+      <li>
+        <a class="ord-row" href="<?= e(url('order/' . $order['code'])) ?>">
+          <?= service_icon_html(['name' => $order['service_name'] !== '' ? $order['service_name'] : order_label($order),
+              'icon' => $order['service_icon'] ?? '', 'color' => $order['service_color'] ?? '']) ?>
+          <span class="ord-main">
+            <b><?= e(order_label($order)) ?></b>
+            <small><span class="mono"><?= e($order['code']) ?></span> · <?= e(when($order['created_at'], 'd M, H:i')) ?></small>
+            <?php if ($order['number'] !== '' || $order['otp_code'] !== ''): ?>
+              <span class="ord-num">
+                <?php if ($order['number'] !== ''): ?><span class="mono"><?= e($order['number']) ?></span><?php endif; ?>
+                <?php if ($order['otp_code'] !== ''): ?><span class="ord-code">Code <b class="mono"><?= e($order['otp_code']) ?></b></span><?php endif; ?>
+              </span>
+            <?php endif; ?>
+          </span>
+          <span class="ord-side">
+            <b><?= e(money($order['price'])) ?></b>
+            <span class="st st-<?= e($order['status']) ?>"><?= e(ORDER_STATUS_WORDS[$order['status']] ?? $order['status']) ?></span>
+          </span>
+        </a>
+      </li>
     <?php endforeach; ?>
-    </tbody>
-  </table>
-</div>
+  </ul>
+<?php endif; ?>

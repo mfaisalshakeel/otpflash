@@ -96,6 +96,42 @@
     if (event.key === 'Escape') { $$('.modal-back').forEach(closeModal); }
   });
 
+  // ------------------------------------------- the account menu --------
+  // The chip is a link to the dashboard; with the script it opens the menu
+  // instead. Any click outside it, or Escape, puts it away.
+  function acctMenu(open, box) {
+    $$('[data-acct]').forEach(function (other) {
+      var on = open && other === box;
+      other.classList.toggle('open', on);
+      $('[data-acct-menu]', other).hidden = !on;
+      $('[data-acct-toggle]', other).setAttribute('aria-expanded', on ? 'true' : 'false');
+    });
+  }
+  document.addEventListener('click', function (event) {
+    var toggle = event.target.closest('[data-acct-toggle]');
+    if (toggle) {
+      event.preventDefault();
+      var box = toggle.closest('[data-acct]');
+      acctMenu(!box.classList.contains('open'), box);
+      return;
+    }
+    if (!event.target.closest('[data-acct-menu]')) { acctMenu(false); }
+  });
+
+  // The portal's sidebar, slid in from the menu button on a narrow screen.
+  function sideMenu(open) {
+    document.body.classList.toggle('side-open', open);
+    var button = $('[data-side-open]');
+    if (button) { button.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+  }
+  document.addEventListener('click', function (event) {
+    if (event.target.closest('[data-side-open]')) { sideMenu(true); }
+    else if (event.target.closest('[data-side-close]')) { sideMenu(false); }
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') { acctMenu(false); sideMenu(false); }
+  });
+
   // ------------------------------------------- our own confirm and alert --
   // The browser's confirm() is a grey box that names the website and looks
   // like a warning from the phone itself; this is ours, in the shop's
@@ -328,6 +364,8 @@
         var fresh = doc.getElementById('main');
         var main = document.getElementById('main');
         if (!fresh || !main) { throw new Error('no main'); }
+        // A page drawn in the other layout cannot be swapped into this one.
+        if (doc.body && doc.body.dataset.layout !== document.body.dataset.layout) { throw new Error('other layout'); }
         cleanups.splice(0).forEach(function (stop) { stop(); });
         main.innerHTML = fresh.innerHTML;
         document.title = doc.title;

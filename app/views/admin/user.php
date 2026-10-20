@@ -158,6 +158,12 @@ $form = static function (string $do, string $label, string $class = 'btn-ghost',
       <div class="box-head"><b>Account</b></div>
       <div class="pad acts">
         <?= $form('reset', 'Email a password reset link') ?>
+        <?php if (!empty($user['two_factor'])): ?>
+          <?= $form('two_factor_off', 'Turn off two-step sign-in', 'btn-ghost',
+              'Turn off the emailed sign-in code for ' . $user['email'] . '? Do this only when you know it is them - '
+              . 'their password will be enough to get in.') ?>
+        <?php endif; ?>
+        <?php if (!empty($user['google_id'])): ?><p class="muted">Signs in with Google too.</p><?php endif; ?>
         <?php if ($user['status'] === 'active'): ?>
           <?= $form('block', 'Block this account', 'btn-danger',
               'Block ' . $user['email'] . '? They are signed out and cannot sign in. Their balance is kept.') ?>

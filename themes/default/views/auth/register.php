@@ -1,4 +1,4 @@
-<?php /** @var array $errors  @var array $input  @var string $next */
+<?php /** @var array $errors  @var array $input  @var string $next  @var bool $google */
 $err = static fn (string $k): string => isset($errors[$k]) ? '<small class="err">' . e($errors[$k]) . '</small>' : '';
 ?>
 <section class="auth">
@@ -11,6 +11,7 @@ $err = static fn (string $k): string => isset($errors[$k]) ? '<small class="err"
       <li><svg class="icon"><use href="#i-check"></use></svg> Rent numbers for days or months, with an inbox</li>
       <li><svg class="icon"><use href="#i-check"></use></svg> Every order and code in one place</li>
     </ul>
+    <?php if ($google): ?><?php partial('partials/google-button', ['next' => $next]); ?><?php endif; ?>
     <form method="post" action="<?= e(url('register')) ?>" novalidate>
       <?= csrf_field() ?>
       <input type="hidden" name="next" value="<?= e($next) ?>">

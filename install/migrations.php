@@ -120,4 +120,15 @@ return [
         'both'   => ["INSERT INTO settings (`k`, `v`) VALUES ('hold_before_pay', '1')",
                      "INSERT INTO settings (`k`, `v`) VALUES ('hold_minutes', '10')"],
     ],
+    // Two ways in besides a password: a code emailed at sign-in for anyone
+    // who asks for one, and Google, which an account is linked to by its id.
+    '2026_10_user_sign_in_options' => [
+        'label'  => 'Let customers turn on an emailed sign-in code, and sign in with Google',
+        'mysql'  => ["ALTER TABLE `users` ADD COLUMN `two_factor` TINYINT(1) NOT NULL DEFAULT 0 AFTER `last_login_ip`",
+                     "ALTER TABLE `users` ADD COLUMN `google_id` VARCHAR(64) NULL AFTER `two_factor`",
+                     "CREATE UNIQUE INDEX `uq_users_google` ON `users` (`google_id`)"],
+        'sqlite' => ['ALTER TABLE "users" ADD COLUMN "two_factor" INTEGER NOT NULL DEFAULT 0',
+                     'ALTER TABLE "users" ADD COLUMN "google_id" TEXT',
+                     'CREATE UNIQUE INDEX IF NOT EXISTS "uq_users_google" ON "users" ("google_id")'],
+    ],
 ];

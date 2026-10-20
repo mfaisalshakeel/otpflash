@@ -76,6 +76,18 @@ if ($action === 'action' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 : 'Unblocked.');
             break;
 
+        // For a customer who has lost the inbox their sign-in code goes to.
+        case 'two_factor_off':
+            if (table_has_column('users', 'two_factor')) {
+                update_row('users', ['two_factor' => 0, 'updated_at' => date('Y-m-d H:i:s')], 'id = ?', [$id]);
+                audit_row('user.two_factor', 'users', $id, $user, [
+                    'severity' => 'warn',
+                    'summary'  => 'Two-step sign-in turned off for ' . $user['email'] . ' by an admin',
+                ]);
+                flash('success', 'Two-step sign-in is off for this account; their password alone signs them in.');
+            }
+            break;
+
         case 'reset':
             user_send_reset((string) $user['email']);
             audit('user.reset_sent', ['entity' => 'users', 'entity_id' => $id,

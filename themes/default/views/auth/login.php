@@ -1,9 +1,10 @@
-<?php /** @var string $error  @var string $email  @var string $next */ ?>
+<?php /** @var string $error  @var string $email  @var string $next  @var bool $google */ ?>
 <section class="auth">
   <div class="auth-card">
     <h1>Welcome back</h1>
     <p class="psub">Sign in to pay from your wallet, see every number you bought and manage your rentals.</p>
     <?php if ($error !== ''): ?><div class="form-err" role="alert"><?= e($error) ?></div><?php endif; ?>
+    <?php if ($google): ?><?php partial('partials/google-button', ['next' => $next]); ?><?php endif; ?>
     <form method="post" action="<?= e(url('login')) ?>">
       <?= csrf_field() ?>
       <input type="hidden" name="next" value="<?= e($next) ?>">

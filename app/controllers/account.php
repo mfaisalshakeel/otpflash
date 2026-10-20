@@ -35,8 +35,7 @@ $page = static function (string $view, string $title, array $data = []) use ($us
         'seo'     => ['title' => $title, 'robots' => 'noindex, nofollow'],
         'user'    => current_user(true) ?? $user,
         'section' => $section === '' ? 'dashboard' : $section,
-        'body_class' => 'is-portal',
-    ]);
+    ], 'layouts/portal');
 };
 
 // ============================================================= dashboard ==
@@ -50,7 +49,9 @@ if ($section === '') {
 
     $page('dashboard', 'My account', [
         'live'    => $live,
-        'recent'  => all('SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 8', [$userId]),
+        'recent'  => all('SELECT o.*, s.icon AS service_icon, s.color AS service_color
+                              FROM orders o LEFT JOIN services s ON s.id = o.service_id
+                             WHERE o.user_id = ? ORDER BY o.created_at DESC LIMIT 8', [$userId]),
         // Active and not yet run out: cron closes an expired one within
         // minutes, but the dashboard should not call it active meanwhile.
         'rentals' => all("SELECT * FROM rentals WHERE user_id = ? AND status = 'active' AND expires_at > ?
@@ -69,12 +70,15 @@ if ($section === '') {
 // ================================================================ orders ==
 if ($section === 'orders') {
     $status = (string) ($_GET['status'] ?? '');
-    $where  = 'user_id = ?' . (in_array($status, ORDER_STATUSES, true) ? ' AND status = ?' : '') . " AND product <> 'deposit'";
+    $where  = 'orders.user_id = ?' . (in_array($status, ORDER_STATUSES, true) ? ' AND orders.status = ?' : '')
+            . " AND orders.product <> 'deposit'";
     $binds  = in_array($status, ORDER_STATUSES, true) ? [$userId, $status] : [$userId];
     $pages  = paging((int) col("SELECT COUNT(*) FROM orders WHERE {$where}", $binds, 0), 20);
 
     $page('orders', 'My orders', [
-        'orders' => all("SELECT * FROM orders WHERE {$where} ORDER BY created_at DESC LIMIT {$pages['per']} OFFSET {$pages['offset']}", $binds),
+        'orders' => all("SELECT orders.*, s.icon AS service_icon, s.color AS service_color
+                           FROM orders LEFT JOIN services s ON s.id = orders.service_id
+                          WHERE {$where} ORDER BY orders.created_at DESC LIMIT {$pages['per']} OFFSET {$pages['offset']}", $binds),
         'paging' => $pages,
         'status' => $status,
     ]);
@@ -290,9 +294,40 @@ if ($section === 'profile') {
                 redirect('account/profile');
             }
         }
+
+        // Turning the emailed code on or off takes the password, so a session
+        // left open on a shared computer cannot quietly switch it off.
+        if ($what === 'two_factor' && table_has_column('users', 'two_factor')) {
+            require_once APP_PATH . '/helpers/mail.php';
+            $check = one('SELECT password_hash FROM users WHERE id = ?', [$userId]);
+            $on    = ($_POST['enable'] ?? '') === '1';
+            if (!password_verify((string) ($_POST['current'] ?? ''), (string) $check['password_hash'])) {
+                $errors['tf_current'] = 'That is not your current password.';
+            } elseif ($on && !mail_ready()) {
+                $errors['tf_current'] = 'This shop cannot send email yet, so the code would never reach you.';
+            } else {
+                update_row('users', ['two_factor' => $on ? 1 : 0, 'updated_at' => date('Y-m-d H:i:s')], 'id = ?', [$userId]);
+                audit('user.two_factor', ['entity' => 'users', 'entity_id' => $userId,
+                    'summary' => $user['email'] . ' turned two-step sign-in ' . ($on ? 'on' : 'off')]);
+                flash('success', $on ? 'Two-step sign-in is on. Next time, we will email you a code after your password.'
+                                     : 'Two-step sign-in is off.');
+                redirect('account/profile');
+            }
+        }
     }
 
-    $page('profile', 'My profile', ['errors' => $errors]);
+    require_once APP_PATH . '/helpers/mail.php';
+    // The whole row: current_user() reads only the columns every release
+    // has, so it knows nothing of these two.
+    $row = one('SELECT * FROM users WHERE id = ?', [$userId]) ?: [];
+    $page('profile', 'My profile', [
+        'errors'    => $errors,
+        'twoFactor' => [
+            'available' => table_has_column('users', 'two_factor') && mail_ready(),
+            'on'        => user_wants_code($row),
+            'google'    => (string) ($row['google_id'] ?? '') !== '',
+        ],
+    ]);
 }
 
 require CONTROLLER_PATH . '/_404.php';

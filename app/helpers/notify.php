@@ -58,6 +58,13 @@ function notification_events(): array
             'tokens' => ['name', 'reset_url', 'minutes', 'site_name'],
             'always' => true,   // the only way back into an account
         ],
+        'login_code' => [
+            'label'  => 'Sign-in code',
+            'to'     => 'customer',
+            'when'   => 'A customer who turned on two-step sign-in enters their password.',
+            'tokens' => ['name', 'code', 'minutes', 'site_name'],
+            'always' => true,   // without it they cannot get in
+        ],
         'admin_new_order' => [
             'label'  => 'New order',
             'to'     => 'admin',
@@ -295,6 +302,12 @@ function notifications_unread(): int
 function render_email_template(string $event, array $data): ?array
 {
     $template = one('SELECT subject, body, is_active FROM email_templates WHERE event = ?', [$event]);
+    // An event newer than the database has no row until the Emails screen
+    // writes the defaults out; it is sent from its default meanwhile, so a
+    // mail that must go - a sign-in code - is never lost to a missing row.
+    if (!$template && isset(email_template_defaults()[$event])) {
+        $template = email_template_defaults()[$event] + ['is_active' => 1];
+    }
     if (!$template || !$template['is_active']) {
         return null;
     }
@@ -406,6 +419,14 @@ function email_template_defaults(): array
                 . "link works for {minutes} minutes:</p>\n"
                 . '<p><a href="{reset_url}">Choose a new password</a></p>'
                 . "\n<p>If it was not you, ignore this email - nothing has changed.</p>",
+        ],
+        'login_code' => [
+            'subject' => 'Your {site_name} sign-in code: {code}',
+            'body'    => "<p>Hi {name},</p>\n"
+                . "<p>Your code to finish signing in is:</p>\n"
+                . "<p style=\"font-size:28px;font-weight:800;letter-spacing:6px\">{code}</p>\n"
+                . "<p>It works for {minutes} minutes. If you did not just sign in, change your password - "
+                . "someone knows it.</p>",
         ],
         'admin_new_order' => [
             'subject' => 'New order {order_code} - {amount}',

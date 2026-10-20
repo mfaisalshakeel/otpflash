@@ -169,10 +169,13 @@ CREATE TABLE IF NOT EXISTS `users` (
   `reset_expires_at` DATETIME NULL,
   `last_login_at` DATETIME NULL,
   `last_login_ip` VARCHAR(45) NOT NULL DEFAULT '',
+  `two_factor` TINYINT(1) NOT NULL DEFAULT 0,
+  `google_id` VARCHAR(64) NULL,
   `created_at` DATETIME NOT NULL,
   `updated_at` DATETIME NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_users_email` (`email`),
+  UNIQUE KEY `uq_users_google` (`google_id`),
   KEY `ix_users_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

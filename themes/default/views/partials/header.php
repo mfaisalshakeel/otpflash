@@ -56,10 +56,7 @@ $links[] = ['faq', 'FAQ'];
         <svg class="icon"><use href="#i-search"></use></svg> Track
       </a>
       <?php if ($user): ?>
-        <a class="acct-chip" href="<?= e(url('account')) ?>" title="Your account">
-          <span class="acct-av"><?= e(mb_strtoupper(mb_substr($user['name'], 0, 1))) ?></span>
-          <span class="acct-bal"><small>Balance</small><b><?= e(money((float) $user['balance'])) ?></b></span>
-        </a>
+        <?php partial('partials/account-menu', ['user' => $user]); ?>
       <?php else: ?>
         <a class="btn btn-ghost btn-sm" href="<?= e(url('login')) ?>">Sign in</a>
         <?php if (setting('registration_open', '1') === '1'): ?>
