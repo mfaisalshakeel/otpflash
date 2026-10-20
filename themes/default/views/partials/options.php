@@ -77,24 +77,40 @@ $balance = $user ? (float) $user['balance'] : 0.0;
     <?php endif; ?>
     <div class="osum-txt">
       <b><?= e(trim(($service['name'] ?? ($rental ? 'Rental number' : '')) . ($country ? ' · ' . $country['name'] : ''))) ?></b>
-      <small><?= $country && $country['dial'] !== '' ? '+' . e($country['dial']) . ' · ' : '' ?><?= count($options) ?> option<?= count($options) === 1 ? '' : 's' ?>, from <?= e(money($cheap)) ?></small>
+      <small><?= $country && $country['dial'] !== '' ? '+' . e($country['dial']) . ' · ' : '' ?>from <?= e(money($cheap)) ?></small>
     </div>
   </div>
 
-  <fieldset class="opts">
-    <legend class="sr-only">Choose an option</legend>
-    <?php foreach ($options as $i => $option): ?>
-      <label class="opt<?= $i === 0 ? ' on' : '' ?>">
+  <?php
+  // One option, already chosen - the cheapest, which is first - and the rest
+  // folded away. Four radios with server numbers on them was a question most
+  // people could not answer and should not have to: the cheapest is what they
+  // would pick anyway, and anyone who wants another opens "More options".
+  $option = static function (array $option, bool $chosen, bool $cheapest, bool $alone): void { ?>
+      <label class="opt<?= $chosen ? ' on' : '' ?><?= $alone ? ' opt-single' : '' ?>">
         <input type="radio" name="offer_id" value="<?= (int) $option['id'] ?>" data-price="<?= e((string) $option['price']) ?>"
-               data-money="<?= e(money($option['price'])) ?>" <?= $i === 0 ? 'checked' : '' ?>>
+               data-money="<?= e(money($option['price'])) ?>" <?= $chosen ? 'checked' : '' ?>>
         <span class="opt-radio" aria-hidden="true"></span>
         <span class="olabel"><?= e($option['label']) ?><small><?= e($option['note']) ?></small></span>
         <span class="oprice"><?= e(money($option['price'])) ?>
-          <?php if ($option['price'] <= $cheap && count($options) > 1): ?><em class="obadge">Best price</em><?php endif; ?>
+          <?php if ($cheapest && !$alone): ?><em class="obadge">Best price</em><?php endif; ?>
           <?php if ($option['product'] === 'premium'): ?><em class="obadge obadge-p">Premium</em><?php endif; ?>
         </span>
       </label>
-    <?php endforeach; ?>
+  <?php };
+  $more = array_slice($options, 1);
+  ?>
+  <fieldset class="opts">
+    <legend class="sr-only">Choose an option</legend>
+    <?php $option($options[0], true, $options[0]['price'] <= $cheap, !$more); ?>
+    <?php if ($more): ?>
+      <details class="more-opts">
+        <summary>More options <span>(<?= count($more) ?>)</span></summary>
+        <?php foreach ($more as $other): ?>
+          <?php $option($other, false, $other['price'] <= $cheap, false); ?>
+        <?php endforeach; ?>
+      </details>
+    <?php endif; ?>
   </fieldset>
 
   <?php if ($rental && !$user): ?>

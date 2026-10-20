@@ -191,8 +191,6 @@
       } else if (empty) {
         empty.hidden = true;
       }
-      var count = $('[data-count="' + pane + '"]', box);
-      if (count) { count.textContent = shown.toLocaleString(); }
     }
 
     $$('[data-filter]', box).forEach(function (field) {
@@ -208,34 +206,6 @@
         if (first) { first.click(); }
       });
       if (field.value) { applyFilter(field.dataset.filter); }
-    });
-
-    // ---- sort
-    function sortList(pane, how) {
-      var ul = list(pane);
-      if (!ul) { return; }
-      var items = $$('[data-item]', ul).map(function (a) { return a.parentElement; });
-      items.sort(function (x, y) {
-        var a = x.firstElementChild.dataset, b = y.firstElementChild.dataset;
-        if (how === 'price') { return parseFloat(a.price) - parseFloat(b.price); }
-        if (how === 'name') { return a.name.localeCompare(b.name); }
-        return (parseInt(b.pop, 10) - parseInt(a.pop, 10)) || 0;
-      });
-      items.forEach(function (li) { ul.appendChild(li); });
-    }
-    $$('.psort', box).forEach(function (group) {
-      group.addEventListener('click', function (event) {
-        var button = event.target.closest('[data-sort]');
-        if (!button) { return; }
-        $$('[data-sort]', group).forEach(function (b) { b.classList.toggle('on', b === button); });
-        var pane = group.closest('[data-pane]').dataset.pane;
-        if (button.dataset.sort === 'pop') {
-          // Popular is the server's own order, so asking again restores it.
-          refresh('all', true);
-        } else {
-          sortList(pane, button.dataset.sort);
-        }
-      });
     });
 
     // ---- drawing a list the server sent
@@ -289,8 +259,6 @@
       } else {
         ul.innerHTML = rows.map(function (row) { return '<li>' + itemHtml(pane, row, hrefFor(pane, row)) + '</li>'; }).join('');
       }
-      var sort = $('[data-pane="' + pane + '"] .psort .on', box);
-      if (sort && sort.dataset.sort !== 'pop') { sortList(pane, sort.dataset.sort); }
       applyFilter(pane);
     }
 

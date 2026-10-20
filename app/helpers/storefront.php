@@ -85,7 +85,7 @@ function picker_service_sub(array $row, string $tab, bool $countryChosen): strin
         return $row['options'] . ' mailbox' . ((int) $row['options'] === 1 ? '' : 'es');
     }
     if ($countryChosen) {
-        return $row['options'] . ' server' . ((int) $row['options'] === 1 ? '' : 's');
+        return $row['options'] . ' option' . ((int) $row['options'] === 1 ? '' : 's');
     }
     return $row['countries'] . ' ' . ((int) $row['countries'] === 1 ? 'country' : 'countries');
 }

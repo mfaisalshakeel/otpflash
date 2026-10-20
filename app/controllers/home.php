@@ -53,27 +53,37 @@ $headline   = 'Virtual numbers for OTP verification';
 $lead       = 'Pick an app and a country, pay, and your number is on screen in seconds. The code '
             . 'appears the moment the SMS lands - and if it never does, the next number is free.';
 $intro      = '';
+// The one line under the headline. The lead above is for search engines and
+// link previews; on the page, three lines of prose between the headline and
+// the picker only push the picker off a phone's screen.
+$tagline    = 'Choose an app and a country. Your code shows up right here.';
 
 if ($tab === 'numbers' && $serviceRow && $countryRow) {
     $headline = $serviceRow['name'] . ' number for ' . $countryRow['name'];
     $lead     = service_intro(['name' => $serviceRow['name']],
         ['name' => $countryRow['name'], 'dial' => $countryRow['dial_code']]);
+    $tagline  = ($countryRow['dial_code'] !== '' ? 'A +' . $countryRow['dial_code'] : 'A ' . $countryRow['name'])
+              . ' number for ' . $serviceRow['name'] . '. The code shows up right here.';
 } elseif ($tab === 'numbers' && $serviceRow) {
     $headline = 'Virtual number for ' . $serviceRow['name'];
     $lead     = service_intro(['name' => $serviceRow['name']]);
     $intro    = (string) ($serviceRow['intro'] ?? '');
+    $tagline  = 'Choose a country. Your ' . $serviceRow['name'] . ' code shows up right here.';
 } elseif ($tab === 'numbers' && $countryRow) {
     $headline = $countryRow['name'] . ' virtual numbers';
     $lead     = 'Real ' . $countryRow['name'] . ' numbers (+' . $countryRow['dial_code'] . ') for receiving '
               . 'verification codes from WhatsApp, Telegram, Google and hundreds more apps.';
+    $tagline  = 'Choose the app. Your ' . $countryRow['name'] . ' number is ready in seconds.';
 } elseif ($tab === 'email') {
     $headline = $serviceRow ? 'Temporary email for ' . $serviceRow['name'] : 'Temporary email for OTP codes';
     $lead     = 'A fresh inbox on Gmail, Outlook and more, made for receiving a verification code. '
               . 'The code shows up here by itself - no inbox to log in to.';
+    $tagline  = 'A fresh inbox for any sign-up. The code shows up right here.';
 } elseif ($tab === 'rental') {
     $headline = $countryRow ? 'Rent a ' . $countryRow['name'] . ' number' : 'Rent a number for days or months';
     $lead     = 'Keep the same number for a day, a week, a month or a year, with every SMS it receives '
               . 'kept in your inbox. Renew whenever you like.';
+    $tagline  = 'Your own number for days or months, with an inbox for every SMS.';
 }
 
 // -------------------------------------------------------------------- SEO --
@@ -140,6 +150,7 @@ view('home', [
     'state'     => $state,
     'headline'  => $headline,
     'lead'      => $lead,
+    'tagline'   => $tagline,
     'intro'     => $intro,
     'isHome'    => $isHome,
     'empty'     => $empty,

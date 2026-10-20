@@ -414,20 +414,23 @@ function service_for_name(string $name): ?int
         return $seen[$match];
     }
 
-    $id = col('SELECT id FROM services WHERE match_key = ? ORDER BY id LIMIT 1', [$match]);
+    // Before the migration that adds match_key has run, the slug is all
+    // there is - the sync still works, as it did before.
+    $keyed = table_has_column('services', 'match_key');
+
+    $id = $keyed ? col('SELECT id FROM services WHERE match_key = ? ORDER BY id LIMIT 1', [$match]) : null;
     if (!$id) {
         // Made by hand, or by a sync from before match_key: adopt it, so the
         // next lookup no longer depends on the slug staying put.
         $id = col('SELECT id FROM services WHERE slug = ?', [$slug]);
-        if ($id) {
+        if ($id && $keyed) {
             q("UPDATE services SET match_key = ? WHERE id = ? AND match_key = ''", [$match, (int) $id]);
         }
     }
     if (!$id) {
         try {
-            $id = insert_row('services', [
+            $id = insert_row('services', ($keyed ? ['match_key' => $match] : []) + [
                 'slug'        => $slug,
-                'match_key'   => $match,
                 'name'        => mb_substr($label, 0, 120),
                 'icon'        => (string) ($known['icon'] ?? ''),
                 'color'       => (string) ($known['color'] ?? service_color_for($label)),
@@ -443,7 +446,7 @@ function service_for_name(string $name): ?int
             if (!is_duplicate_key($e)) {
                 throw $e;
             }
-            $id = col('SELECT id FROM services WHERE match_key = ? ORDER BY id LIMIT 1', [$match])
+            $id = ($keyed ? col('SELECT id FROM services WHERE match_key = ? ORDER BY id LIMIT 1', [$match]) : null)
                ?: col('SELECT id FROM services WHERE slug = ?', [$slug]);
         }
     }
@@ -1255,7 +1258,10 @@ function store_services(string $tab, ?int $countryId = null): array
 {
     [$sellable, $params] = offer_sellable_sql('o', tab_products($tab));
 
-    $sql = "SELECT s.id, s.slug, s.name, s.icon, s.color, s.is_popular, s.sort_order,
+    // match_key arrives with a migration, and the shop keeps selling while
+    // the database is behind the code.
+    $matchKey = table_has_column('services', 'match_key') ? 's.match_key' : "''";
+    $sql = "SELECT s.id, s.slug, {$matchKey} AS match_key, s.name, s.icon, s.color, s.is_popular, s.sort_order,
                    MIN(COALESCE(o.price_override, o.price)) AS from_price,
                    COUNT(DISTINCT o.country_id) AS countries,
                    COUNT(*) AS options
@@ -1268,10 +1274,48 @@ function store_services(string $tab, ?int $countryId = null): array
         $sql     .= ' AND o.country_id = ?';
         $params[] = $countryId;
     }
-    $sql .= ' GROUP BY s.id, s.slug, s.name, s.icon, s.color, s.is_popular, s.sort_order
-              ORDER BY s.is_popular DESC, s.sort_order, s.name';
+    $sql .= " GROUP BY s.id, s.slug, {$matchKey}, s.name, s.icon, s.color, s.is_popular, s.sort_order";
 
-    return all($sql, $params);
+    // Before anything has sold, the built-in list's own order: WhatsApp,
+    // Telegram, Google... rather than Amazon because it starts with an A.
+    $known = array_flip(array_keys(service_catalogue()));
+    return store_rank(all($sql, $params), 'service_id',
+        static fn (array $row): int => $known[$row['match_key'] ?: $row['slug']] ?? 9999);
+}
+
+/**
+ * Put a picker list in the order people actually want it.
+ *
+ * Popular first, as the admin marked it; within that, what sold most in the
+ * last thirty days, because the app most customers came for should be the
+ * first thing they can tap; then the admin's own order, the built-in rank,
+ * and the name. The sales are counted once every ten minutes, not on every
+ * page.
+ */
+function store_rank(array $rows, string $column, ?callable $rank = null): array
+{
+    static $sales = [];
+    if (!isset($sales[$column])) {
+        $cached = catalogue_cache_read('sales-' . $column, 600);
+        if ($cached === null) {
+            $cached = [];
+            // $column is one of two names written in this file, never input.
+            foreach (all("SELECT {$column} AS id, COUNT(*) AS n FROM orders
+                           WHERE paid_at IS NOT NULL AND paid_at >= ? AND {$column} IS NOT NULL
+                        GROUP BY {$column}", [date('Y-m-d H:i:s', time() - 30 * 86400)]) as $row) {
+                $cached[(string) $row['id']] = (int) $row['n'];
+            }
+            catalogue_cache_write('sales-' . $column, $cached);
+        }
+        $sales[$column] = $cached;
+    }
+    $sold = $sales[$column];
+
+    usort($rows, static fn (array $a, array $b): int =>
+        [-(int) $a['is_popular'], -($sold[(string) $a['id']] ?? 0), (int) $a['sort_order'], $rank ? $rank($a) : 0, $a['name']]
+        <=>
+        [-(int) $b['is_popular'], -($sold[(string) $b['id']] ?? 0), (int) $b['sort_order'], $rank ? $rank($b) : 0, $b['name']]);
+    return $rows;
 }
 
 /**
@@ -1295,10 +1339,9 @@ function store_countries(string $tab, ?int $serviceId = null): array
         $sql     .= ' AND o.service_id = ?';
         $params[] = $serviceId;
     }
-    $sql .= ' GROUP BY c.id, c.slug, c.name, c.iso2, c.dial_code, c.is_popular, c.sort_order
-              ORDER BY c.is_popular DESC, c.sort_order, c.name';
+    $sql .= ' GROUP BY c.id, c.slug, c.name, c.iso2, c.dial_code, c.is_popular, c.sort_order';
 
-    return all($sql, $params);
+    return store_rank(all($sql, $params), 'country_id');
 }
 
 /**

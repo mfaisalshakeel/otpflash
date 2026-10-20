@@ -32,10 +32,12 @@ if ($tab === 'numbers') {
     $step = 'options';
 }
 
+// Questions a customer would ask themselves, not the shop's words for things:
+// nobody arrives thinking "service" or "server".
 $paneTitle = [
-    'service' => $tab === 'email' ? 'Choose the app' : 'Choose a service',
-    'country' => 'Choose a country',
-    'options' => $tab === 'rental' ? 'Choose how long' : ($tab === 'email' ? 'Choose a mailbox' : 'Choose a server & buy'),
+    'service' => 'Which app?',
+    'country' => 'Which country?',
+    'options' => $tab === 'rental' ? 'How long?' : ($tab === 'email' ? 'Get your inbox' : 'Buy your number'),
 ];
 ?>
 <div class="buybox" data-picker data-tab="<?= e($tab) ?>" data-step="<?= e($step) ?>"
@@ -65,28 +67,22 @@ $paneTitle = [
           <?php endif; ?>
           <span class="step-n"><?= $i + 1 ?></span>
           <h2 id="pane-<?= e($pane) ?>-h"><?= e($paneTitle[$pane]) ?></h2>
-          <?php if ($pane !== 'options'): ?>
-            <span class="pane-count" data-count="<?= e($pane) ?>">
-              <?= qty_fmt(count($pane === 'service' ? $state['services'] : $state['countries'])) ?></span>
-          <?php endif; ?>
         </div>
 
         <?php if ($pane === 'service' || $pane === 'country'): ?>
           <?php $rows = $pane === 'service' ? $state['services'] : $state['countries']; ?>
           <?php $chosen = $pane === 'service' ? $service : $country; ?>
+          <?php /* Popular first, always: the list is already in the order most
+                   people want, and three sort buttons were three more things to
+                   read before the first tap. Typing finds anything else. */ ?>
           <div class="pane-tools">
             <label class="psearch">
               <svg class="icon"><use href="#i-search"></use></svg>
               <input type="search" data-filter="<?= e($pane) ?>" autocomplete="off" spellcheck="false"
                      value="<?= $pane === 'service' && $tab !== 'rental' ? e($query) : '' ?>"
-                     placeholder="<?= $pane === 'service' ? 'Search WhatsApp, Telegram, Google…' : 'Search country or +code…' ?>"
-                     aria-label="<?= $pane === 'service' ? 'Search services' : 'Search countries' ?>">
+                     placeholder="<?= $pane === 'service' ? 'Type an app, e.g. WhatsApp' : 'Type a country or +92' ?>"
+                     aria-label="<?= $pane === 'service' ? 'Search apps' : 'Search countries' ?>">
             </label>
-            <div class="psort" role="group" aria-label="Sort">
-              <button type="button" class="on" data-sort="pop">Popular</button>
-              <button type="button" data-sort="price">Cheapest</button>
-              <button type="button" data-sort="name">A–Z</button>
-            </div>
           </div>
 
           <ul class="plist" data-list="<?= e($pane) ?>">

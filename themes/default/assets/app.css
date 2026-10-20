@@ -222,7 +222,19 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
 .osum-txt{min-width:0}
 .osum-txt b{display:block;font-size:16px;line-height:1.25}
 .osum-txt small{color:var(--muted);font-size:13px;font-weight:600}
-.opts{border:0;padding:0;margin:0;display:grid;gap:8px;max-height:290px;overflow-y:auto}
+.opts{border:0;padding:0;margin:0;display:grid;gap:8px}
+/* The other options, folded under the chosen one. */
+.more-opts{display:grid;gap:8px}
+.more-opts[open]{max-height:300px;overflow-y:auto}
+.more-opts summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px;border-radius:12px;font-weight:700;font-size:14px;color:var(--brand)}
+.more-opts summary::-webkit-details-marker{display:none}
+.more-opts summary::after{content:"";width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;
+  transform:translateY(-2px) rotate(45deg);transition:transform .2s}
+.more-opts[open] summary::after{transform:translateY(2px) rotate(-135deg)}
+.more-opts summary span{color:var(--muted);font-weight:600}
+.more-opts summary:hover{background:var(--brand-soft)}
+.opt-single .opt-radio{display:none}
 .opt{display:flex;align-items:center;gap:11px;padding:12px 13px;border-radius:14px;border:1.5px solid var(--line);
   background:#fff;cursor:pointer;transition:border-color .12s,background .12s}
 .opt:hover{border-color:var(--brand-line)}

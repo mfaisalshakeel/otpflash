@@ -6,7 +6,7 @@
  * The picker sits on the band's curve, not below a tall hero: buying is the
  * whole point of the page, so it is the first thing on a phone's screen.
  *
- * @var array $tabs  @var array $state  @var string $headline  @var string $lead
+ * @var array $tabs  @var array $state  @var string $headline  @var string $lead  @var string $tagline
  * @var string $intro  @var bool $isHome  @var bool $empty  @var string $query
  * @var array $trail  @var array $faqs  @var array $posts  @var array $counts  @var ?array $user
  */
@@ -26,14 +26,12 @@ $tab = $state['tab'];
       </nav>
     <?php endif; ?>
     <h1><?= e($headline) ?></h1>
-    <p class="hero-lead"><?= e($lead) ?></p>
+    <p class="hero-lead"><?= e($tagline) ?></p>
     <ul class="hero-points">
       <li><svg class="icon"><use href="#i-globe"></use></svg>
         <b><?= qty_fmt(max($counts['countries'], 1)) ?>+</b> countries</li>
-      <li><svg class="icon"><use href="#i-layers"></use></svg>
-        <b><?= qty_fmt(max($counts['services'], 1)) ?>+</b> apps</li>
-      <li><svg class="icon"><use href="#i-bolt"></use></svg> <b>Instant</b> delivery</li>
-      <li><svg class="icon"><use href="#i-shield"></use></svg> <b>Auto</b> refund</li>
+      <li><svg class="icon"><use href="#i-bolt"></use></svg> Code in <b>seconds</b></li>
+      <li><svg class="icon"><use href="#i-shield"></use></svg> <b>Refund</b> if no SMS</li>
     </ul>
   </div>
 </section>
