@@ -140,9 +140,147 @@
     if (text) { copyText(text, button); }
   });
 
+  // ============================================================ loading ==
+  // A thin bar along the top for any navigation the script does not take
+  // over, so a tap is answered at once even on a slow phone network.
+  var bar = null;
+  var barTimer = 0;
+  function barStart() {
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.className = 'navbar-load';
+      bar.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(bar);
+    }
+    clearTimeout(barTimer);
+    bar.classList.remove('is-done');
+    bar.style.width = '0';
+    void bar.offsetWidth;
+    bar.classList.add('is-on');
+    bar.style.width = '82%';
+  }
+  function barDone() {
+    if (!bar || !bar.classList.contains('is-on')) { return; }
+    bar.style.width = '100%';
+    bar.classList.add('is-done');
+    barTimer = setTimeout(function () { bar.classList.remove('is-on', 'is-done'); bar.style.width = '0'; }, 380);
+  }
+  // Coming back with Back restores the page from memory, bar and all.
+  window.addEventListener('pageshow', function () {
+    barDone();
+    $$('.btn-wait').forEach(function (button) { busy(button, false); });
+  });
+
+  // Registered last (see the end of this file), so every other handler has
+  // had its say: a click or a submit the script took over is not a page load.
+  function watchNavigation() {
+  document.addEventListener('click', function (event) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) { return; }
+    var link = event.target.closest('a[href]');
+    if (!link || link.target || link.hasAttribute('download') || link.origin !== window.location.origin) { return; }
+    var href = link.getAttribute('href');
+    if (!href || href.charAt(0) === '#' || /^(mailto|tel|javascript):/i.test(href)) { return; }
+    if (link.pathname === window.location.pathname && link.search === window.location.search && link.hash) { return; }
+    barStart();
+  });
+  document.addEventListener('submit', function (event) {
+    if (event.defaultPrevented) { return; }
+    var form = event.target;
+    if (form.target) { return; }
+    var button = event.submitter || $('button[type="submit"], button:not([type])', form);
+    barStart();
+    // After this tick: a button disabled now would be left out of the post.
+    if (button && !button.disabled) { setTimeout(function () { busy(button, true); }, 0); }
+  });
+  }
+
+  // ------------------------------------------------------- skeletons --
+  function skRows(count) {
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      html += '<li class="sk-item" aria-hidden="true"><span class="sk sk-ico"></span>' +
+        '<span class="sk-lines"><span class="sk sk-t" style="width:' + (48 + (i * 17) % 34) + '%"></span>' +
+        '<span class="sk sk-s"></span></span><span class="sk sk-p"></span></li>';
+    }
+    return html;
+  }
+  function skOptions() {
+    return '<div class="opt-sk" aria-hidden="true">' +
+      '<div class="sk-sum"><span class="sk sk-ico-lg"></span><span class="sk-lines">' +
+      '<span class="sk sk-t" style="width:58%"></span><span class="sk sk-s"></span></span></div>' +
+      '<span class="sk sk-opt"></span><span class="sk sk-more"></span>' +
+      '<span class="sk sk-btn"></span><span class="sk sk-s sk-center"></span></div>';
+  }
+  function skPanes(count) {
+    var html = '';
+    for (var i = 0; i < count; i++) {
+      var last = i === count - 1;
+      html += '<section class="pane" aria-hidden="true"><div class="pane-head"><span class="sk sk-step"></span>' +
+        '<span class="sk sk-h"></span></div>' +
+        (last ? '<div class="pane-options">' + skOptions() + '</div>'
+              : '<div class="pane-tools"><span class="sk sk-search"></span></div><ul class="plist">' + skRows(7) + '</ul>') +
+        '</section>';
+    }
+    return html;
+  }
+
+  // ------------------------------------------------- swapping the page --
+  // A page the script can draw without leaving: fetch it, put its <main> in
+  // place of ours, and start whatever lives in it. Anything unexpected falls
+  // back to an ordinary page load, which is what the link would have done.
+  var cleanups = [];
+  var swapping = 0;
+  function swapPage(url, push) {
+    var mine = ++swapping;
+    barStart();
+    return fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'text/html', 'X-Requested-With': 'fetch' } })
+      .then(function (response) {
+        if (!response.ok || response.redirected && response.url.split('#')[0] !== url.split('#')[0] && push) {
+          throw new Error('not here');
+        }
+        return response.text();
+      })
+      .then(function (html) {
+        if (mine !== swapping) { return; }
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var fresh = doc.getElementById('main');
+        var main = document.getElementById('main');
+        if (!fresh || !main) { throw new Error('no main'); }
+        cleanups.splice(0).forEach(function (stop) { stop(); });
+        main.innerHTML = fresh.innerHTML;
+        document.title = doc.title;
+        if (doc.body) { document.body.className = doc.body.className; }
+        ['meta[name="description"]', 'link[rel="canonical"]', 'meta[name="robots"]'].forEach(function (sel) {
+          var mineTag = $(sel, document.head), theirs = $(sel, doc.head);
+          if (mineTag && theirs) { mineTag.replaceWith(theirs.cloneNode(true)); }
+        });
+        if (push && window.history && history.pushState) { history.pushState({ soft: true }, '', url); }
+        boot(main);
+        barDone();
+      })
+      .catch(function () {
+        if (mine !== swapping) { return; }
+        window.location.href = url;
+      });
+  }
+  if (window.history && history.replaceState) {
+    history.replaceState(Object.assign({}, history.state || {}, { soft: true }), '');
+  }
+  window.addEventListener('popstate', function (event) {
+    if (event.state && (event.state.soft || event.state.picker)) { swapPage(window.location.href, false); }
+  });
+
   // ================================================================ picker ==
-  var box = $('[data-picker]');
-  if (box) { initPicker(box); }
+  function boot(root) {
+    var box = $('[data-picker]', root);
+    if (box) { initPicker(box); }
+    var liveRoot = $('[data-live]', root);
+    if (liveRoot) { initLive(liveRoot); }
+    bindStateActions(root);
+    var inboxRoot = $('[data-inbox]', root);
+    if (inboxRoot) { initInbox(inboxRoot); }
+    syncPaymentFields();
+  }
 
   function initPicker(box) {
     box.classList.add('is-live');
@@ -151,6 +289,7 @@
     var flags = box.dataset.flags;
     var brands = box.dataset.brands;
     var request = 0;
+    var sortBy = { service: 'popular', country: 'popular' };
 
     function list(pane) { return $('[data-list="' + pane + '"]', box); }
     function input(pane) { return $('[data-filter="' + pane + '"]', box); }
@@ -256,6 +395,28 @@
       var item = $('[data-item="' + pane + '"][data-id="' + id + '"]', box);
       return item ? { id: id, slug: item.dataset.slug } : null;
     }
+    // ---- sorting: the order the server drew is "popular", kept on each row
+    // so it can always be gone back to.
+    function numberRows(pane) {
+      $$('[data-item]', list(pane)).forEach(function (item, index) { item.parentElement.dataset.order = index; });
+    }
+    function sortLocal(pane) {
+      var ul = list(pane);
+      if (!ul) { return; }
+      var how = sortBy[pane];
+      var rows = $$('[data-item]', ul).map(function (item) { return item.parentElement; });
+      rows.sort(function (a, b) {
+        var x = a.firstElementChild.dataset, y = b.firstElementChild.dataset;
+        if (how === 'price') { return (parseFloat(x.price) - parseFloat(y.price)) || x.name.localeCompare(y.name); }
+        if (how === 'name') { return x.name.localeCompare(y.name); }
+        return a.dataset.order - b.dataset.order;
+      });
+      var tail = $$('.pmore, .pempty', ul);
+      rows.concat(tail).forEach(function (li) { ul.appendChild(li); });
+      ul.scrollTop = 0;
+    }
+    ['service', 'country'].forEach(numberRows);
+
     function drawList(pane, rows, total) {
       var ul = list(pane);
       if (!ul) { return; }
@@ -263,6 +424,8 @@
         ul.innerHTML = '<li class="pempty">Nothing on sale here right now.</li>';
       } else {
         ul.innerHTML = rows.map(function (row) { return '<li>' + itemHtml(pane, row, hrefFor(pane, row)) + '</li>'; }).join('');
+        numberRows(pane);
+        if (pane === 'country') { sortLocal(pane); }
       }
       // Only the most-bought apps are drawn; the rest are a search away.
       if (pane === 'service' && typeof total === 'number') {
@@ -283,16 +446,17 @@
     // page cannot answer is asked of the server - after a pause, and only
     // the answer to the latest words is drawn.
     var searchTimer = 0;
-    function searchServer(pane) {
+    function searchServer(pane, now) {
       var ul = list(pane);
       var field = input(pane);
       if (pane !== 'service' || !ul || !field) { return; }
-      if (parseInt(ul.dataset.total || '0', 10) <= $$('[data-item]', ul).length && !ul.dataset.searched) { return; }
+      if (parseInt(ul.dataset.total || '0', 10) <= $$('[data-item]', ul).length && !ul.dataset.searched && !now) { return; }
       clearTimeout(searchTimer);
       searchTimer = setTimeout(function () {
         var words = field.value.trim();
         var params = new URLSearchParams({ tab: tab });
         if (words) { params.set('q', words); }
+        if (sortBy.service !== 'popular') { params.set('sort', sortBy.service); }
         if (chosen.service) { params.set('service', chosen.service); }
         if (chosen.country && tab === 'numbers') { params.set('country', chosen.country); }
         fetch(CFG.base.replace(/\/$/, '') + '/api/picker?' + params.toString(), {
@@ -302,7 +466,7 @@
           ul.dataset.searched = words ? '1' : '';
           drawList(pane, data.services, data.services_total);
         }).catch(function () { /* the drawn list still filters locally */ });
-      }, 250);
+      }, now ? 0 : 250);
     }
 
     // ---- asking the server what the choice means
@@ -313,8 +477,17 @@
       if (chosen.country) { params.set('country', chosen.country); }
       var typed = input('service') ? input('service').value.trim() : '';
       if (typed) { params.set('q', typed); }
+      if (sortBy.service !== 'popular') { params.set('sort', sortBy.service); }
       var slot = optionsSlot();
-      if (slot) { slot.setAttribute('aria-busy', 'true'); slot.style.opacity = '.55'; }
+      var other = '';
+      var before;
+      // The shape of what is coming, where it is coming: the options, and
+      // the list this choice re-prices. The list just tapped stays put.
+      if (slot) { slot.setAttribute('aria-busy', 'true'); slot.innerHTML = skOptions(); }
+      if (tab === 'numbers') {
+        other = which === 'service' ? 'country' : (which === 'country' ? 'service' : '');
+        if (other && list(other)) { before = list(other).innerHTML; list(other).innerHTML = skRows(6); }
+      }
 
       return fetch(CFG.base.replace(/\/$/, '') + '/api/picker?' + params.toString(), {
         credentials: 'same-origin', headers: { 'Accept': 'application/json' }
@@ -332,19 +505,43 @@
         if (slot) {
           slot.innerHTML = data.html;
           slot.removeAttribute('aria-busy');
-          slot.style.opacity = '';
           bindOptions(slot);
         }
         if (!keepUrl && data.url && window.history && history.replaceState) {
-          history.replaceState({ picker: true }, '', data.url);
+          history.replaceState({ picker: true, soft: true }, '', data.url);
         }
       }).catch(function () {
-        if (slot) { slot.removeAttribute('aria-busy'); slot.style.opacity = ''; }
-        toast('Could not load prices. Check your connection and try again.');
+        if (mine !== request) { return; }
+        if (slot) {
+          slot.removeAttribute('aria-busy');
+          slot.innerHTML = '<div class="opt-empty"><b>Could not load prices</b>' +
+            '<p>Check your connection, then tap your choice again.</p></div>';
+        }
+        if (other && list(other) && before !== undefined) { list(other).innerHTML = before; }
       });
     }
 
     box.addEventListener('click', function (event) {
+      var sorter = event.target.closest('[data-sort]');
+      if (sorter) {
+        var group = sorter.closest('[data-sorts]');
+        var which = group.dataset.sorts;
+        $$('[data-sort]', group).forEach(function (b) {
+          b.classList.toggle('on', b === sorter);
+          b.setAttribute('aria-pressed', b === sorter ? 'true' : 'false');
+        });
+        sortBy[which] = sorter.dataset.sort;
+        var ul = list(which);
+        // Every country is on the page; the apps are the top of a longer
+        // list, so their "cheapest" has to come from the server.
+        if (which === 'service' && ul && parseInt(ul.dataset.total || '0', 10) > $$('[data-item]', ul).length) {
+          ul.innerHTML = skRows(6);
+          searchServer('service', true);
+        } else {
+          sortLocal(which);
+        }
+        return;
+      }
       var item = event.target.closest('[data-item]');
       if (item) {
         event.preventDefault();
@@ -367,14 +564,29 @@
       var back = event.target.closest('[data-back]');
       if (back) {
         setStep(back.dataset.back);
+        return;
+      }
+      // The tabs are links to their own pages, drawn here without leaving:
+      // the new tab lights at once and its panes appear as skeletons.
+      var tabLink = event.target.closest('[data-tab-link]');
+      if (tabLink && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        if (tabLink.classList.contains('on')) { return; }
+        $$('[data-tab-link]', box).forEach(function (a) {
+          a.classList.toggle('on', a === tabLink);
+          if (a === tabLink) { a.setAttribute('aria-current', 'page'); } else { a.removeAttribute('aria-current'); }
+        });
+        var count = tabLink.dataset.tabLink === 'numbers' ? 3 : 2;
+        var grid = $('.buy-grid', box);
+        if (grid) {
+          grid.className = 'buy-grid cols-' + count + ' is-loading';
+          grid.innerHTML = skPanes(count);
+        }
+        swapPage(tabLink.href, true);
       }
     });
 
-    // The tabs are links to their own pages; nothing to take over there.
     bindOptions(optionsSlot());
-
-    // Coming back with Back: the address names a choice the page no longer shows.
-    window.addEventListener('popstate', function () { window.location.reload(); });
   }
 
   // ---- the last step: options and the order form
@@ -390,46 +602,66 @@
       $$('.opt', form).forEach(function (opt) { opt.classList.toggle('on', opt.contains(radio)); });
       if (!radio) { return; }
       var price = parseFloat(radio.dataset.price);
+      var shown = radio.dataset.money || money(price);
       $$('[data-buy]', form).forEach(function (button) {
-        if (button.dataset.label) {
-          button.textContent = button.dataset.label.replace('{price}', radio.dataset.money || money(price));
+        // Signed in: the wallet pays when it covers this option, and when it
+        // does not the same button pays directly - never a trip to top up.
+        if (button.dataset.walletLabel) {
+          var covers = parseFloat(button.dataset.balance || '0') + 0.001 >= price;
+          var direct = !covers && button.dataset.gateway === '1';
+          button.value = direct ? 'gateway' : 'wallet';
+          button.dataset.wait = direct ? 'Placing your order…' : 'Getting your number…';
+          button.textContent = (direct ? button.dataset.label : button.dataset.walletLabel).replace('{price}', shown);
+          var note = $('[data-wallet-short]', form);
+          if (note) { note.hidden = !direct; }
+          var other = $('[data-buy-gateway]', form);
+          if (other) { other.hidden = direct; }
+          return;
         }
-        // A wallet that cannot cover the choice says so before it is pressed.
-        if (button.value === 'wallet' && CFG.user) {
-          var short = CFG.user.balance + 0.001 < price;
-          button.toggleAttribute('data-short', short);
-          if (short) { button.textContent = 'Add funds to pay ' + (radio.dataset.money || money(price)); }
+        if (button.dataset.label) {
+          button.textContent = button.dataset.label.replace('{price}', shown);
         }
       });
     }
     form.addEventListener('change', relabel);
     relabel();
 
+    // A returning guest's contact boxes are filled from last time, in this
+    // browser only. Storage can be refused (a private window) - then they
+    // simply start empty.
+    $$('[data-remember]', form).forEach(function (field) {
+      try { field.value = field.value || localStorage.getItem('otpf-' + field.dataset.remember) || ''; } catch (e) { /* empty is fine */ }
+    });
+    function remember() {
+      $$('[data-remember]', form).forEach(function (field) {
+        try { localStorage.setItem('otpf-' + field.dataset.remember, field.value.trim()); } catch (e) { /* nothing to keep it in */ }
+      });
+    }
+
     form.addEventListener('submit', function (event) {
       var button = event.submitter || $('[data-buy]', form);
-      if (button && button.hasAttribute('data-short')) {
-        event.preventDefault();
-        var radio = current();
-        var need = radio ? Math.ceil(parseFloat(radio.dataset.price) - CFG.user.balance) : 0;
-        window.location.href = CFG.base.replace(/\/$/, '') + '/account/wallet' + (need > 0 ? '?amount=' + need : '');
-        return;
-      }
       event.preventDefault();
       var body = new FormData(form);
       if (button && button.name) { body.set(button.name, button.value); }
       busy(button, true);
       clearFormError(form);
+      var cover = buying(form, button && button.value === 'wallet');
 
       post(form.action, body).then(function (data) {
+        if (data && data.ok) { remember(); }
         if (data && data.ok && data.pay) {
+          cover.stop();
           busy(button, false);
           showPay(data);
           return;
         }
         if (data && data.ok && data.redirect) {
+          cover.say('Opening your order…');
+          barStart();
           window.location.href = data.redirect;
           return;
         }
+        cover.stop();
         busy(button, false);
         // The price moved: the server sends the options again, priced as
         // they are now, and the message goes on the new form.
@@ -443,15 +675,42 @@
         }
         formError(form, (data && data.error) || 'That did not go through. Please try again.', data);
       }).catch(function () {
+        cover.stop();
         busy(button, false);
-        form.submit();
+        formError(form, 'We could not reach the shop. Check your connection and tap the button again.');
       });
     });
+  }
+
+  // A cover over the order form while it is being placed. Buying from the
+  // wallet gets the number in the same request, which can take a few
+  // seconds, so the words move on with it rather than sitting on one line.
+  function buying(form, wallet) {
+    var lines = wallet
+      ? ['Checking today\'s price…', 'Reserving your number…', 'Almost there…']
+      : ['Checking today\'s price…', 'Creating your order…'];
+    var cover = document.createElement('div');
+    cover.className = 'buying';
+    cover.setAttribute('role', 'status');
+    cover.innerHTML = '<span class="buying-spin" aria-hidden="true"></span><b></b><small>Please keep this page open.</small>';
+    var text = $('b', cover);
+    var step = 0;
+    text.textContent = lines[0];
+    form.classList.add('is-busy');
+    form.appendChild(cover);
+    var timer = setInterval(function () {
+      if (step < lines.length - 1) { text.textContent = lines[++step]; }
+    }, 1700);
+    return {
+      say: function (words) { clearInterval(timer); text.textContent = words; },
+      stop: function () { clearInterval(timer); form.classList.remove('is-busy'); cover.remove(); }
+    };
   }
 
   function clearFormError(form) {
     var slot = $('[data-form-error]', form);
     if (slot) { slot.remove(); }
+    $$('[aria-invalid]', form).forEach(function (field) { field.removeAttribute('aria-invalid'); });
   }
   function formError(form, message, data) {
     clearFormError(form);
@@ -467,9 +726,13 @@
       link.style.textDecoration = 'underline';
       slot.appendChild(link);
     }
-    var after = $('.opts', form) || form.firstChild;
+    // A box the customer typed into wrongly gets the message under it.
+    var field = data && data.field ? $('[name="' + data.field + '"]', form) : null;
+    if (field) { field.setAttribute('aria-invalid', 'true'); }
+    var after = (field && field.closest('.ofield')) || $('.opts', form) || form.firstChild;
     after.parentNode.insertBefore(slot, after.nextSibling);
     slot.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (field) { field.focus(); }
   }
 
   // ------------------------------------------------- paying, in the box --
@@ -516,7 +779,6 @@
       });
     });
   }
-  syncPaymentFields();
 
   // The pay step posts over fetch, so a refusal is answered in the box the
   // customer is standing in rather than by loading another page.
@@ -554,8 +816,12 @@
   });
 
   // ======================================================== number page ==
-  var live = $('[data-live]');
-  if (live) { initLive(live); }
+  // The page as the server would draw it now, put in place without a reload.
+  function refreshPage() {
+    var card = $('[data-live]') || $('#main');
+    if (card) { card.classList.add('is-updating'); }
+    return swapPage(window.location.href, false);
+  }
 
   function fmtClock(seconds) {
     seconds = Math.max(0, Math.round(seconds));
@@ -600,16 +866,17 @@
       var bar = $('[data-timer-bar]', timer);
       if (bar) { bar.style.strokeDashoffset = '0'; }
     }
-    setInterval(tick, 1000);
+    var ticker = setInterval(tick, 1000);
+    cleanups.push(function () { stopped = true; clearInterval(ticker); });
 
     function apply(state) {
       if (!state) { return; }
       if (state.status !== status) {
         // A new stage of the order is a new page: paid becomes a number, a
-        // number becomes a code or a refund. Reloading draws it the same way
-        // a first visit would.
+        // number becomes a code or a refund. Drawing it again from the server
+        // shows it the same way a first visit would.
         stopped = true;
-        window.location.reload();
+        refreshPage();
         return;
       }
       if (state.code && state.code !== lastCode) {
@@ -664,8 +931,12 @@
         stopped = true;
         post(form.action, new FormData(form)).then(function (data) {
           if (data && data.message) { toast(data.message); }
-          setTimeout(function () { window.location.reload(); }, data && data.ok ? 300 : 1600);
-        }).catch(function () { form.submit(); });
+          setTimeout(refreshPage, data && data.ok ? 200 : 1400);
+        }).catch(function () {
+          busy(button, false);
+          stopped = false;
+          toast('We could not reach the shop. Please try again.');
+        });
       });
     });
   }
@@ -688,19 +959,24 @@
   }
 
   // State-panel actions (retry, get a new number) outside a live page.
-  $$('form[data-numact]').forEach(function (form) {
-    if (form.closest('[data-live]')) { return; }
-    form.addEventListener('submit', function (event) {
-      event.preventDefault();
-      if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) { return; }
-      var button = $('button[type="submit"]', form);
-      busy(button, true);
-      post(form.action, new FormData(form)).then(function (data) {
-        if (data && data.message) { toast(data.message); }
-        setTimeout(function () { window.location.reload(); }, data && data.ok ? 300 : 1600);
-      }).catch(function () { form.submit(); });
+  function bindStateActions(root) {
+    $$('form[data-numact]', root).forEach(function (form) {
+      if (form.closest('[data-live]')) { return; }
+      form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) { return; }
+        var button = $('button[type="submit"]', form);
+        busy(button, true);
+        post(form.action, new FormData(form)).then(function (data) {
+          if (data && data.message) { toast(data.message); }
+          setTimeout(refreshPage, data && data.ok ? 200 : 1400);
+        }).catch(function () {
+          busy(button, false);
+          toast('We could not reach the shop. Please try again.');
+        });
+      });
     });
-  });
+  }
 
   // ============================================================== tracker ==
   var trackModal = $('#trackModal');
@@ -766,18 +1042,26 @@
   }, true);
 
   // ========================================================= rental inbox ==
-  var inbox = $('[data-inbox]');
-  if (inbox) {
+  function initInbox(inbox) {
     var known = parseInt(inbox.dataset.count, 10) || 0;
+    var stopped = false;
+    var timer = 0;
+    cleanups.push(function () { stopped = true; clearTimeout(timer); });
     (function poll() {
+      if (stopped) { return; }
       post(inbox.dataset.url, {}).then(function (data) {
-        if (data && data.ok && data.count > known) {
+        if (!stopped && data && data.ok && data.count > known) {
           known = data.count;
           inbox.innerHTML = data.html;
           toast('New SMS received');
           flashTitle('new SMS');
         }
-      }).catch(function () {}).then(function () { setTimeout(poll, document.hidden ? 30000 : 10000); });
+      }).catch(function () {}).then(function () {
+        if (!stopped) { timer = setTimeout(poll, document.hidden ? 30000 : 10000); }
+      });
     })();
   }
+
+  boot(document);
+  watchNavigation();
 })();

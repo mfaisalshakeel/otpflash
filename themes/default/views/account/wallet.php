@@ -1,4 +1,4 @@
-<?php /** @var array $user @var string $section @var array $lines @var array $paging @var float $min @var float $suggest @var array $pending @var bool $canPay */ ?>
+<?php /** @var array $user @var string $section @var array $lines @var array $paging @var float $min @var float $suggest @var array $pending @var bool $canPay @var array $totals */ ?>
 <div class="wrap portal">
   <div class="portal-grid">
     <?php partial('account/_nav', ['user' => $user, 'section' => $section]); ?>
@@ -10,6 +10,11 @@
           <small>Balance</small>
           <b><?= e(money((float) $user['balance'])) ?></b>
           <span>Never expires. Use it on any number, inbox or rental.</span>
+          <dl class="wallet-totals">
+            <?php foreach ($totals as $label => $amount): ?>
+              <div><dt><?= e($label) ?></dt><dd><?= e(money(max(0, $amount))) ?></dd></div>
+            <?php endforeach; ?>
+          </dl>
         </div>
         <div class="panel" style="margin:0">
           <div class="ptitle"><svg class="icon"><use href="#i-plus"></use></svg> Add funds</div>
@@ -46,7 +51,7 @@
       <div class="panel" style="margin-top:16px">
         <div class="ptitle"><svg class="icon"><use href="#i-list"></use></svg> Statement</div>
         <div class="tbl-wrap">
-          <table class="tbl">
+          <table class="tbl tbl-cards">
             <thead><tr><th>When</th><th>What</th><th>Order</th><th style="text-align:right">Amount</th><th style="text-align:right">Balance</th></tr></thead>
             <tbody>
             <?php if (!$lines): ?>
@@ -54,13 +59,13 @@
             <?php endif; ?>
             <?php foreach ($lines as $line): ?>
               <tr>
-                <td><?= e(when($line['created_at'], 'd M Y, H:i')) ?></td>
-                <td><span class="st st-<?= e($line['type']) ?>"><?= e(WALLET_TYPES[$line['type']] ?? $line['type']) ?></span>
+                <td data-label="When"><?= e(when($line['created_at'], 'd M Y, H:i')) ?></td>
+                <td data-label="What"><span class="st st-<?= e($line['type']) ?>"><?= e(WALLET_TYPES[$line['type']] ?? $line['type']) ?></span>
                   <small class="sub"><?= e($line['note']) ?></small></td>
-                <td><?= $line['order_code'] ? '<a class="row-link" href="' . e(url('order/' . $line['order_code'])) . '">' . e($line['order_code']) . '</a>' : '-' ?></td>
-                <td style="text-align:right" class="<?= (float) $line['amount'] >= 0 ? 'amt-plus' : 'amt-minus' ?>">
+                <td data-label="Order"><?= $line['order_code'] ? '<a class="row-link" href="' . e(url('order/' . $line['order_code'])) . '">' . e($line['order_code']) . '</a>' : '-' ?></td>
+                <td data-label="Amount" style="text-align:right" class="<?= (float) $line['amount'] >= 0 ? 'amt-plus' : 'amt-minus' ?>">
                   <?= (float) $line['amount'] >= 0 ? '+' : '&minus;' ?><?= e(money(abs((float) $line['amount']))) ?></td>
-                <td style="text-align:right"><?= e(money((float) $line['balance_after'])) ?></td>
+                <td data-label="Balance" style="text-align:right"><?= e(money((float) $line['balance_after'])) ?></td>
               </tr>
             <?php endforeach; ?>
             </tbody>

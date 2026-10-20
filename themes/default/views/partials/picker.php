@@ -22,7 +22,6 @@ $panes     = $state['panes'];
 $service   = $state['service'];
 $country   = $state['country'];
 $guestOk   = setting('guest_checkout', '1') === '1';
-$askEmail  = setting('ask_email', '0') === '1';
 
 // Which step a phone shows first: the furthest one already chosen.
 $step = $panes[0];
@@ -72,9 +71,9 @@ $paneTitle = [
         <?php if ($pane === 'service' || $pane === 'country'): ?>
           <?php $rows = $pane === 'service' ? $state['services'] : $state['countries']; ?>
           <?php $chosen = $pane === 'service' ? $service : $country; ?>
-          <?php /* Popular first, always: the list is already in the order most
-                   people want, and three sort buttons were three more things to
-                   read before the first tap. Typing finds anything else. */ ?>
+          <?php /* Popular first, which is what most people want, with the two
+                   other orders a shopper reaches for: cheapest, and by name.
+                   Script-only - without it the list is still in popular order. */ ?>
           <div class="pane-tools">
             <label class="psearch">
               <svg class="icon"><use href="#i-search"></use></svg>
@@ -83,6 +82,13 @@ $paneTitle = [
                      placeholder="<?= $pane === 'service' ? 'Type an app, e.g. WhatsApp' : 'Type a country or +92' ?>"
                      aria-label="<?= $pane === 'service' ? 'Search apps' : 'Search countries' ?>">
             </label>
+            <?php if (count($rows) > 1): ?>
+              <div class="psort" role="group" aria-label="<?= $pane === 'service' ? 'Sort apps' : 'Sort countries' ?>" data-sorts="<?= e($pane) ?>">
+                <button type="button" class="on" data-sort="popular" aria-pressed="true">Popular</button>
+                <button type="button" data-sort="price" aria-pressed="false">Cheapest</button>
+                <button type="button" data-sort="name" aria-pressed="false">A&ndash;Z</button>
+              </div>
+            <?php endif; ?>
           </div>
 
           <ul class="plist" data-list="<?= e($pane) ?>"
@@ -125,7 +131,7 @@ $paneTitle = [
         <?php else: ?>
           <div class="pane-options" data-options aria-live="polite">
             <?php partial('partials/options', ['state' => $state, 'user' => $user,
-                'guestOk' => $guestOk, 'askEmail' => $askEmail]); ?>
+                'guestOk' => $guestOk]); ?>
           </div>
         <?php endif; ?>
       </section>

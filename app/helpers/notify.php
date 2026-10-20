@@ -32,6 +32,13 @@ function notification_events(): array
             'when'   => 'When the payment is confirmed, by a gateway or by you.',
             'tokens' => ['order_code', 'service', 'amount', 'order_url', 'site_name'],
         ],
+        'number_ready' => [
+            'label'  => 'Number ready',
+            'to'     => 'customer',
+            'when'   => 'A purchase is delivered: the number, inbox or rental is theirs. This is the '
+                      . 'receipt, so it carries what was paid.',
+            'tokens' => ['order_code', 'service', 'number', 'amount', 'order_url', 'site_name'],
+        ],
         'otp_received' => [
             'label'  => 'Code received',
             'to'     => 'customer',
@@ -166,7 +173,18 @@ function notification_by_email(string $event): bool
     if (!empty($events[$event]['always'])) {
         return true;
     }
-    return setting('notify_' . $event . '_mail', '0') === '1';
+    return setting('notify_' . $event . '_mail', notification_mail_default($event)) === '1';
+}
+
+/**
+ * Whether an event mails before anyone has chosen. Mail to a customer is on
+ * until switched off - they gave the address so that we would write - and
+ * mail to the admin is opt-in, since the bell already carries it. The rules
+ * screen ticks its boxes from here, so it shows what actually happens.
+ */
+function notification_mail_default(string $event): string
+{
+    return (notification_events()[$event]['to'] ?? '') === 'customer' ? '1' : '0';
 }
 
 /** Where admin mail goes: the address set for it, else the support address. */
@@ -357,6 +375,15 @@ function email_template_defaults(): array
             'body'    => "<p>We have your payment for <b>{order_code}</b> ({service}).</p>\n"
                 . "<p>Your number is waiting on the order page, and the code will appear there "
                 . "the moment the SMS arrives.</p>\n"
+                . '<p><a href="{order_url}">Open your order</a></p>',
+        ],
+        'number_ready' => [
+            'subject' => 'Your {service} number is ready',
+            'body'    => "<p>Thanks for your purchase. Here it is:</p>\n"
+                . "<p style=\"font-size:22px\"><b>{number}</b></p>\n"
+                . "<p>{service} &middot; order <b>{order_code}</b> &middot; {amount}</p>\n"
+                . "<p>Use it now - the code appears on your order page the moment it arrives, "
+                . "and we will email it to you as well.</p>\n"
                 . '<p><a href="{order_url}">Open your order</a></p>',
         ],
         'otp_received' => [

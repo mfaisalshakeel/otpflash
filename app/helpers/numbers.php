@@ -100,9 +100,16 @@ function order_purchase_target(array $order): ?array
  * two numbers. A claim older than two minutes is a request that died
  * mid-purchase, and is let go.
  *
+ * When the chosen server has no stock, or its cost has risen past what the
+ * order sold for, the same app in the same country is tried on another
+ * server that still makes the minimum profit at the price already paid
+ * (number_stand_in) - the customer bought "a WhatsApp number for Pakistan",
+ * not "server 3". Only when none will do is the order failed.
+ *
+ * @param int[] $tried offers already tried for this purchase
  * @return array{0: bool, 1: string}  [ok, what happened]
  */
-function number_buy(int $orderId): array
+function number_buy(int $orderId, array $tried = []): array
 {
     $now   = date('Y-m-d H:i:s');
     $stale = date('Y-m-d H:i:s', time() - 120);
@@ -146,6 +153,9 @@ function number_buy(int $orderId): array
         return [false, 'This order no longer says what to buy.'];
     }
     if ($loss !== null) {
+        if (number_switch_offer($order, $tried, 'its cost rose past the price paid')) {
+            return number_buy($orderId, array_merge($tried, [(int) $order['offer_id']]));
+        }
         return number_failed($order, 'PRICE_UP', $loss . ' Its price is corrected for new orders; '
             . 'refund this one, or switch the loss guard off and retry it.');
     }
@@ -162,6 +172,10 @@ function number_buy(int $orderId): array
     }
 
     if (isset($reply['error'])) {
+        if (number_out_of_stock((string) $reply['error'])
+            && number_switch_offer($order, $tried, 'it had no numbers (' . $reply['error'] . ')')) {
+            return number_buy($orderId, array_merge($tried, [(int) $order['offer_id']]));
+        }
         return number_failed($order, (string) $reply['error'], (string) $reply['message']);
     }
 
@@ -227,7 +241,30 @@ function number_buy(int $orderId): array
                    . ', sold for ' . money((float) $order['price']),
     ]);
 
+    // The receipt goes out with the first number only: a free replacement is
+    // the same purchase, and is on the order page the customer already has.
+    if ((int) $order['attempts'] === 0) {
+        number_ready_notice($order, $number);
+    }
+
     return [true, 'Number ' . $number . ' is ready.'];
+}
+
+/** Email the customer what they bought, if they gave us somewhere to send it. */
+function number_ready_notice(array $order, string $number, string $link = ''): void
+{
+    $email = order_email($order);
+    if ($email === '') {
+        return;
+    }
+    notify('number_ready', [
+        'order_code' => $order['code'],
+        'service'    => order_label($order),
+        'number'     => $number,
+        'amount'     => money((float) $order['price']),
+        'order_url'  => $link !== '' ? $link : url('order/' . $order['code']),
+        'email'      => $email,
+    ]);
 }
 
 /**
@@ -273,10 +310,110 @@ function number_failed(array $order, string $code, string $message): array
     // replacement, it is the same customer holding nothing for their money.
     if (!empty($order['user_id']) && (string) ($order['otp_code'] ?? '') === '' && setting('auto_refund', '1') === '1') {
         $fresh = one('SELECT * FROM orders WHERE id = ?', [$orderId]);
-        refund_order_to_wallet($fresh ?: $order, 'OTPGet could not supply a number', ['api_error']);
+        refund_order_to_wallet($fresh ?: $order, number_refund_note($code), ['api_error']);
     }
 
     return [false, number_trouble($code)];
+}
+
+/** A refusal that means "none of these left", which another server may still have. */
+function number_out_of_stock(string $code): bool
+{
+    return in_array($code, ['NO_NUMBERS', 'NO_SERVICE', 'BAD_SERVICE', 'BAD_COUNTRY', 'STATUS_404'], true);
+}
+
+/**
+ * Another offer for the same app and country that can fill this order at
+ * the price it was sold for, today's cost checked first.
+ *
+ * Numbers only: an inbox or a rental is a different thing, not another
+ * server of the same one. Up to three candidates, cheapest first, each
+ * re-read from OTPGet if its cost is old - a stand-in bought at a loss is
+ * the very thing the loss guard exists to stop.
+ */
+function number_stand_in(array $order, array $exclude): ?array
+{
+    if (empty($order['service_id']) || empty($order['country_id'])
+        || !in_array((string) $order['product'], ['sms', 'premium', 'cheap'], true)) {
+        return null;
+    }
+    $products = array_values(array_intersect(['sms', 'premium', 'cheap'], products_enabled()));
+    [$sellable, $params] = offer_sellable_sql('o', $products);
+    $exclude = array_values(array_unique(array_map('intval', $exclude)));
+    $skip    = $exclude ? ' AND o.id NOT IN (' . implode(',', array_fill(0, count($exclude), '?')) . ')' : '';
+
+    $rows = all("SELECT o.* FROM offers o
+                  WHERE o.service_id = ? AND o.country_id = ? AND {$sellable}{$skip}
+                  ORDER BY o.price, o.id LIMIT 3",
+        array_merge([(int) $order['service_id'], (int) $order['country_id']], $params, $exclude));
+
+    $guarded = setting('loss_guard', '1') === '1';
+    foreach ($rows as $row) {
+        $fresh = offer_refresh($row);
+        if (!$fresh) {
+            continue;
+        }
+        if ($guarded && offer_cost_floor($fresh) > (float) $order['price'] + 0.009) {
+            continue;
+        }
+        return $fresh;
+    }
+    return null;
+}
+
+/**
+ * Point the order at a stand-in offer, if there is one.
+ *
+ * The order keeps its price - the customer paid what they were shown - and
+ * its label; what changes is which server it is bought from, which is ours
+ * to choose. The log says why, for the admin reading it later.
+ */
+function number_switch_offer(array $order, array $tried, string $why): bool
+{
+    if (count($tried) >= 3) {
+        return false;
+    }
+    $standIn = number_stand_in($order, array_merge($tried, [(int) $order['offer_id']]));
+    if (!$standIn) {
+        return false;
+    }
+    $meta = order_meta($order);
+    $meta = array_merge($meta, [
+        'product'          => $standIn['product'],
+        'server'           => $standIn['server'],
+        'provider_country' => $standIn['provider_country'],
+        'provider_service' => $standIn['provider_service'],
+        'provider_name'    => $standIn['provider_name'],
+        'option'           => offer_option_label($standIn),
+        'cost'             => (float) $standIn['cost'],
+        'cost_currency'    => $standIn['cost_currency'],
+    ]);
+    update_row('orders', [
+        'offer_id'   => (int) $standIn['id'],
+        'product'    => (string) $standIn['product'],
+        'server'     => (string) $standIn['server'],
+        'meta'       => json_encode($meta, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        'sending_at' => null,
+        'updated_at' => date('Y-m-d H:i:s'),
+    ], 'id = ?', [(int) $order['id']]);
+    order_log((int) $order['id'], 'Switched to ' . offer_option_label($standIn) . ' (' . $standIn['product']
+        . ' ' . $standIn['server'] . ') because the chosen option ' . $why . '.');
+    return true;
+}
+
+/**
+ * The line on the customer's wallet statement when a number could not be
+ * had. The customer reads it, so it says what happened to them - never whose
+ * stock it was or what our own account looked like.
+ */
+function number_refund_note(string $code): string
+{
+    return match (true) {
+        in_array($code, ['NO_NUMBERS', 'NO_SERVICE', 'BAD_SERVICE', 'BAD_COUNTRY', 'STATUS_404'], true)
+            => 'No number was available',
+        $code === 'PRICE_UP' => 'The price changed before the number was bought',
+        default              => 'The number could not be supplied',
+    };
 }
 
 /** What a customer is told when a number could not be had. Never OTPGet's own words. */

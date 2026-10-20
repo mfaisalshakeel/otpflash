@@ -11,6 +11,7 @@
 
 require_once APP_PATH . '/helpers/catalog.php';
 require_once APP_PATH . '/helpers/numbers.php';   // number_lifetime()
+require_once APP_PATH . '/helpers/payments.php';  // payable_methods(), for the pay button
 
 /** Which panes a tab has, left to right. */
 /** How many apps a picker list draws before the rest are left to search. */
@@ -133,7 +134,8 @@ function picker_option(array $offer): array
  * @return array{tab: string, panes: string[], services: array, countries: array,
  *               options: array, service: ?array, country: ?array}
  */
-function picker_state(string $tab, ?int $serviceId = null, ?int $countryId = null, string $search = ''): array
+function picker_state(string $tab, ?int $serviceId = null, ?int $countryId = null, string $search = '',
+                      string $sort = 'popular'): array
 {
     $panes = PICKER_PANES[$tab] ?? PICKER_PANES['numbers'];
 
@@ -143,7 +145,15 @@ function picker_state(string $tab, ?int $serviceId = null, ?int $countryId = nul
     if (in_array('service', $panes, true)) {
         $narrowed = $tab === 'numbers' ? $countryId : null;
         $words    = preg_split('/\s+/', mb_strtolower(trim($search)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
-        foreach (store_services($tab, $narrowed) as $row) {
+        $rows     = store_services($tab, $narrowed);
+        // Sorted here, before the list is cut to PICKER_SHOWN: "cheapest"
+        // means the cheapest of every app, not of the sixty on the page.
+        if ($sort === 'price' || $sort === 'name') {
+            usort($rows, static fn (array $a, array $b): int => $sort === 'price'
+                ? [(float) $a['from_price'], mb_strtolower((string) $a['name'])] <=> [(float) $b['from_price'], mb_strtolower((string) $b['name'])]
+                : strcasecmp((string) $a['name'], (string) $b['name']));
+        }
+        foreach ($rows as $row) {
             $total++;
             $item = ['sub' => picker_service_sub($row, $tab, $narrowed !== null)] + picker_service($row);
             if ($item['id'] === $serviceId) {
@@ -259,6 +269,18 @@ function picker_options_html(array $offer): string
         'state'    => $state,
         'user'     => current_user(),
         'guestOk'  => setting('guest_checkout', '1') === '1',
-        'askEmail' => setting('ask_email', '0') === '1',
     ]);
+}
+
+/**
+ * Which optional contact boxes a guest's order form shows. Both are the
+ * admin's to switch off; neither is ever required, because the order code
+ * on screen is what brings a customer back.
+ */
+function checkout_fields(): array
+{
+    return [
+        'whatsapp' => setting('ask_whatsapp', '1') === '1',
+        'email'    => setting('ask_email', '1') === '1',
+    ];
 }

@@ -57,7 +57,7 @@
               <?php else: ?>
                 <label class="sw">
                   <input type="checkbox" name="mail[<?= e($key) ?>]"
-                    <?= setting('notify_' . $key . '_mail', '0') === '1' ? 'checked' : '' ?>>
+                    <?= setting('notify_' . $key . '_mail', notification_mail_default($key)) === '1' ? 'checked' : '' ?>>
                   <span></span>
                 </label>
               <?php endif; ?>

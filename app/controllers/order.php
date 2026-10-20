@@ -58,6 +58,7 @@ if ($code === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $user  = current_user();
     $pay   = ($_POST['pay'] ?? 'gateway') === 'wallet' ? 'wallet' : 'gateway';
     $email = trim((string) ($_POST['email'] ?? ''));
+    $whatsapp = trim((string) ($_POST['whatsapp'] ?? ''));
     $offer = sellable_offer((int) ($_POST['offer_id'] ?? 0));
 
     if (!$offer) {
@@ -73,6 +74,11 @@ if ($code === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($pay === 'wallet' && !$user) {
         $pay = 'gateway';
     }
+    // A wallet that cannot cover it is passed over rather than refused: the
+    // customer pressed Pay, and paying directly is what they meant.
+    if ($pay === 'wallet' && (float) $user['balance'] + 0.001 < offer_sale_price($offer) && payable_methods()) {
+        $pay = 'gateway';
+    }
 
     // An order nobody can pay for is not an order.
     if ($pay === 'gateway' && !payable_methods()) {
@@ -83,6 +89,14 @@ if ($code === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $fail('That email address does not look right. Leave it blank if you would rather not give one.', 'email');
     }
+    // Digits with an optional + and the spaces people type; a country code is
+    // what makes it something WhatsApp can open, so 7 to 15 digits.
+    $digits = preg_replace('/\D/', '', $whatsapp);
+    if ($whatsapp !== '' && (!preg_match('/^\+?[\d\s()-]+$/', $whatsapp) || strlen($digits) < 7 || strlen($digits) > 15)) {
+        $fail('That WhatsApp number does not look right - include the country code, e.g. +92 300 1234567. '
+            . 'Or leave it blank.', 'whatsapp');
+    }
+    $whatsapp = $whatsapp !== '' ? (str_starts_with($whatsapp, '+') ? '+' : '') . $digits : '';
 
     // The price the customer was shown, against OTPGet's price now. A cost
     // the sync last saw hours ago is read again first (offer_refresh), and a
@@ -108,7 +122,7 @@ if ($code === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
             . '. Add funds, or pay another way.', null, ['topup' => url('account/wallet?amount=' . ceil($price - (float) $user['balance']))]);
     }
 
-    [$orderId, $orderCode] = place_offer_order($offer, $user, $email);
+    [$orderId, $orderCode] = place_offer_order($offer, $user, $email, $whatsapp);
     $order = one('SELECT * FROM orders WHERE id = ?', [$orderId]);
 
     if ($pay === 'wallet') {

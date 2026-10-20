@@ -143,7 +143,8 @@ OTPGet reply.
 - TLS verification stays on.
 - `tools/mock-otpget.php` implements every endpoint the shop calls, so the
   whole shop can be driven without an account. Netflix never receives an SMS,
-  Tinder is refused, Antarctica has no stock.
+  Tinder is refused, Antarctica has no stock, and Indonesia has none on server 1
+  only (which exercises buying from another server).
 
 ## The catalogue
 
@@ -264,6 +265,17 @@ and everything else to `number_buy()` when `auto_buy_number` is on.
   so the live page and the first render cannot disagree.
 - Stock errors (`NO_NUMBERS` and the like) are not notified to the admin -
   they are weather - but every other refusal is.
+- **Out of stock or dearer is not the end of the order.** The customer bought
+  "a WhatsApp number for Pakistan", not "server 3", so `number_buy()` tries
+  `number_stand_in()` first: the same app and country on another server,
+  cheapest first, today's cost re-read, and only if it still makes
+  `min_profit` at the price already paid. The order keeps its price and label
+  and the log says why it moved. Up to three stand-ins, numbers only.
+- **The customer never reads OTPGet's words.** Not its name, not its
+  messages, not "balance" - those go to the order log, the audit and the
+  admin's notification. What the customer sees comes from
+  `number_trouble()` and `number_refund_note()` (the wallet statement), and a
+  rental's refusal from `rentals.php`'s own sentences.
 - **A wallet customer is refunded whenever no code ever arrived** - the first
   number or a replacement. They are holding nothing for their money either
   way. A guest has no wallet, so a guest's order waits for the admin.
@@ -322,11 +334,22 @@ returns a path on this site. A blocked account is simply not found by
   that the home page and every footer asked for. An admin save on a catalogue
   screen clears them (`catalogue_changed()`, from `_middleware.php`).
 - **The picker asks questions a customer would ask** - "Which app?", "Which
-  country?", "Buy your number" - and has no sort buttons or counts. Lists are
-  ordered by `store_rank()`: popular first, then what sold most in the last
-  thirty days (counted every ten minutes), then the admin's order, then the
-  built-in order of the data file, then the name - so WhatsApp leads, not
-  Amazon because it starts with an A.
+  country?", "Buy your number". Lists open in `store_rank()` order: popular
+  first, then what sold most in the last thirty days (counted every ten
+  minutes), then the admin's order, then the built-in order of the data file,
+  then the name - so WhatsApp leads, not Amazon because it starts with an A.
+  A three-way switch under each search re-sorts by **Cheapest** or **A-Z**.
+  Countries are all on the page, so they sort in the browser; apps are the
+  top sixty of thousands, so theirs is `/api/picker?sort=` and
+  `picker_state()` sorts **before** the cut - cheapest of every app, not of
+  the sixty drawn.
+- **Nothing on the home page reloads it.** Tabs, choices, Back and the order
+  itself all go over `fetch`; a tab swaps `<main>` for the fetched page's
+  (`swapPage()`), and every wait has a skeleton in the shape of what is
+  coming - list rows, the options card, whole panes for a tab - the same idea
+  as the SMM cards. Placing an order covers the form with a loader whose words
+  move on with it. The order page redraws itself the same way when its status
+  changes. Any other link or form gets the thin bar along the top.
 - **The cheapest option is chosen and shown; the rest fold under "More
   options".** Four radios labelled "Server 1/2/6" is a question most people
   cannot answer and should not have to.
@@ -337,6 +360,16 @@ returns a path on this site. A blocked account is simply not found by
   `fetch`; a wallet purchase lands on the order page, a gateway order opens the
   pay modal with the order code and a copy button. **No payment method means
   no guest order** - the form refuses before it writes a row.
+- **One Pay button, signed in or not.** A wallet that covers the option pays
+  from the wallet; one that does not is passed over and the customer pays in
+  the box that opens. Never a detour to top up first - and `order.php` makes
+  the same call if a short wallet is posted anyway.
+- A guest's form carries **WhatsApp (optional)** and **Email (optional)**,
+  each switchable in Settings (`checkout_fields()`). The number is checked
+  for 7-15 digits and stored with its `+`; whoever gives an email gets the
+  customer mails. Customer mail is **on until switched off**
+  (`notification_mail_default()`), admin mail opt-in; `number_ready` is the
+  receipt, sent with the first number, inbox or rental of an order.
 - The order page (`/order/{CODE}`) polls `/order/{CODE}/status` while anything
   can still change and redraws only when the status does; the code pops in
   with the tab title flashing.

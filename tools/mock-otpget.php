@@ -24,6 +24,8 @@
  * And a few choices that misbehave on purpose:
  *
  *   country "Antarctica"  NO_NUMBERS on every purchase
+ *   Indonesia, server 1   NO_NUMBERS, while the other servers have stock
+                           (exercises buying from another server instead)
  *   service "Netflix"     the SMS never arrives (exercises expiry and change number)
  *   service "Tinder"      ERROR_PROVIDER_1 on purchase
  */
@@ -246,7 +248,7 @@ if ($file === 'handler_api.php') {
             if ($service === null) {
                 $text('BAD_SERVICE');
             }
-            if ($name === 'Antarctica') {
+            if ($name === 'Antarctica' || ($name === 'Indonesia' && $type === '1')) {
                 $text('NO_NUMBERS');
             }
             if ($service[1] === 'Tinder') {

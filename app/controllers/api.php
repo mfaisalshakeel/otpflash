@@ -38,7 +38,8 @@ if ($action === 'picker') {
     header('Cache-Control: private, max-age=30');
 
     $search = mb_substr(trim((string) ($_GET['q'] ?? '')), 0, 60);
-    $state  = picker_state($tab, $serviceId, $countryId, $search);
+    $sort   = in_array($_GET['sort'] ?? '', ['price', 'name'], true) ? (string) $_GET['sort'] : 'popular';
+    $state  = picker_state($tab, $serviceId, $countryId, $search, $sort);
     $answer([
         'ok'        => true,
         'tab'       => $tab,
@@ -52,7 +53,6 @@ if ($action === 'picker') {
             'state'    => $state,
             'user'     => current_user(),
             'guestOk'  => setting('guest_checkout', '1') === '1',
-            'askEmail' => setting('ask_email', '0') === '1',
         ]),
         'url'       => choice_url($tab, $state['service'], $state['country']),
         'title'     => $state['service'] || $state['country']

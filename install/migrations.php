@@ -46,4 +46,11 @@ return [
         'label' => 'Let cron read a whole batch of countries per run now that the sync is faster',
         'both'  => ["UPDATE settings SET v = '144' WHERE k = 'sync_batch' AND v IN ('8', '24')"],
     ],
+    // The email box was off by default when nothing was mailed to customers;
+    // now a purchase sends a receipt, so the box is on with the WhatsApp one.
+    '2026_10_order_contact_fields' => [
+        'label' => 'Show the optional WhatsApp and email boxes on the order form',
+        'both'  => ["UPDATE settings SET v = '1' WHERE k = 'ask_email' AND v = '0'",
+                    "INSERT INTO settings (`k`, `v`) VALUES ('ask_whatsapp', '1')"],
+    ],
 ];

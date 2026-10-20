@@ -9,7 +9,7 @@
  * A real form with real radios: without the script it posts to /order and
  * the order page takes over from there.
  *
- * @var array $state  picker_state()  @var ?array $user  @var bool $guestOk  @var bool $askEmail
+ * @var array $state  picker_state()  @var ?array $user  @var bool $guestOk
  */
 $tab     = $state['tab'];
 $service = $state['service'];
@@ -123,21 +123,50 @@ $balance = $user ? (float) $user['balance'] : 0.0;
     <?php endif; ?>
 
   <?php elseif ($user): ?>
-    <button class="btn btn-primary btn-block btn-lg" type="submit" name="pay" value="wallet" data-buy
-            data-label="Pay {price} from wallet" data-wait="Getting your number…"
-            <?= $balance + 0.001 < (float) $first['price'] ? 'data-short' : '' ?>>
-      Pay <?= e(money($first['price'])) ?> from wallet
+    <?php
+    // One Pay button, signed in or not. A wallet that covers the price pays
+    // in one tap; one that does not simply is not used, and the customer pays
+    // in the box that opens - sending them off to top up first turned one
+    // purchase into two. The script makes the same call for every option.
+    $covers     = $balance + 0.001 >= (float) $first['price'];
+    $canGateway = (bool) payable_methods();
+    ?>
+    <button class="btn btn-primary btn-block btn-lg" type="submit" name="pay" data-buy
+            value="<?= $covers || !$canGateway ? 'wallet' : 'gateway' ?>"
+            data-wallet-label="Pay {price} from wallet" data-label="Pay {price}"
+            data-balance="<?= e((string) $balance) ?>" data-gateway="<?= $canGateway ? '1' : '0' ?>"
+            data-wait="<?= $covers ? 'Getting your number…' : 'Placing your order…' ?>">
+      <?= $covers ? 'Pay ' . e(money($first['price'])) . ' from wallet' : 'Pay ' . e(money($first['price'])) ?>
     </button>
-    <p class="obal">Wallet balance <b><?= e(money($balance)) ?></b>
-      &middot; <a href="<?= e(url('account/wallet')) ?>">Add funds</a></p>
-    <button class="btn btn-ghost btn-block" type="submit" name="pay" value="gateway" data-buy-gateway>
-      Pay another way</button>
+    <p class="obal" data-wallet-note>Wallet balance <b><?= e(money($balance)) ?></b>
+      <span data-wallet-short <?= $covers ? 'hidden' : '' ?>>&middot; not enough for this one, so pay directly</span></p>
+    <?php if ($canGateway): ?>
+      <button class="btn btn-ghost btn-block" type="submit" name="pay" value="gateway" data-buy-gateway
+              <?= $covers ? '' : 'hidden' ?>>Pay another way</button>
+    <?php endif; ?>
 
   <?php elseif ($guestOk): ?>
-    <?php if ($askEmail): ?>
-      <div class="field field-sm">
-        <label for="opt-email">Email for the receipt <span class="optional">(optional)</span></label>
-        <input id="opt-email" type="email" name="email" placeholder="you@example.com" autocomplete="email">
+    <?php $ask = checkout_fields(); ?>
+    <?php if ($ask['whatsapp'] || $ask['email']): ?>
+      <div class="ocontact" data-contact>
+        <?php if ($ask['whatsapp']): ?>
+          <label class="ofield">
+            <span>WhatsApp <em>(optional)</em></span>
+            <span class="ofield-in"><svg class="icon"><use href="#i-whatsapp"></use></svg>
+              <input type="tel" name="whatsapp" inputmode="tel" autocomplete="tel" maxlength="20"
+                     placeholder="+92 300 1234567" data-remember="whatsapp"></span>
+          </label>
+        <?php endif; ?>
+        <?php if ($ask['email']): ?>
+          <label class="ofield">
+            <span>Email <em>(optional)</em></span>
+            <span class="ofield-in"><svg class="icon"><use href="#i-mail"></use></svg>
+              <input type="email" name="email" autocomplete="email" maxlength="190"
+                     placeholder="you@example.com" data-remember="email"></span>
+          </label>
+        <?php endif; ?>
+        <small class="ocontact-hint"><?= $ask['email'] ? 'We email your number and code as a receipt.' : 'Only used if we need to reach you about this order.' ?>
+          Your code shows on screen either way.</small>
       </div>
     <?php endif; ?>
     <button class="btn btn-primary btn-block btn-lg" type="submit" name="pay" value="gateway" data-buy

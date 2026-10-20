@@ -48,7 +48,10 @@ if ($section === '') {
     $page('dashboard', 'My account', [
         'live'    => $live,
         'recent'  => all('SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 8', [$userId]),
-        'rentals' => all("SELECT * FROM rentals WHERE user_id = ? AND status = 'active' ORDER BY expires_at LIMIT 4", [$userId]),
+        // Active and not yet run out: cron closes an expired one within
+        // minutes, but the dashboard should not call it active meanwhile.
+        'rentals' => all("SELECT * FROM rentals WHERE user_id = ? AND status = 'active' AND expires_at > ?
+                           ORDER BY expires_at LIMIT 4", [$userId, date('Y-m-d H:i:s')]),
         'stats'   => [
             'numbers'  => (int) col("SELECT COUNT(*) FROM orders WHERE user_id = ? AND product IN ('sms','premium','cheap','email') AND paid_at IS NOT NULL", [$userId], 0),
             'codes'    => (int) col("SELECT COUNT(*) FROM orders WHERE user_id = ? AND status = 'completed' AND otp_code <> ''", [$userId], 0),
@@ -220,6 +223,16 @@ if ($section === 'wallet') {
                             AND created_at >= ? ORDER BY created_at DESC LIMIT 5",
                           [$userId, date('Y-m-d H:i:s', time() - 3 * 86400)]),
         'canPay'   => (bool) payable_methods(),
+        // Three totals under the balance, one query each by type so the
+        // figures cannot borrow from one another.
+        'totals'   => [
+            'Added'    => (float) col("SELECT COALESCE(SUM(amount), 0) FROM wallet_transactions
+                                        WHERE user_id = ? AND type = 'deposit'", [$userId], 0),
+            'Spent'    => -(float) col("SELECT COALESCE(SUM(amount), 0) FROM wallet_transactions
+                                         WHERE user_id = ? AND type IN ('purchase', 'rental', 'renewal')", [$userId], 0),
+            'Refunded' => (float) col("SELECT COALESCE(SUM(amount), 0) FROM wallet_transactions
+                                        WHERE user_id = ? AND type = 'refund'", [$userId], 0),
+        ],
     ]);
 }
 

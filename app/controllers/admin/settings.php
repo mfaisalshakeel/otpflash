@@ -49,8 +49,13 @@ $GROUPS = [
         'min_deposit'       => ['label' => 'Smallest wallet deposit', 'type' => 'number',
             'hint' => 'In your base currency. Gateways charge per payment, so a floor keeps '
                     . 'a deposit worth what it costs to take.'],
+        'ask_whatsapp'      => ['label' => 'Ask guests for a WhatsApp number', 'type' => 'checkbox',
+            'hint' => 'Marked optional on the order form. It shows on the order, with a button to '
+                    . 'message them, for when something needs asking.'],
         'ask_email'         => ['label' => 'Ask guests for an email address', 'type' => 'checkbox',
-            'hint' => 'Optional for them either way. With it, the code is emailed too.'],
+            'hint' => 'Marked optional on the order form. Whoever gives one is emailed the receipt, '
+                    . 'the number and the code - switch those mails on or off under Notifications. '
+                    . 'Signed-in customers are written to at their account address.'],
         'require_trx_id'    => ['label' => 'Require a transaction id before a manual payment can be submitted',
             'type' => 'checkbox'],
     ],

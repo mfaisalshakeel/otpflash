@@ -48,7 +48,7 @@ function rental_start(int $orderId): array
             'admin_url' => url('admin/orders/' . $orderId), 'admin_link' => 'admin/orders/' . $orderId]);
         if (setting('auto_refund', '1') === '1') {
             $fresh = one('SELECT * FROM orders WHERE id = ?', [$orderId]);
-            refund_order_to_wallet($fresh ?: $order, 'OTPGet could not supply the rental', ['api_error']);
+            refund_order_to_wallet($fresh ?: $order, 'The rental number could not be supplied', ['api_error']);
         }
         return [false, 'We could not rent that number right now. '
             . (setting('auto_refund', '1') === '1' ? 'Your payment is back in your wallet.' : 'We will be in touch.')];
@@ -93,6 +93,7 @@ function rental_start(int $orderId): array
     order_log($orderId, 'Rented ' . $reply['phone'] . ' until ' . $expires . ' (OTPGet order '
         . ($reply['order_id'] ?? '?') . ', cost ' . money($costBase) . ').');
     rental_find_provider_id($rentalId);
+    number_ready_notice($order, (string) $reply['phone'], url('account/rentals/' . $rentalId));
 
     return [true, 'Your rental number is ready.'];
 }
@@ -289,7 +290,9 @@ function rental_cancel(array $rental): array
     $reply = $providerId !== '' ? otpget()->cancelRental($providerId)
                                 : ['error' => 'MISSING', 'message' => 'OTPGet has not told us this rental\'s id yet.'];
     if (isset($reply['error'])) {
-        return [false, preg_replace('/^OTPGet said: /', '', (string) $reply['message'])];
+        // Their words go to the log; the customer gets ours.
+        log_line('Rental #' . $rental['id'] . ' cancel refused: ' . $reply['error'] . ' ' . $reply['message']);
+        return [false, 'This rental could not be cancelled right now. Please try again in a minute.'];
     }
 
     if (!claim('rentals', ['status' => 'cancelled', 'updated_at' => date('Y-m-d H:i:s')],

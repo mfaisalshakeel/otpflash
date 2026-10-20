@@ -98,13 +98,20 @@ $again = !empty($order['service_slug']) ? url((string) $order['service_slug']) :
             <?php endif; ?>
             <div class="nc-title">
               <b><?= e(order_label($order)) ?></b>
-              <small><?= $isEmail ? 'Temporary email' : 'Virtual number' ?> &middot; <?= (int) $state['attempts'] ?> of <?= (int) $state['attempts_max'] ?></small>
+              <?php $changesLeft = max(0, (int) $state['attempts_max'] - (int) $state['attempts']); ?>
+              <small><?= $isEmail ? 'Temporary email' : 'Virtual number' ?><?php if ($status === 'processing' && $state['attempts_max'] > 1): ?>
+                &middot; <?= $changesLeft ?> free change<?= $changesLeft === 1 ? '' : 's' ?> left<?php endif; ?></small>
             </div>
-            <div class="nc-timer" data-timer data-seconds="<?= (int) $state['seconds_left'] ?>"
-                 title="How long this <?= $isEmail ? 'inbox' : 'number' ?> is held for you">
-              <svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15.9" class="nc-track"/><circle cx="18" cy="18" r="15.9" class="nc-bar" data-timer-bar/></svg>
-              <span data-timer-text><?= sprintf('%d:%02d', intdiv((int) $state['seconds_left'], 60), (int) $state['seconds_left'] % 60) ?></span>
-            </div>
+            <?php if ($state['seconds_left'] > 0): ?>
+              <div class="nc-timer" data-timer data-seconds="<?= (int) $state['seconds_left'] ?>"
+                   title="How long this <?= $isEmail ? 'inbox' : 'number' ?> is held for you">
+                <svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15.9" class="nc-track"/><circle cx="18" cy="18" r="15.9" class="nc-bar" data-timer-bar/></svg>
+                <span data-timer-text><?= sprintf('%d:%02d', intdiv((int) $state['seconds_left'], 60), (int) $state['seconds_left'] % 60) ?></span>
+              </div>
+            <?php elseif ($state['code'] !== ''): ?>
+              <?php /* A clock at 0:00 beside a delivered code reads as something gone wrong. */ ?>
+              <span class="nc-done"><svg class="icon"><use href="#i-check"></use></svg> Delivered</span>
+            <?php endif; ?>
           </div>
 
           <div class="nc-number">
@@ -172,11 +179,15 @@ $again = !empty($order['service_slug']) ? url((string) $order['service_slug']) :
             <?php endif; ?>
           </div>
 
-          <ol class="nc-tips">
-            <li>Copy the <?= $isEmail ? 'address' : 'number' ?> and paste it into <?= e($order['service_name'] ?: 'the app') ?>.</li>
-            <li>Ask for the code. Most arrive in under a minute.</li>
-            <li>No code after a couple of minutes? <b>Change number</b> - it is free<?= $owner ? ', or cancel for a refund' : '' ?>.</li>
-          </ol>
+          <?php if ($status === 'processing' && $state['code'] === ''): ?>
+            <ol class="nc-tips">
+              <li>Copy the <?= $isEmail ? 'address' : 'number' ?> and paste it into <?= e($order['service_name'] ?: 'the app') ?>.</li>
+              <li>Ask for the code. Most arrive in under a minute.</li>
+              <li>No code after a couple of minutes? <b>Change number</b> - it is free<?= $owner ? ', or cancel for a refund' : '' ?>.</li>
+            </ol>
+          <?php elseif ($state['code'] !== '' && $state['seconds_left'] > 0): ?>
+            <p class="nc-tips nc-tips-plain">Asked for another code? It shows up here too, while the <?= $isEmail ? 'inbox' : 'number' ?> is held.</p>
+          <?php endif; ?>
         </div>
 
       <?php elseif ($status === 'expired'): ?>
@@ -201,7 +212,7 @@ $again = !empty($order['service_slug']) ? url((string) $order['service_slug']) :
         <div class="panel state-panel">
           <span class="state-ico state-warn"><svg class="icon"><use href="#i-alert"></use></svg></span>
           <h2>We could not get <?= $isRental ? 'that rental' : 'a number' ?> just now</h2>
-          <p><?= e($state['error'] ?? 'Our supplier had nothing for this a moment ago. Stock changes every minute.') ?></p>
+          <p><?= e($state['error'] ?? 'No numbers were available for this a moment ago. Stock changes every minute.') ?></p>
           <div class="state-acts">
             <?php if ($state && $state['can_retry']): ?>
               <form method="post" action="<?= e(url('order/' . $order['code'] . '/retry')) ?>" data-numact>
