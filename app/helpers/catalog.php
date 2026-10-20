@@ -558,13 +558,40 @@ function offer_price(string $product, float $cost, string $currency = ''): float
  */
 function reprice_offers(): int
 {
-    $changed = 0;
+    // A full OTPGet catalogue is over two hundred thousand offers but only a
+    // few thousand distinct costs, so each cost is priced once and the
+    // offers that move are written in groups by their new price - one
+    // statement per few hundred rows, in one transaction. Row by row it took
+    // twenty-five seconds, which a shared host cuts off in the middle.
+    $priced = [];
+    $moves  = [];
     foreach (all('SELECT id, product, cost, cost_currency, price FROM offers') as $offer) {
-        $price = offer_price($offer['product'], (float) $offer['cost'], (string) $offer['cost_currency']);
+        $key = $offer['product'] . '|' . $offer['cost'] . '|' . $offer['cost_currency'];
+        $price = $priced[$key] ??= offer_price($offer['product'], (float) $offer['cost'], (string) $offer['cost_currency']);
         if (abs($price - (float) $offer['price']) >= 0.005) {
-            q('UPDATE offers SET price = ? WHERE id = ?', [$price, $offer['id']]);
-            $changed++;
+            $moves[(string) $price][] = (int) $offer['id'];
         }
+    }
+
+    $changed = 0;
+    $pdo = db();
+    $own = !$pdo->inTransaction() && $pdo->beginTransaction();
+    try {
+        foreach ($moves as $price => $ids) {
+            foreach (array_chunk($ids, 400) as $chunk) {
+                q('UPDATE offers SET price = ? WHERE id IN (' . implode(',', array_fill(0, count($chunk), '?')) . ')',
+                    array_merge([(float) $price], $chunk));
+                $changed += count($chunk);
+            }
+        }
+        if ($own) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($own && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
     }
     return $changed;
 }
@@ -836,17 +863,27 @@ function sync_units(?array $lists = null): array
     $lists ??= catalogue_cache_read('sync-lists') ?? [];
     $units = [];
 
+    // The countries most people buy from go first, on every server, so the
+    // first step of a first sync already puts a sellable shop on the page
+    // and the long tail fills in behind it.
+    $popular = static function (string $name): int {
+        $iso = country_iso_for($name);
+        return $iso !== '' && !empty(country_catalogue()[$iso]['popular']) ? 0 : 2;
+    };
+
     if (product_enabled('sms')) {
         foreach (product_servers('sms') as $type) {
             foreach ((array) ($lists['sms'][$type] ?? []) as $country) {
                 $units[] = ['key' => 'sms:' . $type . ':' . $country['id'],
-                            'label' => 'Server ' . $type . ' - ' . $country['name']];
+                            'label' => 'Server ' . $type . ' - ' . $country['name'],
+                            'rank'  => $popular((string) $country['name'])];
             }
         }
     }
     if (product_enabled('premium')) {
         foreach ((array) ($lists['premium'] ?? []) as $country) {
-            $units[] = ['key' => 'premium::' . $country['id'], 'label' => 'Premium - ' . $country['name']];
+            $units[] = ['key' => 'premium::' . $country['id'], 'label' => 'Premium - ' . $country['name'],
+                        'rank' => $popular((string) $country['name'])];
         }
     }
     if (product_enabled('cheap')) {
@@ -868,11 +905,13 @@ function sync_units(?array $lists = null): array
         foreach (product_servers('rental') as $provider) {
             foreach ((array) ($lists['rental'][$provider] ?? []) as $country) {
                 $units[] = ['key' => 'rental:' . $provider . ':' . $country['code'],
-                            'label' => 'Rental ' . $provider . ' - ' . $country['name']];
+                            'label' => 'Rental ' . $provider . ' - ' . $country['name'], 'rank' => 1];
             }
         }
     }
 
+    // Stable, so within a rank OTPGet's own order is kept.
+    usort($units, static fn (array $a, array $b): int => ($a['rank'] ?? 1) <=> ($b['rank'] ?? 1));
     return $units;
 }
 
@@ -1062,15 +1101,17 @@ function sync_unit(string $key): array
     return ['ok' => true, 'count' => $count, 'message' => ''];
 }
 
-/** How many units one press of the sync stepper reads - all at once. */
-const SYNC_STEP_UNITS = 24;
+/** How many units one press of the sync stepper reads - about ten seconds against otpget.com. */
+const SYNC_STEP_UNITS = 48;
 
 /**
- * Sync several units at once.
+ * Sync several units in one go.
  *
- * Their requests go out together (OtpGet::parallel), so a step of two dozen
- * countries costs about what one used to. Each unit is still stored on its
- * own, so one country that fails does not cost the others.
+ * Their requests share one connection and go out two at a time
+ * (OtpGet::parallel), which is what OTPGet takes without refusing; each unit
+ * is still stored on its own, so one country that fails does not cost the
+ * others. Measured against the real catalogue - 1,076 units, 220,000 offers -
+ * a full first import took 198 seconds with none failed.
  *
  * @param string[] $keys
  * @return array<string, array{ok: bool, count: int, message: string}>
@@ -1081,7 +1122,52 @@ function sync_units_run(array $keys): array
     foreach (array_unique($keys) as $key) {
         $work[$key] = static fn () => sync_unit($key);
     }
-    return otpget()->parallel($work, 16);
+    return otpget()->parallel($work);
+}
+
+/**
+ * Insert new offers in one statement.
+ *
+ * If another sync stored one of them a moment ago the statement fails as a
+ * whole, so the chunk is written row by row instead and the row that is
+ * already there is updated - the same answer, more slowly, only on the race.
+ */
+function offers_insert_many(array $rows): void
+{
+    if (!$rows) {
+        return;
+    }
+    $columns = array_keys($rows[0]);
+    $marks   = '(' . implode(',', array_fill(0, count($columns), '?')) . ')';
+    $values  = [];
+    foreach ($rows as $row) {
+        foreach ($columns as $column) {
+            $values[] = $row[$column];
+        }
+    }
+    try {
+        q('INSERT INTO offers (' . implode(', ', $columns) . ') VALUES '
+            . implode(', ', array_fill(0, count($rows), $marks)), $values);
+        return;
+    } catch (PDOException $e) {
+        require_once APP_PATH . '/helpers/guard.php';
+        if (!is_duplicate_key($e)) {
+            throw $e;
+        }
+    }
+    foreach ($rows as $row) {
+        try {
+            insert_row('offers', $row);
+        } catch (PDOException $e) {
+            if (!is_duplicate_key($e)) {
+                throw $e;
+            }
+            $update = array_diff_key($row, array_flip(['product', 'server', 'provider_country', 'provider_service',
+                'is_active', 'created_at']));
+            update_row('offers', $update, 'product = ? AND server = ? AND provider_country = ? AND provider_service = ?',
+                [$row['product'], $row['server'], $row['provider_country'], $row['provider_service']]);
+        }
+    }
 }
 
 /**
@@ -1101,87 +1187,136 @@ function offers_store(string $product, string $server, ?string $country, array $
     $now      = date('Y-m-d H:i:s');
     $currency = otpget_currency();
     $kept     = [];
+    $fresh    = [];
+    $inserts  = [];
 
-    foreach ($rows as $row) {
-        $providerCountry = (string) ($row['provider_country'] ?? $country ?? '');
-        $providerService = (string) ($row['provider_service'] ?? '');
-        $cost            = round((float) $row['cost'], 4);
+    // Everything this unit already has, in one query rather than one per
+    // offer - a big country is a hundred offers, and a shared host's
+    // database is a round trip away.
+    $sql    = 'SELECT id, provider_country, provider_service, provider_name, country_id, service_id, cost,
+                      cost_currency, price, price_override, stock, missing
+                 FROM offers WHERE product = ? AND server = ?';
+    $params = [$product, $server];
+    if ($country !== null) {
+        $sql     .= ' AND provider_country = ?';
+        $params[] = $country;
+    }
+    $have = [];
+    foreach (all($sql, $params) as $row) {
+        $have[$row['provider_country'] . "\0" . $row['provider_service']] = $row;
+    }
 
-        $fields = [
-            'provider_name' => mb_substr((string) ($row['provider_name'] ?? ''), 0, 190),
-            'country_id'    => $row['country_id'] ?? null,
-            'service_id'    => $row['service_id'] ?? null,
-            'cost'          => $cost,
-            'cost_currency' => $currency,
-            'price'         => offer_price($product, $cost, $currency),
-            'stock'         => $row['stock'] ?? null,
-            'missing'       => 0,
-            'synced_at'     => $now,
-        ];
+    // One transaction per unit: on a shared host every commit waits for the
+    // disk, and a hundred commits for one country was most of a sync's time
+    // once the requests themselves went out together.
+    $pdo = db();
+    $own = !$pdo->inTransaction() && $pdo->beginTransaction();
+    try {
+        foreach ($rows as $row) {
+            $providerCountry = (string) ($row['provider_country'] ?? $country ?? '');
+            $providerService = (string) ($row['provider_service'] ?? '');
+            $cost            = round((float) $row['cost'], 4);
 
-        $existing = one('SELECT id, price_override, provider_name FROM offers WHERE product = ? AND server = ?
-                           AND provider_country = ? AND provider_service = ?',
-                        [$product, $server, $providerCountry, $providerService]);
-        $id = $existing['id'] ?? null;
+            $fields = [
+                'provider_name' => mb_substr((string) ($row['provider_name'] ?? ''), 0, 190),
+                'country_id'    => $row['country_id'] ?? null,
+                'service_id'    => $row['service_id'] ?? null,
+                'cost'          => $cost,
+                'cost_currency' => $currency,
+                'price'         => offer_price($product, $cost, $currency),
+                'stock'         => $row['stock'] ?? null,
+                'missing'       => 0,
+            ];
 
-        // A pinned price is the admin's - until OTPGet's cost rises past it.
-        // Then it is a loss on every sale, so the pin goes and the automatic
-        // price takes over, and the admin is told rather than finding out
-        // from the dashboard's profit figure.
-        if ($existing && $existing['price_override'] !== null) {
-            $floor = (float) (to_base($cost, $currency) ?? 0) + (float) setting('min_profit', '0');
-            if ($floor > 0 && (float) $existing['price_override'] < $floor) {
-                $fields['price_override'] = null;
-                audit('catalogue.unpinned', ['entity' => 'offers', 'entity_id' => (int) $id, 'severity' => 'warn',
-                    'summary' => ($existing['provider_name'] ?: 'An offer') . ': pinned at '
-                        . money((float) $existing['price_override']) . ' but OTPGet now charges '
-                        . money((float) to_base($cost, $currency)) . ' - back to the automatic '
-                        . money($fields['price'])]);
+            $existing = $have[$providerCountry . "\0" . $providerService] ?? null;
+
+            // A pinned price is the admin's - until OTPGet's cost rises past
+            // it. Then it is a loss on every sale, so the pin goes and the
+            // automatic price takes over, and the admin is told rather than
+            // finding out from the dashboard's profit figure.
+            if ($existing && $existing['price_override'] !== null) {
+                $floor = (float) (to_base($cost, $currency) ?? 0) + (float) setting('min_profit', '0');
+                if ($floor > 0 && (float) $existing['price_override'] < $floor) {
+                    $fields['price_override'] = null;
+                    audit('catalogue.unpinned', ['entity' => 'offers', 'entity_id' => (int) $existing['id'],
+                        'severity' => 'warn',
+                        'summary' => ($existing['provider_name'] ?: 'An offer') . ': pinned at '
+                            . money((float) $existing['price_override']) . ' but OTPGet now charges '
+                            . money((float) to_base($cost, $currency)) . ' - back to the automatic '
+                            . money($fields['price'])]);
+                }
             }
-        }
 
-        if (!$id) {
-            try {
-                $id = insert_row('offers', $fields + [
+            $kept[] = $providerService;
+            if (!$existing) {
+                // Written a hundred to a statement after the loop: a first
+                // import is tens of thousands of these.
+                $inserts[] = $fields + [
                     'product'          => $product,
                     'server'           => $server,
                     'provider_country' => $providerCountry,
                     'provider_service' => $providerService,
                     'is_active'        => 1,
+                    'synced_at'        => $now,
                     'created_at'       => $now,
-                ]);
-                $kept[] = (int) $id;
+                ];
                 continue;
-            } catch (PDOException $e) {
-                // The cron sync and the admin's sync stored it a moment ago:
-                // one offer, so update that row rather than fail the unit.
-                require_once APP_PATH . '/helpers/guard.php';
-                if (!is_duplicate_key($e)) {
-                    throw $e;
-                }
-                $id = col('SELECT id FROM offers WHERE product = ? AND server = ? AND provider_country = ?
-                             AND provider_service = ?', [$product, $server, $providerCountry, $providerService]);
             }
-        }
-        // A sync that cannot name the country or app this time (its list
-        // cache was cleared) must not unlink an offer that was placed before.
-        foreach (['country_id', 'service_id'] as $link) {
-            if ($fields[$link] === null) {
-                unset($fields[$link]);
-            }
-        }
-        update_row('offers', $fields, 'id = ?', [$id]);
-        $kept[] = (int) $id;
-    }
 
-    if ($retire && $country !== null) {
-        $sql    = 'UPDATE offers SET missing = 1 WHERE product = ? AND server = ? AND provider_country = ?';
-        $params = [$product, $server, $country];
-        if ($kept) {
-            $sql   .= ' AND id NOT IN (' . implode(',', array_fill(0, count($kept), '?')) . ')';
-            $params = array_merge($params, $kept);
+            // A sync that cannot name the country or app this time (its list
+            // cache was cleared) must not unlink an offer placed before.
+            foreach (['country_id', 'service_id'] as $link) {
+                if ($fields[$link] === null) {
+                    unset($fields[$link]);
+                }
+            }
+
+            // Only what moved is written. Most of a re-sync is prices that
+            // did not change, and those cost one shared UPDATE below.
+            $changed = array_filter($fields, static function ($value, string $name) use ($existing): bool {
+                $was = $existing[$name] ?? null;
+                if ($value === null || $was === null) {
+                    return $value !== $was;
+                }
+                return is_float($value) || is_int($value)
+                    ? abs((float) $was - (float) $value) > 0.00005
+                    : (string) $was !== (string) $value;
+            }, ARRAY_FILTER_USE_BOTH);
+
+            if ($changed) {
+                update_row('offers', $changed + ['synced_at' => $now], 'id = ?', [(int) $existing['id']]);
+            } else {
+                $fresh[] = (int) $existing['id'];
+            }
         }
-        q($sql, $params);
+
+        foreach (array_chunk($inserts, 100) as $chunk) {
+            offers_insert_many($chunk);
+        }
+
+        foreach (array_chunk($fresh, 400) as $ids) {
+            q('UPDATE offers SET synced_at = ? WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')',
+                array_merge([$now], $ids));
+        }
+
+        if ($retire && $country !== null) {
+            $sql    = 'UPDATE offers SET missing = 1 WHERE product = ? AND server = ? AND provider_country = ? AND missing = 0';
+            $params = [$product, $server, $country];
+            if ($kept) {
+                $sql   .= ' AND provider_service NOT IN (' . implode(',', array_fill(0, count($kept), '?')) . ')';
+                $params = array_merge($params, $kept);
+            }
+            q($sql, $params);
+        }
+
+        if ($own) {
+            $pdo->commit();
+        }
+    } catch (Throwable $e) {
+        if ($own && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $e;
     }
 
     return count($kept);
@@ -1228,13 +1363,21 @@ function sync_catalogue_batch(int $limit): array
         $due[$unit['key']] = $unit['label'];
     }
 
-    $done   = 0;
-    $offers = 0;
-    foreach (sync_units_run(array_keys($due)) as $key => $result) {
-        $done++;
-        $offers += $result['count'];
-        if (!$result['ok']) {
-            $errors[] = $due[$key] . ': ' . $result['message'];
+    // A batch at a time, stopping once forty seconds are spent: whatever is
+    // left is still the oldest, so the next run starts with it.
+    $done    = 0;
+    $offers  = 0;
+    $started = microtime(true);
+    foreach (array_chunk(array_keys($due), SYNC_STEP_UNITS) as $batch) {
+        if (microtime(true) - $started > 40) {
+            break;
+        }
+        foreach (sync_units_run($batch) as $key => $result) {
+            $done++;
+            $offers += $result['count'];
+            if (!$result['ok']) {
+                $errors[] = $due[$key] . ': ' . $result['message'];
+            }
         }
     }
 
@@ -1250,11 +1393,54 @@ function sync_catalogue_batch(int $limit): array
 // ===========================================================================
 
 /**
+ * A picker list nobody narrowed - every app, every country - from a cache.
+ *
+ * Over the whole of OTPGet (220,000 offers) each of those is a GROUP BY that
+ * took 0.15-0.36s, and the home page and every footer asked for both. They
+ * change when a sync moves a price, which five minutes behind is fine for a
+ * "from" figure the order re-checks anyway; and when an admin switches
+ * something off, which clears the cache at once (catalogue_changed()).
+ * The key carries what is on sale, so a settings change is a new key.
+ */
+function store_cached(string $name, string $tab, callable $build): array
+{
+    static $memo = [];
+    $key = 'picker-' . $name . '-' . substr(md5(json_encode([offer_sellable_sql('o', tab_products($tab)),
+        setting('catalogue_rev', '0')])), 0, 10);
+    if (isset($memo[$key])) {
+        return $memo[$key];
+    }
+    $rows = catalogue_cache_read($key, 300);
+    if ($rows === null) {
+        $rows = $build();
+        catalogue_cache_write($key, $rows);
+    }
+    return $memo[$key] = $rows;
+}
+
+/** Something an admin did changes what the picker shows: drop its cache. */
+function catalogue_changed(): void
+{
+    set_setting('catalogue_rev', (string) time());
+    foreach (glob(STORAGE_PATH . '/cache/picker-*.json') ?: [] as $file) {
+        @unlink($file);
+    }
+}
+
+/**
  * Services on sale under one tab, each with its cheapest price.
  *
  * @return array<int, array> rows of services plus `from_price`, `countries`, `options`
  */
 function store_services(string $tab, ?int $countryId = null): array
+{
+    if ($countryId === null) {
+        return store_cached('services-' . $tab, $tab, static fn (): array => store_services_query($tab, null));
+    }
+    return store_services_query($tab, $countryId);
+}
+
+function store_services_query(string $tab, ?int $countryId): array
 {
     [$sellable, $params] = offer_sellable_sql('o', tab_products($tab));
 
@@ -1324,6 +1510,14 @@ function store_rank(array $rows, string $column, ?callable $rank = null): array
  * @return array<int, array> rows of countries plus `from_price`, `options`
  */
 function store_countries(string $tab, ?int $serviceId = null): array
+{
+    if ($serviceId === null) {
+        return store_cached('countries-' . $tab, $tab, static fn (): array => store_countries_query($tab, null));
+    }
+    return store_countries_query($tab, $serviceId);
+}
+
+function store_countries_query(string $tab, ?int $serviceId): array
 {
     [$sellable, $params] = offer_sellable_sql('o', tab_products($tab));
 

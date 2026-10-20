@@ -150,7 +150,11 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
 /* ---------- the picker ---------- */
 .buy{position:relative;z-index:5;margin-top:-92px;padding-bottom:20px}
 .buybox{background:var(--surface);border-radius:26px;box-shadow:var(--shadow-lg);border:1px solid var(--line);overflow:hidden}
-.buy-tabs{display:flex;gap:6px;padding:10px;background:var(--bg-soft);border-bottom:1px solid var(--line);overflow-x:auto}
+/* Centred over the panes they switch, with room under them so they read as
+   the choice above the lists rather than the lists' first row. `safe` keeps
+   the first tab reachable if a narrow screen ever has to scroll them. */
+.buy-tabs{display:flex;justify-content:center;justify-content:safe center;gap:8px;padding:14px 12px 18px;
+  background:var(--bg-soft);border-bottom:1px solid var(--line);overflow-x:auto}
 .buy-tab{display:flex;align-items:center;gap:8px;padding:11px 18px;border-radius:14px;font-weight:700;font-size:15px;
   color:var(--ink-2);white-space:nowrap}
 .buy-tab .icon{font-size:18px}
@@ -193,6 +197,7 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
 .pprice small{display:block;font-weight:600;font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .pitem.on .pprice{color:var(--brand)}
 .pempty{padding:28px 14px;text-align:center;color:var(--muted);font-weight:600;font-size:14px}
+.pmore{padding:14px;text-align:center;color:var(--muted);font-size:13px;font-weight:600}
 .plist mark{background:color-mix(in srgb, var(--brand) 18%, #fff);color:inherit;border-radius:3px;padding:0 1px}
 
 /* icons: a brand glyph on its colour, or the first letter */
@@ -657,7 +662,7 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
   /* All three products in view at once: a tab scrolled off the edge of a
      phone is a product nobody finds. The icons go first, the words stay. */
   .buy-tab{flex:1 1 0;justify-content:center;padding:9px 4px;font-size:13px;line-height:1.2;text-align:center;white-space:normal}
-  .buy-tabs{gap:4px;padding:8px}
+  .buy-tabs{gap:4px;padding:10px 8px 14px}
   .buy-tab .icon{display:none}
   .wrap{padding:0 16px}
   .hide-sm{display:none!important}

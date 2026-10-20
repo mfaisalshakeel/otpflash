@@ -164,14 +164,31 @@ OTPGet reply.
 - **Two syncs at once never duplicate.** `services.slug`, `countries.slug`
   and the offer key are UNIQUE, and every insert that loses that race catches
   the duplicate and adopts the winner's row instead of failing.
-- **Sync goes two dozen units at a time** (`SYNC_STEP_UNITS`). OTPGet has no
-  bulk listing - a catalogue is one request per server and country - so
-  `sync_units_run()` sends a batch through `OtpGet::parallel()` (curl_multi,
-  16 in flight) and stores each unit on its own. One stepper request per
-  batch, the list refresh is one parallel round, and cron reads one batch per
-  run. **Every `sync_unit()` case must ask OTPGet before it writes anything**:
-  `parallel()` runs each piece up to its first request to learn the URL and
-  throws that run away.
+- **The real catalogue is big**: measured with a live key, 1,076 units (six
+  SMS servers of 72-201 countries, premium, cheap, email, rentals), 220,000
+  offers and about 2,400 apps. A full first import takes ~200 seconds; the
+  most-bought countries are ranked first (`sync_units()`), so the shop sells
+  after the first few steps and the stepper says so (`liveAfter`).
+- **OTPGet refuses crowds.** Four requests at once were fine once; six drew
+  500s, twelve drew mostly 500s, and after a few rounds it answered "Service
+  temporarily unavailable" (with a 200) to everything. So
+  `OtpGet::MAX_IN_FLIGHT` is 2, `fetchAll()` drops to 1 at the first sign of
+  busy, and a 5xx, a dropped connection or that BUSY text is asked again after
+  a pause - **reads only**: `getNumber` is a purchase, and no buy, cancel or
+  renew is ever retried. Do not raise the width to go faster.
+- **The speed is the shared connection.** A request on a fresh connection
+  took 0.70s, 0.56s of it the TLS handshake; on an open one, 0.13s. Every
+  handle shares one connection cache (`OtpGet::share()`), over HTTP/2 where
+  the host's curl has it, with gzip on.
+- **Sync goes 48 units a step** (`SYNC_STEP_UNITS`), about ten seconds.
+  `sync_units_run()` sends a step through `OtpGet::parallel()`; each unit is
+  stored on its own in one transaction, new offers a hundred to an INSERT,
+  existing ones written only when something moved (the rest get one shared
+  `synced_at` UPDATE). **Every `sync_unit()` case must ask OTPGet before it
+  writes anything**: `parallel()` runs each piece up to its first request to
+  learn the URL and throws that run away.
+- Cron reads the stalest units for up to forty seconds every two minutes, then
+  rebuilds the picker's cached lists so no visitor waits for them.
 - The first sync starts by itself: saving an accepted key on an empty shop
   lands on `/admin/otpget?sync=1`, whose stepper autostarts. The reload when
   it finishes drops the query, or it would start again.
@@ -183,6 +200,10 @@ OTPGet reply.
   nobody meant to sell at.
 
 ## Pricing
+
+`reprice_offers()` prices each distinct cost once and writes the offers that
+moved in groups by their new price: 172,000 prices in 1.2s, where row by row
+was 25s - long enough for a shared host to cut a settings save off midway.
 
 `offer_price()`: OTPGet's cost → base currency (`to_base`) → plus the
 product's markup (or the default), **and at least `min_profit` over cost** →
@@ -292,6 +313,14 @@ returns a path on this site. A blocked account is simply not found by
   that have stock.
 - On a phone the panes become steps; the furthest one already chosen is shown
   first.
+- **A list draws 60 apps, not 2,400.** Drawn in full the home page was
+  1.4 MB; `picker_state()` keeps the most-bought `PICKER_SHOWN`, always keeps
+  the chosen one, and says how many more there are. Typing searches the drawn
+  list at once and the whole catalogue through `/api/picker?q=` after a pause.
+- **The unnarrowed lists are cached** (`store_cached()`, five minutes, keyed
+  on what is on sale): over the full catalogue each was a 0.15-0.36s GROUP BY
+  that the home page and every footer asked for. An admin save on a catalogue
+  screen clears them (`catalogue_changed()`, from `_middleware.php`).
 - **The picker asks questions a customer would ask** - "Which app?", "Which
   country?", "Buy your number" - and has no sort buttons or counts. Lists are
   ordered by `store_rank()`: popular first, then what sold most in the last

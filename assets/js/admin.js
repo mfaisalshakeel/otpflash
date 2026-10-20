@@ -345,6 +345,14 @@
             return;
           }
 
+          // Past the steps that matter most the job is no longer blocking
+          // anything, and the admin is told so rather than left watching.
+          var live = panel.querySelector('[data-update-live]');
+          if (live && plan.liveAfter && index === plan.liveAfter && plan.liveNote) {
+            live.textContent = plan.liveNote;
+            live.hidden = false;
+          }
+
           var step = steps[index];
           var element = row(step.key);
           if (element) { element.classList.add('on'); }
@@ -372,7 +380,21 @@
             // progress rather than one instant jump.
             setTimeout(next, 180);
           }).catch(function (error) {
+            // A job that can carry on (the catalogue sync) treats a dropped
+            // request as one more try, then moves past it: one country lost
+            // to a bad moment is picked up by the next sync, a stopped sync
+            // is not.
+            if (plan.carryOn && !step.retried) {
+              step.retried = true;
+              setTimeout(next, 2000);
+              return;
+            }
             if (element) { element.classList.remove('on'); element.classList.add('bad'); }
+            if (plan.carryOn) {
+              index++;
+              setTimeout(next, 180);
+              return;
+            }
             fail(error.message);
           });
         }

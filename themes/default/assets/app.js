@@ -178,6 +178,8 @@
         item.parentElement.hidden = !hit;
         if (hit) { shown++; }
       });
+      var more = $('[data-more]', ul);
+      if (more) { more.hidden = words.length > 0; }
       var empty = $('.pempty[data-filtered]', ul);
       if (!shown && $$('[data-item]', ul).length) {
         if (!empty) {
@@ -194,7 +196,10 @@
     }
 
     $$('[data-filter]', box).forEach(function (field) {
-      field.addEventListener('input', function () { applyFilter(field.dataset.filter); });
+      field.addEventListener('input', function () {
+        applyFilter(field.dataset.filter);
+        searchServer(field.dataset.filter);
+      });
       // Enter picks the only match, which is what a person who typed the
       // whole name expects to happen.
       field.addEventListener('keydown', function (event) {
@@ -251,7 +256,7 @@
       var item = $('[data-item="' + pane + '"][data-id="' + id + '"]', box);
       return item ? { id: id, slug: item.dataset.slug } : null;
     }
-    function drawList(pane, rows) {
+    function drawList(pane, rows, total) {
       var ul = list(pane);
       if (!ul) { return; }
       if (!rows.length) {
@@ -259,7 +264,45 @@
       } else {
         ul.innerHTML = rows.map(function (row) { return '<li>' + itemHtml(pane, row, hrefFor(pane, row)) + '</li>'; }).join('');
       }
+      // Only the most-bought apps are drawn; the rest are a search away.
+      if (pane === 'service' && typeof total === 'number') {
+        ul.dataset.total = total;
+        var field = input(pane);
+        if (total > rows.length && !(field && field.value.trim())) {
+          var more = document.createElement('li');
+          more.className = 'pmore';
+          more.setAttribute('data-more', '');
+          more.textContent = (total - rows.length).toLocaleString() + ' more apps - type a name above to find any of them.';
+          ul.appendChild(more);
+        }
+      }
       applyFilter(pane);
+    }
+
+    // The list on the page is the top of a much longer one, so a search the
+    // page cannot answer is asked of the server - after a pause, and only
+    // the answer to the latest words is drawn.
+    var searchTimer = 0;
+    function searchServer(pane) {
+      var ul = list(pane);
+      var field = input(pane);
+      if (pane !== 'service' || !ul || !field) { return; }
+      if (parseInt(ul.dataset.total || '0', 10) <= $$('[data-item]', ul).length && !ul.dataset.searched) { return; }
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(function () {
+        var words = field.value.trim();
+        var params = new URLSearchParams({ tab: tab });
+        if (words) { params.set('q', words); }
+        if (chosen.service) { params.set('service', chosen.service); }
+        if (chosen.country && tab === 'numbers') { params.set('country', chosen.country); }
+        fetch(CFG.base.replace(/\/$/, '') + '/api/picker?' + params.toString(), {
+          credentials: 'same-origin', headers: { 'Accept': 'application/json' }
+        }).then(function (r) { return r.json(); }).then(function (data) {
+          if (!data || !data.ok || field.value.trim() !== words) { return; }
+          ul.dataset.searched = words ? '1' : '';
+          drawList(pane, data.services, data.services_total);
+        }).catch(function () { /* the drawn list still filters locally */ });
+      }, 250);
     }
 
     // ---- asking the server what the choice means
@@ -268,6 +311,8 @@
       var params = new URLSearchParams({ tab: tab });
       if (chosen.service) { params.set('service', chosen.service); }
       if (chosen.country) { params.set('country', chosen.country); }
+      var typed = input('service') ? input('service').value.trim() : '';
+      if (typed) { params.set('q', typed); }
       var slot = optionsSlot();
       if (slot) { slot.setAttribute('aria-busy', 'true'); slot.style.opacity = '.55'; }
 
@@ -279,9 +324,9 @@
         // country's WhatsApp price, picking Pakistan each app's.
         if (tab === 'numbers') {
           if (which !== 'country') { drawList('country', data.countries); }
-          if (which !== 'service') { drawList('service', data.services); }
+          if (which !== 'service') { drawList('service', data.services, data.services_total); }
         } else if (which === 'all') {
-          if (list('service')) { drawList('service', data.services); }
+          if (list('service')) { drawList('service', data.services, data.services_total); }
           if (list('country')) { drawList('country', data.countries); }
         }
         if (slot) {

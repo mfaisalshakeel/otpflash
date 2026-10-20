@@ -32,8 +32,9 @@ $value    = static fn (string $key, string $default = ''): string => (string) se
              data-step="<?= e(url('admin/otpget/step')) ?>"
              data-token="<?= e(csrf_token()) ?>">
           <p class="upd-lead">Reads every country on every server you sell and brings prices and stock up to
-            date - two dozen countries at a time, all at once, so a full catalogue takes about a minute and
-            nothing times out. Cron keeps it fresh in the background after that<?= $units ? ' (' . qty_fmt($units) . ' countries and sites last time)' : '' ?>.</p>
+            date, the most-bought countries first - so the shop is selling within about half a minute, and the
+            whole of OTPGet (over a thousand countries and sites, a couple of hundred thousand prices) is in a
+            few minutes. You can leave this page at any point; cron carries on. Cron keeps it fresh in the background after that<?= $units ? ' (' . qty_fmt($units) . ' countries and sites last time)' : '' ?>.</p>
 
           <div class="bar" data-bar-wrap hidden><div class="bar-fill" data-bar style="width:0%"></div></div>
           <p class="bar-note" data-bar-note hidden><span data-bar-label>Starting&hellip;</span> <b class="mono" data-bar-count></b></p>
@@ -47,6 +48,7 @@ $value    = static fn (string $key, string $default = ''): string => (string) se
               <svg class="icon"><use href="#i-refresh"></use></svg> Sync the catalogue now
             </button>
           </form>
+          <div class="alert alert-success" data-update-live hidden></div>
           <div class="alert alert-error" data-update-error hidden></div>
           <div class="upd-done" data-update-done hidden>
             <svg class="icon"><use href="#i-check"></use></svg>
@@ -229,8 +231,8 @@ $value    = static fn (string $key, string $default = ''): string => (string) se
           </label>
           <div class="field" style="margin-top:12px">
             <label for="o-batch">Countries to read per cron run</label>
-            <input id="o-batch" name="sync_batch" type="number" min="1" max="50" value="<?= e($value('sync_batch', '24')) ?>">
-            <small>Read together, in one go. Twenty-four every ten minutes keeps even a very big catalogue no more than a few hours old.</small>
+            <input id="o-batch" name="sync_batch" type="number" min="1" max="500" value="<?= e($value('sync_batch', '144')) ?>">
+            <small>Read together, in about ten seconds. 144 every two minutes walks even a very big catalogue end to end in under half an hour.</small>
           </div>
         </div>
       </div>

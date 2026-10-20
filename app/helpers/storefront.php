@@ -13,6 +13,9 @@ require_once APP_PATH . '/helpers/catalog.php';
 require_once APP_PATH . '/helpers/numbers.php';   // number_lifetime()
 
 /** Which panes a tab has, left to right. */
+/** How many apps a picker list draws before the rest are left to search. */
+const PICKER_SHOWN = 60;
+
 const PICKER_PANES = [
     'numbers' => ['service', 'country', 'options'],
     'email'   => ['service', 'options'],
@@ -130,26 +133,43 @@ function picker_option(array $offer): array
  * @return array{tab: string, panes: string[], services: array, countries: array,
  *               options: array, service: ?array, country: ?array}
  */
-function picker_state(string $tab, ?int $serviceId = null, ?int $countryId = null): array
+function picker_state(string $tab, ?int $serviceId = null, ?int $countryId = null, string $search = ''): array
 {
     $panes = PICKER_PANES[$tab] ?? PICKER_PANES['numbers'];
 
     $services = [];
+    $chosen   = null;
+    $total    = 0;
     if (in_array('service', $panes, true)) {
         $narrowed = $tab === 'numbers' ? $countryId : null;
+        $words    = preg_split('/\s+/', mb_strtolower(trim($search)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
         foreach (store_services($tab, $narrowed) as $row) {
-            $services[] = ['sub' => picker_service_sub($row, $tab, $narrowed !== null)] + picker_service($row);
+            $total++;
+            $item = ['sub' => picker_service_sub($row, $tab, $narrowed !== null)] + picker_service($row);
+            if ($item['id'] === $serviceId) {
+                $chosen = $item;
+            }
+            $haystack = $item['keys'] . ' ' . mb_strtolower($item['name']);
+            foreach ($words as $word) {
+                if (!str_contains($haystack, $word)) {
+                    continue 2;
+                }
+            }
+            // OTPGet sells close to two thousand apps. Drawn in full that was
+            // a 1.4 MB home page; the most-bought are drawn and the rest are
+            // a search away (/api/picker?q=).
+            if (count($services) < PICKER_SHOWN) {
+                $services[] = $item;
+            }
+        }
+        if ($chosen && !in_array($chosen, $services, true)) {
+            array_unshift($services, $chosen);
         }
     }
     $countries = in_array('country', $panes, true)
         ? array_map('picker_country', store_countries($tab, $tab === 'numbers' ? $serviceId : null)) : [];
 
-    $service = null;
-    foreach ($services as $row) {
-        if ($row['id'] === $serviceId) {
-            $service = $row;
-        }
-    }
+    $service = $chosen;
     $country = null;
     foreach ($countries as $row) {
         if ($row['id'] === $countryId) {
@@ -167,8 +187,8 @@ function picker_state(string $tab, ?int $serviceId = null, ?int $countryId = nul
         ? array_map('picker_option', store_options($tab, $service['id'] ?? null, $country['id'] ?? null))
         : [];
 
-    return ['tab' => $tab, 'panes' => $panes, 'services' => $services, 'countries' => $countries,
-            'options' => $options, 'service' => $service, 'country' => $country];
+    return ['tab' => $tab, 'panes' => $panes, 'services' => $services, 'services_total' => $total,
+            'countries' => $countries, 'options' => $options, 'service' => $service, 'country' => $country];
 }
 
 /** The address of a choice: /whatsapp, /whatsapp/pakistan, /country/pakistan. */

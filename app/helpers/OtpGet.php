@@ -74,6 +74,7 @@ final class OtpGet
         'UNREADABLE'              => 'OTPGet sent back something that could not be read.',
         'CONNECTION'              => 'Could not reach OTPGet.',
         'HTTP'                    => 'OTPGet answered with an HTTP error.',
+        'BUSY'                    => 'OTPGet is busy right now. Try again in a moment.',
     ];
 
     public function __construct(
@@ -94,7 +95,34 @@ final class OtpGet
     /** Replies fetched together by parallel(), keyed by URL, each used once. */
     private array $prefetched = [];
 
+    /**
+     * One connection to OTPGet for the whole PHP request, shared by every
+     * handle. Measured from here: a request on a fresh connection took 0.70s,
+     * of which 0.56s was the TLS handshake; on a connection already open it
+     * took 0.13s. Each request used to open its own, so a sync paid for a
+     * handshake per country. Null where this PHP's curl cannot share.
+     */
+    private ?CurlShareHandle $share = null;
+    private bool $shareTried = false;
+
     private const DEFERRED = 7301;
+
+    /**
+     * How many requests may be with OTPGet at once.
+     *
+     * Measured against otpget.com: one at a time on an open connection runs
+     * at about six a second (0.13s each) with the odd 500; paced a little
+     * slower, none at all. Twelve at once drew sixteen 500s in twenty-four,
+     * and a few rounds of that made it answer "Service temporarily
+     * unavailable" to everything. More at once does not make it faster - it
+     * makes it refuse. The speed is in the shared connection, which made each
+     * request five times quicker; this only keeps a second one in the air,
+     * and fetchAll() drops to one the moment OTPGet says it is busy.
+     */
+    public const MAX_IN_FLIGHT = 2;
+
+    /** Waits before asking again after a 5xx or a dropped connection, in seconds. */
+    private const RETRY_AFTER = [0.6, 1.8];
 
     /**
      * Run several pieces of work whose OTPGet requests go out together.
@@ -115,7 +143,7 @@ final class OtpGet
      * @param array<int|string, callable> $work
      * @return array<int|string, mixed> each piece's return value, same keys
      */
-    public function parallel(array $work, int $width = 12): array
+    public function parallel(array $work, int $width = self::MAX_IN_FLIGHT): array
     {
         $requests = [];
         $this->recording = true;
@@ -138,7 +166,7 @@ final class OtpGet
             $this->recorded  = null;
         }
 
-        $this->fetchAll(array_values($requests), max(1, $width));
+        $this->fetchAll(array_values($requests), max(1, min($width, self::MAX_IN_FLIGHT)));
 
         $results = [];
         try {
@@ -151,48 +179,89 @@ final class OtpGet
         return $results;
     }
 
-    /** Fetch many URLs at once, at most $width in flight, into $prefetched. */
+    /**
+     * Fetch many URLs at once, at most $width in flight, into $prefetched.
+     *
+     * Everything here is a read, so a 5xx or a dropped connection is asked
+     * again after a pause - twice - instead of costing the unit until the
+     * next sync. A refusal OTPGet means (BAD_KEY, NO_SERVICES) is a 200 and
+     * is never retried.
+     */
     private function fetchAll(array $requests, int $width): void
     {
         if (!$requests) {
             return;
         }
-        $multi   = curl_multi_init();
-        $flying  = [];
-        $next    = 0;
-        $launch  = function () use (&$next, &$flying, $requests, $multi): void {
-            $request = $requests[$next++];
-            $handle  = $this->handle($request['url'], $request['timeout']);
-            curl_multi_add_handle($multi, $handle);
-            $flying[spl_object_id($handle)] = [$handle, $request['url']];
+        $multi = curl_multi_init();
+        // Over HTTP/2 every request rides the one connection as its own
+        // stream, instead of each waiting for a handshake of its own.
+        if (defined('CURLPIPE_MULTIPLEX')) {
+            curl_multi_setopt($multi, CURLMOPT_PIPELINING, CURLPIPE_MULTIPLEX);
+        }
+
+        $queue  = array_map(static fn (array $r): array => $r + ['tries' => 0, 'after' => 0.0], $requests);
+        $flying = [];
+        $launch = function () use (&$queue, &$flying, $multi, &$width): void {
+            $now = microtime(true);
+            foreach ($queue as $i => $request) {
+                if (count($flying) >= $width) {
+                    return;
+                }
+                if ($request['after'] > $now) {
+                    continue;
+                }
+                unset($queue[$i]);
+                $handle = $this->handle($request['url'], $request['timeout'], true);
+                curl_multi_add_handle($multi, $handle);
+                $flying[spl_object_id($handle)] = [$handle, $request];
+            }
         };
 
-        while ($next < count($requests) && count($flying) < $width) {
+        try {
             $launch();
-        }
-        do {
-            curl_multi_exec($multi, $active);
-            if ($active) {
-                curl_multi_select($multi, 1.0);
-            }
-            while ($info = curl_multi_info_read($multi)) {
-                $handle = $info['handle'];
-                [, $url] = $flying[spl_object_id($handle)];
-                $this->prefetched[$url] = $this->answer(
-                    curl_multi_getcontent($handle),
-                    (int) $info['result'],
-                    $info['result'] ? curl_strerror($info['result']) : '',
-                    (int) curl_getinfo($handle, CURLINFO_HTTP_CODE)
-                );
-                unset($flying[spl_object_id($handle)]);
-                curl_multi_remove_handle($multi, $handle);
-                curl_close($handle);
-                if ($next < count($requests)) {
-                    $launch();
+            while ($flying || $queue) {
+                if ($flying) {
+                    curl_multi_exec($multi, $active);
+                    if ($active) {
+                        curl_multi_select($multi, 0.25);
+                    }
+                } else {
+                    usleep(100000);   // only retries left, each waiting for its turn
                 }
+                while ($info = curl_multi_info_read($multi)) {
+                    $handle = $info['handle'];
+                    [, $request] = $flying[spl_object_id($handle)];
+                    $code   = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+                    $answer = $this->answer(curl_multi_getcontent($handle), (int) $info['result'],
+                        $info['result'] ? curl_strerror($info['result']) : '', $code);
+                    unset($flying[spl_object_id($handle)]);
+                    curl_multi_remove_handle($multi, $handle);
+                    curl_close($handle);
+
+                    if (self::worthRetrying($answer)) {
+                        // Busy: ask more gently for the rest of this batch.
+                        $width = 1;
+                    }
+                    if (self::worthRetrying($answer) && $request['tries'] < count(self::RETRY_AFTER)) {
+                        $request['after'] = microtime(true) + self::RETRY_AFTER[$request['tries']];
+                        $request['tries']++;
+                        $queue[] = $request;
+                    } else {
+                        $this->prefetched[$request['url']] = $answer;
+                    }
+                }
+                $launch();
             }
-        } while ($flying);
-        curl_multi_close($multi);
+        } finally {
+            curl_multi_close($multi);
+        }
+    }
+
+    /** A failure of the host rather than an answer: busy, down or cut off. */
+    private static function worthRetrying(array $answer): bool
+    {
+        return in_array($answer['error'] ?? '', ['CONNECTION', 'BUSY'], true)
+            || (($answer['error'] ?? '') === 'HTTP' && (($answer['status'] ?? 0) >= 500 || ($answer['status'] ?? 0) === 429));
     }
 
     // =======================================================================
@@ -734,18 +803,39 @@ final class OtpGet
             return $reply;
         }
 
-        $ch     = $this->handle($url, $timeout);
-        $body   = curl_exec($ch);
-        $reply  = $this->answer($body, curl_errno($ch), curl_error($ch), (int) curl_getinfo($ch, CURLINFO_HTTP_CODE));
-        curl_close($ch);
-        return $reply;
+        // A read is asked again if the host was busy; anything that moves
+        // money is not - getNumber is a purchase however it is spelt, and a
+        // second purchase is not a retry.
+        $action = (string) ($query['action'] ?? '');
+        $tries  = str_starts_with($action, 'get') && $action !== 'getNumber' ? count(self::RETRY_AFTER) : 0;
+        for ($attempt = 0; ; $attempt++) {
+            $ch    = $this->handle($url, $timeout);
+            $body  = curl_exec($ch);
+            $reply = $this->answer($body, curl_errno($ch), curl_error($ch), (int) curl_getinfo($ch, CURLINFO_HTTP_CODE));
+            curl_close($ch);
+            if ($attempt >= $tries || !self::worthRetrying($reply)) {
+                return $reply;
+            }
+            usleep((int) (self::RETRY_AFTER[$attempt] * 1000000));
+        }
     }
 
     /** One request, set up the same way whether it goes alone or in a crowd. */
-    private function handle(string $url, int $timeout): CurlHandle
+    private function handle(string $url, int $timeout, bool $inCrowd = false): CurlHandle
     {
         $ch = curl_init($url);
+        if ($share = $this->share()) {
+            curl_setopt($ch, CURLOPT_SHARE, $share);
+        }
+        if (defined('CURL_HTTP_VERSION_2TLS') && (curl_version()['features'] & CURL_VERSION_HTTP2)) {
+            curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_2TLS);
+            if ($inCrowd && defined('CURLOPT_PIPEWAIT')) {
+                // Wait for the open connection rather than racing to open more.
+                curl_setopt($ch, CURLOPT_PIPEWAIT, true);
+            }
+        }
         curl_setopt_array($ch, [
+            CURLOPT_ENCODING       => '',   // gzip: a country's price list shrinks to a fifth
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => min($timeout, $this->timeout * 2),
             CURLOPT_CONNECTTIMEOUT => 10,
@@ -758,6 +848,22 @@ final class OtpGet
         return $ch;
     }
 
+    /** The connection cache every handle shares, made on first use. */
+    private function share(): ?CurlShareHandle
+    {
+        if (!$this->shareTried) {
+            $this->shareTried = true;
+            if (function_exists('curl_share_init') && defined('CURL_LOCK_DATA_CONNECT')) {
+                $share = curl_share_init();
+                foreach ([CURL_LOCK_DATA_CONNECT, CURL_LOCK_DATA_SSL_SESSION, CURL_LOCK_DATA_DNS] as $what) {
+                    curl_share_setopt($share, CURLSHOPT_SHARE, $what);
+                }
+                $this->share = $share;
+            }
+        }
+        return $this->share;
+    }
+
     /** What a finished request means: its text, or why there is none. */
     private function answer(string|false|null $body, int $errNo, string $errMsg, int $code): array
     {
@@ -765,11 +871,17 @@ final class OtpGet
             return ['error' => 'CONNECTION', 'message' => self::MESSAGES['CONNECTION'] . ' ' . $errMsg];
         }
         if ($code >= 400) {
-            return ['error' => 'HTTP', 'message' => self::MESSAGES['HTTP'] . ' (' . $code . ')'];
+            return ['error' => 'HTTP', 'message' => self::MESSAGES['HTTP'] . ' (' . $code . ')', 'status' => $code];
         }
 
         // A byte-order mark or a stray newline is not part of the protocol.
         $text = trim(preg_replace('/^\xEF\xBB\xBF/', '', (string) $body));
+
+        // Under load OTPGet answers 200 with this in front of the real reply.
+        // It is not an answer to the question, so it is asked again.
+        if (stripos($text, 'Service temporarily unavailable') === 0) {
+            return ['error' => 'BUSY', 'message' => self::MESSAGES['BUSY'], 'status' => 503];
+        }
 
         return ['text' => $text];
     }

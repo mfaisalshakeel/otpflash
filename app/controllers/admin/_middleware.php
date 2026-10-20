@@ -31,6 +31,16 @@ $GLOBALS['__admin_nav_active'] = $adminAction;
 // helpers (and the currency conversion under them) are loaded for every
 // screen - not only for the handful of controllers that need them for work.
 require_once APP_PATH . '/helpers/catalog.php';
+
+// Anything saved on these screens can change what the storefront's picker
+// lists - an app switched off, a price pinned, a server dropped - and those
+// lists are cached. Cleared once the request has done its work, here rather
+// than in each of the many save paths.
+if (!in_array($_SERVER['REQUEST_METHOD'], ['GET', 'HEAD'], true)
+    && in_array($adminAction, ['services', 'countries', 'catalogue', 'otpget', 'currencies', 'settings', 'maintenance'], true)) {
+    register_shutdown_function('catalogue_changed');
+}
+
 // The bell is drawn on every screen, so its count has to be reachable
 // from every screen too.
 require_once APP_PATH . '/helpers/notify.php';

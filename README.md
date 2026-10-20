@@ -82,11 +82,19 @@ Log in at `https://yourdomain.com/admin`.
    product, the least profit you will take on any sale, a minimum price and
    how prices are rounded (always up).
 4. **Sync.** Saving an accepted key on an empty shop starts the first sync by
-   itself. OTPGet has no "everything at once" listing, so the catalogue is
-   read two dozen countries at a time, all at once - a full catalogue takes
-   about a minute, with a progress bar, and a shared host's thirty-second
-   limit never cuts it off. With *keep the catalogue fresh* on, cron re-reads
-   another two dozen every run.
+   itself. OTPGet has no "everything at once" listing, and its catalogue is
+   big - over a thousand countries and sites across its servers, a couple of
+   hundred thousand prices - so it is read country by country over one shared
+   connection, the most-bought countries first. **The shop is selling within
+   about half a minute**; the whole catalogue is in after about three to four
+   minutes (measured against otpget.com with a real key). You can leave the
+   page at any point: with *keep the catalogue fresh* on, cron carries on and
+   then keeps re-reading the oldest prices every two minutes.
+
+   OTPGet answers HTTP 500 when it is sent many requests at once, so the shop
+   never sends more than two together and slows down the moment it is told
+   it is busy. Do not look for a setting to make it send more - it only makes
+   it slower.
 5. **Add a payment method** under *Payment methods*, and switch it on. Without
    one, guests have no way to pay (account holders can still use the wallet
    once you credit it).

@@ -85,7 +85,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     set_setting('price_rounding', in_array($rounding, ['0', '0.5', '1', '5', '10'], true) ? $rounding : '1');
 
     set_setting('sync_on_cron', isset($_POST['sync_on_cron']) ? '1' : '0');
-    set_setting('sync_batch', (string) max(1, min(50, (int) ($_POST['sync_batch'] ?? 24))));
+    set_setting('sync_batch', (string) max(1, min(500, (int) ($_POST['sync_batch'] ?? 144))));
 
     foreach (['1', '2', '3', '4', '5', '6', 'premium', 'cheap'] as $server) {
         set_setting('server_label_' . $server, mb_substr(trim((string) ($_POST['server_label_' . $server] ?? '')), 0, 40));
@@ -157,10 +157,17 @@ if ($action === 'plan' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $refresh = sync_lists_refresh();
     $units   = sync_units($refresh['lists']);
 
+    // The most-bought countries come first (sync_units() ranks them), so
+    // after these steps the shop already sells what most people come for.
+    $first = count(array_filter($units, static fn (array $unit): bool => ($unit['rank'] ?? 1) === 0));
+
     $respond([
-        'ok'      => true,
-        'carryOn' => true,
-        'done'    => 'Done - the catalogue is up to date.',
+        'ok'       => true,
+        'carryOn'  => true,
+        'liveAfter' => $first ? (int) ceil($first / SYNC_STEP_UNITS) : 0,
+        'liveNote' => 'Your shop is selling now - the most-bought countries are in. The rest keep loading here, '
+                    . 'and if you leave this page cron finishes them in the background.',
+        'done'     => 'Done - the catalogue is up to date.',
         'errors'  => $refresh['errors'],
         'steps'   => array_map(static function (array $batch): array {
             $first = $batch[0]['label'];

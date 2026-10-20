@@ -37,11 +37,13 @@ if ($action === 'picker') {
     // may, for the half-minute of clicking back and forth a choice takes.
     header('Cache-Control: private, max-age=30');
 
-    $state = picker_state($tab, $serviceId, $countryId);
+    $search = mb_substr(trim((string) ($_GET['q'] ?? '')), 0, 60);
+    $state  = picker_state($tab, $serviceId, $countryId, $search);
     $answer([
         'ok'        => true,
         'tab'       => $tab,
         'services'  => $state['services'],
+        'services_total' => $state['services_total'],
         'countries' => $state['countries'],
         'options'   => $state['options'],
         // The last step as HTML, from the same partial the page drew, so

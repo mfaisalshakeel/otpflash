@@ -37,7 +37,7 @@ if (!isset($tabs[$tab])) {
 $query     = mb_substr(trim((string) ($_GET['q'] ?? '')), 0, 60);
 $serviceId = isset($choice['service']) ? (int) $choice['service']['id'] : null;
 $countryId = isset($choice['country']) ? (int) $choice['country']['id'] : null;
-$state     = picker_state($tab, $serviceId, $countryId);
+$state     = picker_state($tab, $serviceId, $countryId, $query);
 $service   = $state['service'];
 $country   = $state['country'];
 $siteName  = (string) setting('site_name', 'OTP Flash');

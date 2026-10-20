@@ -498,7 +498,7 @@ INSERT OR IGNORE INTO "settings" ("k", "v") VALUES
   ('max_numbers_per_order', '3'),
   ('number_lifetime',       '20'),
   ('sync_on_cron',          '1'),
-  ('sync_batch',            '24'),
+  ('sync_batch',            '144'),
   ('app_version',           '');
 
 INSERT OR IGNORE INTO "currencies" ("code", "name", "symbol", "rate_to_base", "is_base", "is_active", "sort_order", "updated_at") VALUES

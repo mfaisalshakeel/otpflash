@@ -62,12 +62,12 @@ function cron_tasks(): array
         ],
         'sync_catalogue' => [
             'label'    => 'Sync the OTPGet catalogue',
-            'detail'   => 'Reads a few countries per run, oldest first, so prices and stock '
-                        . 'stay current without any one run getting long.',
-            'every'    => 'Every 10 minutes',
+            'detail'   => 'Reads the countries read longest ago, as many as fit in forty seconds, '
+                        . 'so prices and stock stay current without any one run getting long.',
+            'every'    => 'Every 2 minutes',
             'handler'  => 'cron_sync_catalogue',
             'enabled'  => 'sync_on_cron',
-            'throttle' => 580,
+            'throttle' => 110,
         ],
         'currency_rates' => [
             'label'    => 'Update currency rates',
@@ -218,8 +218,20 @@ function cron_sync_catalogue(): string
     if (!otpget_configured()) {
         return 'no OTPGet key yet';
     }
-    $result = sync_catalogue_batch(max(1, min(50, (int) setting('sync_batch', '24'))));
+    $result = sync_catalogue_batch(max(1, min(500, (int) setting('sync_batch', '144'))));
     $line   = sprintf('%d unit(s), %d offers', $result['units'], $result['offers']);
+
+    // Rebuild the picker's big lists here, from cron, so the visitor who
+    // arrives after they expire is not the one who waits for them.
+    if ($result['units'] > 0) {
+        foreach (glob(STORAGE_PATH . '/cache/picker-*.json') ?: [] as $file) {
+            @unlink($file);
+        }
+        foreach (array_keys(store_tabs()) as $tab) {
+            store_services($tab);
+            store_countries($tab);
+        }
+    }
 
     return $result['errors'] ? $line . ' - ' . implode('; ', array_slice($result['errors'], 0, 3)) : $line;
 }

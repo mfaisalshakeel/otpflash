@@ -607,7 +607,7 @@ INSERT INTO `settings` (`k`, `v`) VALUES
   ('max_numbers_per_order', '3'),
   ('number_lifetime',       '20'),
   ('sync_on_cron',          '1'),
-  ('sync_batch',            '24'),
+  ('sync_batch',            '144'),
   ('app_version',           '')
 ON DUPLICATE KEY UPDATE `k` = `k`;
 

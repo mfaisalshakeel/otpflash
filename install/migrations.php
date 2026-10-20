@@ -38,4 +38,12 @@ return [
                      'CREATE INDEX IF NOT EXISTS "ix_services_match" ON "services" ("match_key")'],
         'both'   => ["UPDATE services SET match_key = slug WHERE match_key = ''"],
     ],
+
+    // 1.0.2 - the sync shares one connection and reads seventy countries a
+    // step, so cron can read far more per run. Only the old defaults move;
+    // a number an admin chose is theirs.
+    '2026_10_sync_batch_default' => [
+        'label' => 'Let cron read a whole batch of countries per run now that the sync is faster',
+        'both'  => ["UPDATE settings SET v = '144' WHERE k = 'sync_batch' AND v IN ('8', '24')"],
+    ],
 ];

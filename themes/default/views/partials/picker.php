@@ -85,7 +85,8 @@ $paneTitle = [
             </label>
           </div>
 
-          <ul class="plist" data-list="<?= e($pane) ?>">
+          <ul class="plist" data-list="<?= e($pane) ?>"
+              <?= $pane === 'service' ? 'data-total="' . (int) $state['services_total'] . '"' : '' ?>>
             <?php if (!$rows): ?>
               <li class="pempty"><?= $tab === 'numbers' && $pane === 'country' && !$service
                   ? 'No countries on sale yet.' : 'Nothing on sale here right now.' ?></li>
@@ -115,6 +116,10 @@ $paneTitle = [
                 </a>
               </li>
             <?php endforeach; ?>
+            <?php if ($pane === 'service' && $query === '' && $state['services_total'] > count($rows)): ?>
+              <li class="pmore" data-more><?= qty_fmt($state['services_total'] - count($rows)) ?> more apps -
+                type a name above to find any of them.</li>
+            <?php endif; ?>
           </ul>
 
         <?php else: ?>
