@@ -82,7 +82,11 @@ $failedCalls = count(array_filter($calls, static fn (array $call): bool => (int)
                 <tr>
                   <td class="mono"><?= e($activation['number']) ?><small class="sub"><?= e(when($activation['created_at'], 'd M, H:i')) ?></small></td>
                   <td class="mono"><?= e($activation['provider_order_id']) ?><small class="sub"><?= e($activation['product']) ?> <?= e($activation['server']) ?></small></td>
-                  <td><?= e($activation['status']) ?></td>
+                  <td><?= e(match ($activation['status']) {
+                      'held'   => 'held for payment',
+                      'queued' => 'queued to give back',
+                      default  => $activation['status'],
+                  }) ?></td>
                   <td class="mono"><?= e($activation['code'] !== '' ? $activation['code'] : '-') ?></td>
                   <td><?= e(money((float) $activation['cost_base'])) ?><?= $activation['refunded'] ? '<small class="sub">refunded to us</small>' : '' ?></td>
                 </tr>

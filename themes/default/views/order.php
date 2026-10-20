@@ -57,14 +57,24 @@ $again = !empty($order['service_slug']) ? url((string) $order['service_slug']) :
     <div class="ocol-main"
          <?= $live ? 'data-live data-status="' . e($status) . '" data-url="' . e(url('order/' . $order['code'] . '/status')) . '"' : '' ?>>
 
-      <?php if ($status === 'pending' && (!$submitted || $redo)): ?>
+      <?php if ($status === 'pending' && $isNumber && $state['quote'] !== null): ?>
+        <?php /* ----------------- the held number costs more: ask first ---- */ ?>
+        <div class="panel"><?php partial('partials/quote', ['order' => $order, 'state' => $state]); ?></div>
+
+      <?php elseif ($status === 'pending' && (!$submitted || $redo)): ?>
         <?php /* ---------------------------------------------- pay ---- */ ?>
         <div class="panel">
           <div class="ptitle"><svg class="icon"><use href="#i-card"></use></svg>
             <?= $isDeposit ? 'Add funds to your wallet' : 'Complete your payment' ?></div>
           <p class="psub"><?= $isDeposit
               ? 'Pay ' . e(money($order['price'])) . ' and it lands in your wallet the moment the payment is confirmed.'
-              : 'Your ' . ($isEmail ? 'inbox' : 'number') . ' is bought the second the payment is confirmed - keep this page open.' ?></p>
+              : ($isNumber && $state['held']
+                  ? 'Your ' . ($isEmail ? 'inbox is' : 'number is') . ' ready and waiting - it is yours the second the payment is confirmed. Keep this page open.'
+                  : 'Your ' . ($isEmail ? 'inbox' : 'number') . ' is bought the second the payment is confirmed - keep this page open.') ?></p>
+          <?php if ($isNumber && $state['held'] && $state['hold_left'] > 0): ?>
+            <p class="hold-line"><svg class="icon"><use href="#i-clock"></use></svg>
+              <span>Held for you for <b data-hold-left="<?= (int) $state['hold_left'] ?>"><?= e(sprintf('%d:%02d', intdiv($state['hold_left'], 60), $state['hold_left'] % 60)) ?></b> - pay before then.</span></p>
+          <?php endif; ?>
         </div>
         <?php partial('partials/pay', ['order' => $order, 'methods' => $methods,
             'gateways' => $gateways, 'chat' => $chat, 'payErrors' => $payErrors]); ?>

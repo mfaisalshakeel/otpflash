@@ -238,8 +238,34 @@ the check has to come first:
   customer is refunded at once, a guest's order waits for the admin, who is
   notified. `loss_guard` off lets an admin sell at a loss on purpose.
 - **After buying**, what OTPGet actually charged is written back to the offer,
-  so the next customer pays enough, and a number that did cost more than it
-  sold for is logged on the order and audited.
+  so the next customer pays enough. A paid order whose number really cost
+  more than price minus `min_profit` never gets it: the number joins the
+  cancel queue and a stand-in is tried, else `PRICE_UP`.
+
+**The number is bought before the money is taken** (`hold_before_pay`, on by
+default). OTPGet's listings - `getPrice` included, whose docs say it is "the
+same figure getServices shows" - are not what it charges, and a purchase
+carries no price ceiling, so the real price is known only by buying.
+`number_hold()` buys when the customer presses Pay and keeps the number out
+of sight (`activations.status = 'held'`, `orders.hold_until`) while they pay;
+`number_hold_take()`, at the top of `number_buy()`, hands it over once paid.
+
+- **A dearer number is asked about, never charged.** If the real cost needs
+  more than the price shown to keep the whole profit (`number_price_needed()`:
+  the full price rule on the real cost, or a pin no lower than cost + minimum
+  profit), the order carries `quote_price` and the customer sees "Not
+  available at Rs 31 - now Rs 103" (`partials/quote`). Agreeing
+  (`/order/{CODE}/accept`, `number_quote_accept()`) makes it the order's price
+  and goes on to payment exactly as placing the order does; `/pay` and
+  `/start` refuse while a quote is open. The customer only ever sees our
+  price, never OTPGet's cost.
+- **Unpaid means given back.** A hold that runs out, an order cancelled or a
+  quote turned down puts the number in the cancel queue (`queued`), and
+  `numbers_release_due()` - cron, and three at a time on each new order -
+  hands it back once OTPGet allows (two minutes on SMS); OTPGet refunds it.
+- One hold per visitor (`order_holds_release_others()`), 20 holds per IP per
+  ten minutes; past that, and for rentals, the order is paid first and the
+  guards above decide.
 
 ## Numbers
 

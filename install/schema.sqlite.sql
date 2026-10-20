@@ -177,6 +177,8 @@ CREATE TABLE IF NOT EXISTS "orders" (
   "otp_code" TEXT NOT NULL DEFAULT '',
   "api_error" TEXT NOT NULL DEFAULT '',
   "sending_at" TEXT,
+  "hold_until" TEXT,
+  "quote_price" REAL,
   "payment_method_id" INTEGER,
   "trx_id" TEXT NOT NULL DEFAULT '',
   "paid_amount" REAL,
@@ -201,6 +203,7 @@ CREATE INDEX IF NOT EXISTS "ix_orders_service" ON "orders" ("service_id");
 CREATE INDEX IF NOT EXISTS "ix_orders_country" ON "orders" ("country_id");
 CREATE INDEX IF NOT EXISTS "ix_orders_method" ON "orders" ("payment_method_id");
 CREATE INDEX IF NOT EXISTS "ix_orders_created" ON "orders" ("created_at");
+CREATE INDEX IF NOT EXISTS "ix_orders_hold" ON "orders" ("hold_until");
 
 CREATE TABLE IF NOT EXISTS "activations" (
   "id" INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -518,6 +521,8 @@ INSERT OR IGNORE INTO "settings" ("k", "v") VALUES
   ('auto_buy_number',       '1'),
   ('auto_refund',           '1'),
   ('loss_guard',            '1'),
+  ('hold_before_pay',       '1'),
+  ('hold_minutes',          '10'),
   ('rate_sanity_factor',    '5'),
   ('max_numbers_per_order', '3'),
   ('number_lifetime',       '20'),

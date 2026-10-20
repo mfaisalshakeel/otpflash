@@ -418,6 +418,7 @@ function order_cancel(array $order, bool $refund, string $by): array
             return [false, 'This order has just changed. Refresh the page.'];
         }
         order_log($id, 'Cancelled by ' . $by . ' before it was paid.');
+        number_hold_drop($order, 'the order was cancelled before payment');
         return [true, 'Order cancelled. Nothing was charged.'];
     }
 
@@ -493,6 +494,35 @@ function order_cancel_choice(array $order, ?array $user): array
         'amount' => money((float) ($order['paid_amount'] ?? $order['price'])),
         'next'   => 'order/' . $order['code'] . '?cancel=1',
     ];
+}
+
+/**
+ * One held number per visitor. A customer who changes their mind and picks
+ * something else lets the first hold go, so pressing Pay on ten options
+ * holds one number, not ten. A payment already begun keeps its number.
+ */
+function order_holds_release_others(?array $user, int $exceptOrderId): void
+{
+    if (!table_has_column('orders', 'hold_until')) {
+        return;
+    }
+    if ($user) {
+        $rows = all("SELECT * FROM orders WHERE user_id = ? AND id <> ? AND status = 'pending' AND hold_until IS NOT NULL",
+            [(int) $user['id'], $exceptOrderId]);
+    } else {
+        $codes = browser_orders();
+        if (!$codes) {
+            return;
+        }
+        $rows = all("SELECT * FROM orders WHERE user_id IS NULL AND id <> ? AND status = 'pending' AND hold_until IS NOT NULL
+                       AND code IN (" . implode(',', array_fill(0, count($codes), '?')) . ')',
+            array_merge([$exceptOrderId], $codes));
+    }
+    foreach ($rows as $order) {
+        if (empty($order['payment_method_id']) && (string) $order['trx_id'] === '') {
+            number_hold_drop($order, 'the customer placed another order');
+        }
+    }
 }
 
 /** The order an id or a code names, with what the pages need joined on. */

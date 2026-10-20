@@ -359,6 +359,7 @@
     var liveRoot = $('[data-live]', root);
     if (liveRoot) { initLive(liveRoot); }
     bindStateActions(root);
+    holdClocks();
     var inboxRoot = $('[data-inbox]', root);
     if (inboxRoot) { initInbox(inboxRoot); }
     syncPaymentFields();
@@ -731,6 +732,15 @@
 
       post(form.action, body).then(function (data) {
         if (data && data.ok) { remember(); }
+        // The number was got, but it costs more than the price shown: the
+        // customer is asked before anything is charged.
+        if (data && data.quote) {
+          remember();
+          cover.stop();
+          busy(button, false);
+          showQuote(data.quote);
+          return;
+        }
         if (data && data.ok && data.pay) {
           cover.stop();
           busy(button, false);
@@ -826,9 +836,106 @@
     $('[data-pay-copy]', modal).setAttribute('data-copy', data.code);
     $('[data-pay-summary]', modal).textContent = (data.label || '') + ' · ' + (data.amount || '');
     $('[data-pay-link]', modal).href = data.redirect;
+    var hold = $('[data-pay-hold]', modal);
+    if (hold) {
+      hold.hidden = !(data.hold_left > 0);
+      var clock = $('[data-hold-left]', hold);
+      clock.setAttribute('data-hold-left', String(data.hold_left || 0));
+      clock.textContent = fmtClock(data.hold_left || 0);
+      delete clock.dataset.until;
+      holdClocks();
+    }
     syncPaymentFields();
     openModal(modal);
   }
+
+  // ----------------------------------------- a held number's new price --
+  function showQuote(html) {
+    var modal = $('#quoteModal');
+    var slot = modal && $('[data-quote-slot]', modal);
+    if (!slot) { window.location.reload(); return; }
+    slot.innerHTML = html;
+    holdClocks();
+    openModal(modal);
+  }
+
+  function quoteError(form, message) {
+    var box = form.closest('[data-quote]') || form;
+    var slot = $('[data-form-error]', box);
+    if (!slot) {
+      slot = document.createElement('div');
+      slot.className = 'form-err';
+      slot.setAttribute('data-form-error', '');
+      box.insertBefore(slot, form);
+    }
+    slot.textContent = message;
+  }
+
+  // Agreeing answers exactly as placing the order does - the wallet pays
+  // and the order opens, or the pay step comes up - so it lands in the same
+  // places. Turning it down cancels the unpaid order; nothing was charged.
+  document.addEventListener('submit', function (event) {
+    var form = event.target.closest('[data-quote-accept], [data-quote-decline]');
+    if (!form) { return; }
+    event.preventDefault();
+    var button = $('button', form);
+    var accept = form.hasAttribute('data-quote-accept');
+    var inModal = form.closest('#quoteModal');
+    busy(button, true);
+    post(form.action, new FormData(form)).then(function (data) {
+      busy(button, false);
+      if (!accept) {
+        if (inModal) {
+          closeModal(inModal);
+          toast('No problem - nothing was charged.');
+        } else {
+          refreshPage();
+        }
+        return;
+      }
+      if (data && data.ok && data.pay) {
+        if (inModal) { closeModal(inModal); }
+        showPay(data);
+        return;
+      }
+      if (data && data.ok && data.redirect) {
+        barStart();
+        window.location.href = data.redirect;
+        return;
+      }
+      quoteError(form, (data && data.error) || 'That did not go through. Please try again.');
+    }).catch(function () {
+      busy(button, false);
+      quoteError(form, 'We could not reach the shop. Check your connection and try again.');
+    });
+  });
+
+  // How long a held number stays held, counted down wherever it is drawn -
+  // in markup that came with the page or was put in later. At nought the
+  // price can no longer be agreed to, and the box says so.
+  var holdTicker = null;
+  function holdClocks() {
+    if (holdTicker) { return; }
+    holdTicker = setInterval(function () {
+      var clocks = $$('[data-hold-left]');
+      clocks.forEach(function (clock) {
+        if (!clock.dataset.until) {
+          clock.dataset.until = String(Date.now() + (parseInt(clock.getAttribute('data-hold-left'), 10) || 0) * 1000);
+        }
+        var left = Math.max(0, (parseInt(clock.dataset.until, 10) - Date.now()) / 1000);
+        clock.textContent = fmtClock(left);
+        var quote = clock.closest('[data-quote]');
+        if (left <= 0 && quote && !quote.classList.contains('is-over')) {
+          quote.classList.add('is-over');
+          var go = $('[data-quote-accept] button', quote);
+          if (go) { go.disabled = true; }
+          quoteError($('[data-quote-accept]', quote), 'We are no longer holding this number. Close this and pick again.');
+        }
+      });
+      if (!clocks.length) { clearInterval(holdTicker); holdTicker = null; }
+    }, 1000);
+  }
+  holdClocks();
 
   // Payment method tiles: light the chosen one and open only its step.
   document.addEventListener('change', function (event) {

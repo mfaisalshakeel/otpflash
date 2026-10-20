@@ -26,6 +26,106 @@ require_once APP_PATH . '/helpers/payfields.php';
 
 $code = $params[0] ?? null;
 
+/**
+ * Take the payment for an order that is ready to be paid: from the wallet
+ * when that was asked for and covers it, otherwise the payment step - begun
+ * straight away where exactly one gateway takes it. Placing an order and
+ * agreeing to a held number's new price both end here, so they answer the
+ * browser in the same shape.
+ */
+$takePayment = static function (array $order, ?array $user, string $pay, bool $wantsJson): never {
+    $orderCode = (string) $order['code'];
+    $price     = (float) $order['price'];
+    $fail = static function (string $message) use ($wantsJson, $orderCode): never {
+        if ($wantsJson) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => $message, 'code' => $orderCode]);
+            exit;
+        }
+        flash('error', $message);
+        redirect('order/' . $orderCode);
+    };
+
+    if ($pay === 'wallet' && $user && (int) $user['id'] === (int) ($order['user_id'] ?? 0)
+        && ((float) $user['balance'] + 0.001 >= $price || !payable_methods())) {
+        $paid = pay_order_from_wallet($order, $user);
+        if (!$paid['ok']) {
+            $fail($paid['message']);
+        }
+        $next = url('order/' . $orderCode);
+        if ($order['product'] === 'rental') {
+            $rentalId = (int) (order_meta(one('SELECT * FROM orders WHERE id = ?', [(int) $order['id']]) ?: [])['rental_id'] ?? 0);
+            if ($rentalId) {
+                $next = url('account/rentals/' . $rentalId);
+            }
+        }
+        if ($wantsJson) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => true, 'code' => $orderCode, 'redirect' => $next]);
+            exit;
+        }
+        redirect($next);
+    }
+
+    if ($order['email'] !== '') {
+        notify('order_placed', [
+            'order_code' => $orderCode,
+            'service'    => order_label($order),
+            'amount'     => money($price),
+            'status'     => 'Awaiting payment',
+            'order_url'  => url('order/' . $orderCode),
+            'email'      => $order['email'],
+        ]);
+    }
+
+    if (!$wantsJson) {
+        redirect('order/' . $orderCode);
+    }
+
+    // Where exactly one gateway takes the payment itself there is nothing to
+    // choose, so the payment is begun here and the answer carries the page it
+    // begins on - one hop from the button to the thing being paid.
+    $sole = sole_redirect_method();
+    $next = url('order/' . $orderCode);
+    $mode = 'page';
+    if ($sole) {
+        $started = payment_start($sole, $order);
+        if (!empty($started['redirect'])) {
+            update_row('orders', ['payment_method_id' => (int) $sole['id'],
+                'updated_at' => date('Y-m-d H:i:s')], 'id = ?', [(int) $order['id']]);
+            order_log((int) $order['id'], 'Sent to ' . $sole['name'] . ' to pay.');
+            $next = (string) $started['redirect'];
+            $mode = 'redirect';
+        } elseif (!empty($started['error'])) {
+            order_log((int) $order['id'], 'Could not start ' . $sole['name'] . ': ' . $started['error']);
+        }
+    }
+
+    // With a choice to make, the choosing happens in the box the customer is
+    // already in: the same partial the order page renders.
+    $payStep = $mode === 'page' ? render('partials/pay', [
+        'order'     => $order,
+        'methods'   => payable_methods(),
+        'gateways'  => payment_gateways(),
+        'chat'      => chat_channels('order'),
+        'payErrors' => [],
+    ]) : '';
+    $state = in_array($order['product'], NUMBER_PRODUCTS, true) ? number_state($order) : null;
+
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'ok'        => true,
+        'code'      => $orderCode,
+        'amount'    => money($price),
+        'label'     => order_label($order),
+        'payment'   => ['mode' => $mode, 'name' => $sole['name'] ?? ''],
+        'pay'       => $payStep,
+        'hold_left' => $state['hold_left'] ?? 0,
+        'redirect'  => $next,
+    ]);
+    exit;
+};
+
 // ============================================================== create ====
 if ($code === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_verify();
@@ -129,83 +229,36 @@ if ($code === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
         // account - which is what lets a guest be refunded to a wallet.
         browser_orders_remember($orderCode);
     }
-    $order = one('SELECT * FROM orders WHERE id = ?', [$orderId]);
 
-    if ($pay === 'wallet') {
-        $paid = pay_order_from_wallet($order, $user);
-        if (!$paid['ok']) {
-            $fail($paid['message']);
+    // The number is bought now, before any money moves, because OTPGet only
+    // says its real price once it has sold it (number_hold). One that costs
+    // more than the price shown can carry is offered at its own price for
+    // the customer to agree to; one that cannot be had at all closes the
+    // order before anybody pays for it.
+    if (number_hold_enabled((string) $offer['product'], $pay) && rate_limit('hold_number', 20, 600)) {
+        numbers_release_due(3);
+        order_holds_release_others($user, $orderId);
+        $hold = number_hold($orderId);
+        if ($hold['state'] === 'none') {
+            require_once APP_PATH . '/helpers/storefront.php';
+            $fail($hold['message'], null, ['repick' => picker_options_html($offer)]);
         }
-        $next = url('order/' . $orderCode);
-        if ($offer['product'] === 'rental') {
-            $rentalId = (int) (order_meta(one('SELECT * FROM orders WHERE id = ?', [$orderId]) ?: [])['rental_id'] ?? 0);
-            if ($rentalId) {
-                $next = url('account/rentals/' . $rentalId);
+        if ($hold['state'] === 'quote') {
+            $order = one('SELECT * FROM orders WHERE id = ?', [$orderId]);
+            if ($wantsJson) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'ok'    => false,
+                    'code'  => $orderCode,
+                    'quote' => render('partials/quote', ['order' => $order, 'state' => number_state($order)]),
+                ]);
+                exit;
             }
+            redirect('order/' . $orderCode);
         }
-        if ($wantsJson) {
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(['ok' => true, 'code' => $orderCode, 'redirect' => $next]);
-            exit;
-        }
-        redirect($next);
     }
 
-    if ($order['email'] !== '') {
-        notify('order_placed', [
-            'order_code' => $orderCode,
-            'service'    => order_label($order),
-            'amount'     => money($price),
-            'status'     => 'Awaiting payment',
-            'order_url'  => url('order/' . $orderCode),
-            'email'      => $order['email'],
-        ]);
-    }
-
-    if ($wantsJson) {
-        // Where exactly one gateway takes the payment itself there is nothing
-        // to choose, so the payment is begun here and the answer carries the
-        // page it begins on - one hop from the button to the thing being paid.
-        $sole = sole_redirect_method();
-        $next = url('order/' . $orderCode);
-        $mode = 'page';
-
-        if ($sole) {
-            $started = payment_start($sole, $order);
-            if (!empty($started['redirect'])) {
-                update_row('orders', ['payment_method_id' => (int) $sole['id'],
-                    'updated_at' => date('Y-m-d H:i:s')], 'id = ?', [$orderId]);
-                order_log($orderId, 'Sent to ' . $sole['name'] . ' to pay.');
-                $next = (string) $started['redirect'];
-                $mode = 'redirect';
-            } elseif (!empty($started['error'])) {
-                order_log($orderId, 'Could not start ' . $sole['name'] . ': ' . $started['error']);
-            }
-        }
-
-        // With a choice to make, the choosing happens in the box the customer
-        // is already in: the same partial the order page renders.
-        $payStep = $mode === 'page' ? render('partials/pay', [
-            'order'     => $order,
-            'methods'   => payable_methods(),
-            'gateways'  => payment_gateways(),
-            'chat'      => chat_channels('order'),
-            'payErrors' => [],
-        ]) : '';
-
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([
-            'ok'       => true,
-            'code'     => $orderCode,
-            'amount'   => money($price),
-            'label'    => order_label($order),
-            'payment'  => ['mode' => $mode, 'name' => $sole['name'] ?? ''],
-            'pay'      => $payStep,
-            'redirect' => $next,
-        ]);
-        exit;
-    }
-    redirect('order/' . $orderCode);
+    $takePayment(one('SELECT * FROM orders WHERE id = ?', [$orderId]), $user, $pay, $wantsJson);
 }
 
 if ($code === null) {
@@ -228,6 +281,45 @@ $order = order_full($code);
 if (!$order) {
     require CONTROLLER_PATH . '/_404.php';
     return;
+}
+
+// ------------------------------------------ the held number's new price ----
+// The number turned out dearer than the price shown, so the order waits for
+// the customer to agree to what it really costs. Agreeing makes that the
+// order's price and goes on to payment exactly as placing the order would.
+if (($params[1] ?? '') === 'accept' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    csrf_verify();
+    $wantsJson = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'fetch';
+    $refuse = static function (string $message) use ($wantsJson, $order): never {
+        if ($wantsJson) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'error' => $message]);
+            exit;
+        }
+        flash('error', $message);
+        redirect('order/' . $order['code']);
+    };
+    if (!rate_limit('accept_quote', 20, 600)) {
+        $refuse('Too many attempts. Please wait a few minutes.');
+    }
+    if (!number_quote_accept($order)) {
+        $refuse('We are no longer holding that number. Please pick your number again.');
+    }
+    $user = current_user();
+    $takePayment(one('SELECT * FROM orders WHERE id = ?', [(int) $order['id']]) ?: $order, $user,
+        ($_POST['pay'] ?? '') === 'wallet' ? 'wallet' : 'gateway', $wantsJson);
+}
+
+// A price the customer has not agreed to yet is not one to take money for.
+if (in_array($params[1] ?? '', ['pay', 'start'], true) && ($order['quote_price'] ?? null) !== null
+    && $order['status'] === 'pending') {
+    if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'fetch') {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'error' => 'Please agree to the new price first.',
+                          'redirect' => url('order/' . $order['code'])]);
+        exit;
+    }
+    redirect('order/' . $order['code']);
 }
 
 // ------------------------------------------------------------- payment ----

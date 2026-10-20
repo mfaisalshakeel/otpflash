@@ -83,6 +83,15 @@ $GROUPS = [
             'hint' => 'Asked once when someone orders and again before the number is bought - one quick request, '
                     . 'shared by everyone buying the same thing for those minutes. A price that went up is shown '
                     . 'to the customer before they pay it.'],
+        'hold_before_pay'       => ['label' => 'Get the number before the customer pays', 'type' => 'checkbox',
+            'hint' => 'OTPGet only says what a number really costs once it is bought. With this on, the number is '
+                    . 'bought when the customer presses Pay and held for them while they pay, so its real price is '
+                    . 'known first: a dearer one is offered at its own price (cost plus your profit) for the customer '
+                    . 'to agree to, and one nobody pays for goes back to OTPGet, which refunds it.'],
+        'hold_minutes'          => ['label' => 'Hold a number for payment for', 'type' => 'select',
+            'options' => ['5' => '5 minutes', '10' => '10 minutes (recommended)', '15' => '15 minutes'],
+            'hint' => 'The number\'s own time runs while it is held, so a customer who takes the whole window '
+                    . 'has that much less to receive the code.'],
     ],
     'Protection' => [
         'rate_sanity_factor' => ['label' => 'Reject an exchange rate that moves more than', 'type' => 'number',

@@ -153,6 +153,12 @@ function number_buy(int $orderId, array $tried = []): array
 
     $order = one('SELECT * FROM orders WHERE id = ?', [$orderId]);
 
+    // Bought while the customer was paying: that number is handed over
+    // rather than a second one bought.
+    if ($order && number_hold_take($order)) {
+        return [true, 'Your number is ready.'];
+    }
+
     // Never buy at a loss without being asked to - judged on OTPGet's cost
     // as it is now, since a manual payment can be confirmed an hour after
     // the order was placed. This also refreshes the offer the target reads.
@@ -170,48 +176,46 @@ function number_buy(int $orderId, array $tried = []): array
             . 'refund this one, or switch the loss guard off and retry it.');
     }
 
-    $api = otpget()->about($orderId);
-    try {
-        $reply = $target['product'] === 'email'
-            ? $api->buyEmail((int) $target['server'], $target['provider_country'], $target['provider_service'])
-            : $api->buy($target['product'], $target['server'], $target['provider_country'], $target['provider_service']);
-    } catch (Throwable $e) {
+    $bought = number_purchase($orderId, $target);
+    if (($bought['error'] ?? '') === 'EXCEPTION') {
         $release($orderId);
-        order_log($orderId, 'Buying the number failed: ' . $e->getMessage());
+        order_log($orderId, 'Buying the number failed: ' . $bought['message']);
         return [false, 'Buying the number failed. Please try again.'];
     }
-
-    if (isset($reply['error'])) {
-        if (number_out_of_stock((string) $reply['error'])
-            && number_switch_offer($order, $tried, 'it had no numbers (' . $reply['error'] . ')')) {
+    if (isset($bought['error'])) {
+        if (number_out_of_stock($bought['error'])
+            && number_switch_offer($order, $tried, 'it had no numbers (' . $bought['error'] . ')')) {
             return number_buy($orderId, array_merge($tried, [(int) $order['offer_id']]));
         }
-        return number_failed($order, (string) $reply['error'], (string) $reply['message']);
+        return number_failed($order, $bought['error'], $bought['message']);
     }
 
-    $number   = (string) ($reply['phone'] ?? $reply['email'] ?? '');
-    $orderRef = (string) ($reply['order_id'] ?? $reply['email_id'] ?? '');
-    $cost     = isset($reply['price']) && $reply['price'] !== null && (float) $reply['price'] > 0
-        ? (float) $reply['price'] : $target['cost'];
-    $costBase = round((float) (to_base($cost, $target['cost_currency']) ?? 0), 2);
-    $validity = (int) ($reply['validity'] ?? 0) ?: number_lifetime($target['product']) * 60;
+    $number   = $bought['number'];
+    $orderRef = $bought['ref'];
+    $costBase = $bought['cost_base'];
+    offer_learn_cost($order, $target, $bought['cost']);
 
-    $activationId = insert_row('activations', [
-        'order_id'          => $orderId,
-        'product'           => $target['product'],
-        'server'            => $target['server'],
-        'provider_order_id' => mb_substr($orderRef, 0, 80),
-        'number'            => mb_substr($number, 0, 190),
-        'status'            => 'waiting',
-        'code'              => '',
-        'messages'          => '[]',
-        'cost'              => $cost,
-        'cost_currency'     => $target['cost_currency'],
-        'cost_base'         => $costBase,
-        'refunded'          => 0,
-        'expires_at'        => date('Y-m-d H:i:s', time() + $validity),
-        'created_at'        => $now,
-    ]);
+    // The order is paid, so its price cannot be asked again. A number whose
+    // real price leaves less than the minimum profit is not handed over: it
+    // joins the cancel queue (OTPGet refunds it) and another server is tried,
+    // or the order is refused the way any other loss is.
+    if (setting('loss_guard', '1') === '1'
+        && $costBase + (float) setting('min_profit', '0') > (float) $order['price'] + 0.009) {
+        $activationId = activation_insert($orderId, $target, $bought, 'queued');
+        order_recost($orderId);
+        order_log($orderId, 'OTPGet charged ' . money($costBase) . ' for ' . $number . ', which leaves less than '
+            . 'the minimum profit at the ' . money((float) $order['price']) . ' paid. It goes back to OTPGet.');
+        audit('order.loss_avoided', ['entity' => 'orders', 'entity_id' => $orderId, 'severity' => 'warn',
+            'summary' => $order['code'] . ': OTPGet charged ' . money($costBase) . ', sold for '
+                       . money((float) $order['price']) . ' - number given back']);
+        if (number_switch_offer($order, $tried, 'its real price was ' . money($costBase))) {
+            return number_buy($orderId, array_merge($tried, [(int) $order['offer_id']]));
+        }
+        return number_failed($order, 'PRICE_UP', 'OTPGet charged ' . money($costBase) . ', more than this order '
+            . 'can carry at ' . money((float) $order['price']) . '. The number was given back.');
+    }
+
+    $activationId = activation_insert($orderId, $target, $bought, 'waiting');
 
     update_row('orders', [
         'status'        => 'processing',
@@ -224,23 +228,6 @@ function number_buy(int $orderId, array $tried = []): array
         'updated_at'    => date('Y-m-d H:i:s'),
     ], 'id = ?', [$orderId]);
     order_recost($orderId);
-
-    // OTPGet says what it charged only now. If that is not what the offer
-    // thought, the offer learns it, so the next customer pays enough - and a
-    // number that did cost more than it sold for is said out loud.
-    if (!empty($order['offer_id']) && abs($cost - (float) $target['cost']) > 0.0001) {
-        update_row('offers', [
-            'cost'      => $cost,
-            'price'     => offer_price($target['product'], $cost, $target['cost_currency']),
-            'synced_at' => date('Y-m-d H:i:s'),
-        ], 'id = ?', [(int) $order['offer_id']]);
-    }
-    if ($costBase > (float) $order['price'] + 0.009) {
-        order_log($orderId, 'OTPGet charged ' . money($costBase) . ' for this number, more than the '
-            . money((float) $order['price']) . ' it sold for. The price has been corrected for the next customer.');
-        audit('order.loss', ['entity' => 'orders', 'entity_id' => $orderId, 'severity' => 'warn',
-            'summary' => $order['code'] . ' cost ' . money($costBase) . ', sold for ' . money((float) $order['price'])]);
-    }
 
     order_log($orderId, ($order['attempts'] > 0 ? 'Replacement' : 'Number') . ' ' . $number
         . ' bought from OTPGet (' . $target['product'] . ($target['server'] !== '' ? ' ' . $target['server'] : '')
@@ -258,6 +245,393 @@ function number_buy(int $orderId, array $tried = []): array
     }
 
     return [true, 'Number ' . $number . ' is ready.'];
+}
+
+/**
+ * Ask OTPGet for one number (or inbox) for $target. Nothing is written.
+ *
+ * @return array ['error' => code, 'message' => words], with EXCEPTION for a
+ *               request that never got an answer; or
+ *               ['number', 'ref', 'cost', 'cost_base', 'validity']
+ */
+function number_purchase(int $orderId, array $target): array
+{
+    $api = otpget()->about($orderId);
+    try {
+        $reply = $target['product'] === 'email'
+            ? $api->buyEmail((int) $target['server'], $target['provider_country'], $target['provider_service'])
+            : $api->buy($target['product'], $target['server'], $target['provider_country'], $target['provider_service']);
+    } catch (Throwable $e) {
+        return ['error' => 'EXCEPTION', 'message' => $e->getMessage()];
+    }
+    if (isset($reply['error'])) {
+        return ['error' => (string) $reply['error'], 'message' => (string) $reply['message']];
+    }
+
+    $cost = isset($reply['price']) && $reply['price'] !== null && (float) $reply['price'] > 0
+        ? (float) $reply['price'] : (float) $target['cost'];
+    return [
+        'number'    => (string) ($reply['phone'] ?? $reply['email'] ?? ''),
+        'ref'       => (string) ($reply['order_id'] ?? $reply['email_id'] ?? ''),
+        'cost'      => $cost,
+        'cost_base' => round((float) (to_base($cost, $target['cost_currency']) ?? 0), 2),
+        'validity'  => (int) ($reply['validity'] ?? 0) ?: number_lifetime($target['product']) * 60,
+    ];
+}
+
+/** Write down a number OTPGet sold us, in the state it starts in. */
+function activation_insert(int $orderId, array $target, array $bought, string $status): int
+{
+    return insert_row('activations', [
+        'order_id'          => $orderId,
+        'product'           => $target['product'],
+        'server'            => $target['server'],
+        'provider_order_id' => mb_substr($bought['ref'], 0, 80),
+        'number'            => mb_substr($bought['number'], 0, 190),
+        'status'            => $status,
+        'code'              => '',
+        'messages'          => '[]',
+        'cost'              => $bought['cost'],
+        'cost_currency'     => $target['cost_currency'],
+        'cost_base'         => $bought['cost_base'],
+        'refunded'          => 0,
+        'expires_at'        => date('Y-m-d H:i:s', time() + $bought['validity']),
+        'created_at'        => date('Y-m-d H:i:s'),
+    ]);
+}
+
+/**
+ * OTPGet says what it charged only once it has charged it. If that is not
+ * what the offer thought, the offer learns it, so the next customer is shown
+ * enough.
+ */
+function offer_learn_cost(array $order, array $target, float $cost): void
+{
+    if (empty($order['offer_id']) || abs($cost - (float) $target['cost']) <= 0.0001) {
+        return;
+    }
+    update_row('offers', [
+        'cost'      => $cost,
+        'price'     => offer_price($target['product'], $cost, $target['cost_currency']),
+        'synced_at' => date('Y-m-d H:i:s'),
+    ], 'id = ?', [(int) $order['offer_id']]);
+}
+
+/**
+ * The least an order may sell for, now that OTPGet has said what the number
+ * really costs.
+ *
+ * The whole price rule - markup, minimum profit, minimum price, rounded up -
+ * applied to the real cost, so a number that turned out dearer than its
+ * listing is offered at a price that still carries the full profit. A price
+ * the admin pinned stands, but never below cost plus the minimum profit.
+ * Zero with the loss guard off: the admin has chosen to sell regardless.
+ */
+function number_price_needed(array $order, array $target, float $cost): float
+{
+    if (setting('loss_guard', '1') !== '1') {
+        return 0.0;
+    }
+    $pin = !empty($order['offer_id'])
+        ? col('SELECT price_override FROM offers WHERE id = ?', [(int) $order['offer_id']], null)
+        : null;
+    if ($pin === null || $pin === '') {
+        return offer_price($target['product'], $cost, $target['cost_currency']);
+    }
+    $floor = (float) (to_base($cost, $target['cost_currency']) ?? 0) + (float) setting('min_profit', '0');
+    $step  = (float) setting('price_rounding', '1');
+    $floor = $step > 0 ? ceil(round($floor / $step, 6)) * $step : $floor;
+    return round(max((float) $pin, $floor), 2);
+}
+
+/** Is a number held for payment on this order switched on and possible? */
+function number_hold_enabled(string $product, string $pay): bool
+{
+    return in_array($product, NUMBER_PRODUCTS, true)
+        && setting('hold_before_pay', '1') === '1'
+        && ($pay === 'wallet' || setting('auto_buy_number', '1') === '1')
+        && table_has_column('orders', 'hold_until');
+}
+
+/**
+ * Get the number for an order before it is paid for, and hold it.
+ *
+ * OTPGet's listings - getPrice included - give the figure it shows, not the
+ * one it charges, and there is no ceiling to send with a purchase: the real
+ * price is known only once the number has been bought. So the number is
+ * bought first, kept out of sight until the money arrives (number_buy() then
+ * hands it over), and given back - OTPGet refunds it - if nobody pays within
+ * `hold_minutes` (numbers_release_due()).
+ *
+ * When the real price leaves less than the full profit at the price the
+ * customer was shown, the number is still held and the order carries the
+ * price it would take (`quote_price`), for the customer to agree to or turn
+ * down. Nothing is ever charged at the old price.
+ *
+ * @param int[] $tried offers already tried
+ * @return array{state: string, message: string, price?: float}
+ *   'held' - take the payment; 'quote' - ask about the new price first;
+ *   'none' - nothing could be had, and the order has been closed
+ */
+function number_hold(int $orderId, array $tried = []): array
+{
+    $now = date('Y-m-d H:i:s');
+    if (!claim('orders', ['sending_at' => $now],
+            "id = ? AND status = 'pending' AND paid_at IS NULL AND activation_id IS NULL
+               AND product IN ('sms', 'premium', 'cheap', 'email')
+               AND (sending_at IS NULL OR sending_at < ?)",
+            [$orderId, date('Y-m-d H:i:s', time() - 120)])) {
+        return ['state' => 'none', 'message' => 'A number is being fetched for this order right now.'];
+    }
+    $order  = one('SELECT * FROM orders WHERE id = ?', [$orderId]);
+    $target = $order ? order_purchase_target($order) : null;
+
+    $close = static function (string $why) use ($orderId, $now): void {
+        update_row('orders', ['status' => 'cancelled', 'sending_at' => null, 'updated_at' => $now],
+            'id = ?', [$orderId]);
+        order_log($orderId, 'Closed before payment: ' . $why);
+    };
+
+    if (!$order || !$target) {
+        $close('the order no longer says what to buy.');
+        return ['state' => 'none', 'message' => number_trouble('NO_SERVICE')];
+    }
+
+    $bought = number_purchase($orderId, $target);
+    if (isset($bought['error'])) {
+        if (number_out_of_stock($bought['error'])
+            && number_switch_offer($order, $tried, 'it had no numbers (' . $bought['error'] . ')')) {
+            q('UPDATE orders SET sending_at = NULL WHERE id = ?', [$orderId]);
+            return number_hold($orderId, array_merge($tried, [(int) $order['offer_id']]));
+        }
+        $close('OTPGet would not sell a number (' . $bought['error'] . ': ' . $bought['message'] . ').');
+        number_refusal_notify($order, $bought['error'], $bought['message']);
+        return ['state' => 'none', 'message' => number_trouble($bought['error'] === 'EXCEPTION' ? '' : $bought['error'])];
+    }
+
+    $activationId = activation_insert($orderId, $target, $bought, 'held');
+    $window = max(120, min(max(5, min(15, (int) setting('hold_minutes', '10'))) * 60, $bought['validity'] - 180));
+    $needed = number_price_needed($order, $target, $bought['cost']);
+    $quote  = $needed > (float) $order['price'] + 0.009 ? $needed : null;
+
+    update_row('orders', [
+        'activation_id' => $activationId,
+        'hold_until'    => date('Y-m-d H:i:s', time() + $window),
+        'quote_price'   => $quote,
+        'sending_at'    => null,
+        'updated_at'    => $now,
+    ], 'id = ?', [$orderId]);
+    order_recost($orderId);
+    offer_learn_cost($order, $target, $bought['cost']);
+
+    order_log($orderId, 'Number ' . $bought['number'] . ' held for payment until ' . date('H:i', time() + $window)
+        . ' (OTPGet order ' . $bought['ref'] . ', cost ' . money($bought['cost_base']) . ').'
+        . ($quote !== null ? ' Its real price needs ' . money($quote) . ' to keep the full profit, not the '
+            . money((float) $order['price']) . ' shown, so the customer is asked first.' : ''));
+    audit('order.hold', ['entity' => 'orders', 'entity_id' => $orderId,
+        'severity' => $quote !== null ? 'warn' : 'info',
+        'summary'  => $order['code'] . ' holds ' . $bought['number'] . ' at ' . money($bought['cost_base'])
+                    . ($quote !== null ? ', re-priced ' . money((float) $order['price']) . ' -> ' . money($quote) : '')]);
+
+    if ($quote !== null) {
+        return ['state' => 'quote', 'price' => $quote,
+                'message' => 'This number costs ' . money($quote) . ' right now.'];
+    }
+    return ['state' => 'held', 'message' => ''];
+}
+
+/**
+ * The money arrived: hand over the number held for this order.
+ *
+ * Claimed from 'held', so the cancel queue and the payment arriving in the
+ * same second cannot both have it. A hold whose new price the customer never
+ * agreed to, or whose time is nearly gone, is let go instead and the order
+ * buys afresh like any other.
+ */
+function number_hold_take(array $order): bool
+{
+    $activation = order_activation($order);
+    if (!$activation || $activation['status'] !== 'held') {
+        return false;
+    }
+    $orderId = (int) $order['id'];
+    if (($order['quote_price'] ?? null) !== null || strtotime((string) $activation['expires_at']) < time() + 90) {
+        number_hold_drop($order, ($order['quote_price'] ?? null) !== null
+            ? 'paid without agreeing to its new price' : 'too little of its time was left');
+        return false;
+    }
+    if (!claim('activations', ['status' => 'waiting'], "id = ? AND status = 'held'", [(int) $activation['id']])) {
+        return false;
+    }
+
+    update_row('orders', [
+        'status'      => 'processing',
+        'number'      => mb_substr((string) $activation['number'], 0, 190),
+        'attempts'    => (int) $order['attempts'] + 1,
+        'otp_code'    => '',
+        'api_error'   => '',
+        'hold_until'  => null,
+        'sending_at'  => null,
+        'updated_at'  => date('Y-m-d H:i:s'),
+    ], 'id = ?', [$orderId]);
+    order_recost($orderId);
+
+    order_log($orderId, 'Paid - held number ' . $activation['number'] . ' handed over (cost '
+        . money((float) $activation['cost_base']) . ', sold for ' . money((float) $order['price']) . ').');
+    audit('order.number', ['entity' => 'orders', 'entity_id' => $orderId,
+        'summary' => $order['code'] . ' got held ' . $activation['number'] . ' at '
+                   . money((float) $activation['cost_base']) . ', sold for ' . money((float) $order['price'])]);
+    if ((int) $order['attempts'] === 0) {
+        number_ready_notice($order, (string) $activation['number']);
+    }
+    return true;
+}
+
+/**
+ * Put an order's held number in the cancel queue: nobody paid for it, or the
+ * customer turned its price down. The order forgets it, so a later payment
+ * buys afresh.
+ */
+function number_hold_drop(array $order, string $why): bool
+{
+    $activation = order_activation($order);
+    if (!$activation || $activation['status'] !== 'held') {
+        return false;
+    }
+    if (!claim('activations', ['status' => 'queued'], "id = ? AND status = 'held'", [(int) $activation['id']])) {
+        return false;
+    }
+    q('UPDATE orders SET activation_id = NULL, hold_until = NULL, quote_price = NULL, updated_at = ? WHERE id = ?',
+        [date('Y-m-d H:i:s'), (int) $order['id']]);
+    order_log((int) $order['id'], 'Held number ' . $activation['number'] . ' goes back to OTPGet: ' . $why . '.');
+    return true;
+}
+
+/**
+ * The customer agreed to the price their held number really costs.
+ *
+ * Only while the hold lasts and only once: the price becomes the order's, so
+ * whatever takes the payment next charges that.
+ */
+function number_quote_accept(array $order): bool
+{
+    if (($order['quote_price'] ?? null) === null) {
+        return false;
+    }
+    $now = date('Y-m-d H:i:s');
+    if (!claim('orders', ['price' => round((float) $order['quote_price'], 2), 'quote_price' => null, 'updated_at' => $now],
+            "id = ? AND status = 'pending' AND paid_at IS NULL AND quote_price IS NOT NULL AND hold_until > ?",
+            [(int) $order['id'], $now])) {
+        return false;
+    }
+    order_log((int) $order['id'], 'The customer agreed to ' . money((float) $order['quote_price'])
+        . ' (it was ' . money((float) $order['price']) . ').');
+    return true;
+}
+
+/**
+ * The cancel queue: give back the numbers nobody is going to use.
+ *
+ * Holds that ran out unpaid, or whose order was closed, join it first. A
+ * queued number is handed back once OTPGet allows it - two minutes after
+ * buying, on the SMS servers - and OTPGet refunds it; until then it waits for
+ * the next run. Cron calls this, and so does each new order a few at a time,
+ * so a shop without cron still gives its holds back.
+ *
+ * @return int numbers given back
+ */
+function numbers_release_due(int $limit = 20): int
+{
+    if (!table_has_column('orders', 'hold_until')) {
+        return 0;
+    }
+    $now = date('Y-m-d H:i:s');
+
+    foreach (all("SELECT o.* FROM orders o JOIN activations a ON a.id = o.activation_id
+                   WHERE a.status = 'held'
+                     AND ((o.status = 'pending' AND (o.hold_until IS NULL OR o.hold_until < ?))
+                          OR o.status IN ('cancelled', 'refunded'))
+                   LIMIT " . max(1, $limit), [$now]) as $order) {
+        number_hold_drop($order, $order['status'] === 'pending' ? 'it was not paid for in time' : 'the order was closed');
+    }
+    // A request that died between buying and writing the hold leaves a held
+    // number no order points at; past any hold's length it can only be queued.
+    q("UPDATE activations SET status = 'queued' WHERE status = 'held' AND created_at < ?
+         AND id NOT IN (SELECT activation_id FROM orders WHERE activation_id IS NOT NULL AND status IN ('pending', 'paid'))",
+        [date('Y-m-d H:i:s', time() - 1800)]);
+
+    $released = 0;
+    foreach (all("SELECT * FROM activations WHERE status = 'queued' ORDER BY id LIMIT " . max(1, $limit * 2)) as $activation) {
+        if (time() - strtotime((string) $activation['created_at']) < number_cancel_after((string) $activation['product'])) {
+            continue;
+        }
+        if (!claim('activations', ['checked_at' => $now], "id = ? AND status = 'queued' AND (checked_at IS NULL OR checked_at < ?)",
+                [(int) $activation['id'], date('Y-m-d H:i:s', time() - 20)])) {
+            continue;
+        }
+        if (number_queue_release($activation)) {
+            $released++;
+        }
+        if ($released >= $limit) {
+            break;
+        }
+    }
+    return $released;
+}
+
+/** Hand one queued number back to OTPGet and write down what came of it. */
+function number_queue_release(array $activation): bool
+{
+    $orderId = (int) $activation['order_id'];
+    $api     = otpget()->about($orderId);
+    $ref     = (string) $activation['provider_order_id'];
+    $reply   = $activation['product'] === 'email' ? $api->cancelEmail($ref) : $api->cancel((string) $activation['product'], $ref);
+
+    $close = static function (string $status, bool $refunded, string $code = '') use ($activation, $orderId): bool {
+        if (!claim('activations', ['status' => $status, 'refunded' => $refunded ? 1 : 0, 'code' => $code,
+                'closed_at' => date('Y-m-d H:i:s')], "id = ? AND status = 'queued'", [(int) $activation['id']])) {
+            return false;
+        }
+        order_recost($orderId);
+        if ($code !== '') {
+            // Nobody was shown this number, so a code on it is somebody else's
+            // luck and our cost: worth an admin's eye.
+            order_log($orderId, 'Queued number ' . $activation['number'] . ' received a code before it could be '
+                . 'given back; OTPGet keeps its cost.');
+            audit('order.hold_lost', ['entity' => 'orders', 'entity_id' => $orderId, 'severity' => 'warn',
+                'summary' => 'A held number got a code before release: ' . money((float) $activation['cost_base']) . ' spent']);
+        } else {
+            order_log($orderId, 'Number ' . $activation['number'] . ' given back to OTPGet'
+                . ($refunded ? ', which refunded its cost.' : '.'));
+        }
+        return true;
+    };
+
+    if (!isset($reply['error'])) {
+        if (($reply['code'] ?? '') !== '') {
+            $close('finished', false, (string) $reply['code']);
+            return false;
+        }
+        return $close('expired', true);
+    }
+    if ($reply['error'] === 'EARLY_CANCEL_DENIED') {
+        return false;
+    }
+    if (in_array($reply['error'], array_merge(['STATUS_ALREADY_CHANGED'], NUMBER_CLOSED_UPSTREAM), true)) {
+        $status = $activation['product'] === 'email' ? $api->emailCode($ref) : $api->status((string) $activation['product'], $ref);
+        if (($status['state'] ?? '') === 'received' && ($status['code'] ?? '') !== '') {
+            $close('finished', false, (string) $status['code']);
+            return false;
+        }
+        return $close('expired', true);
+    }
+    // OTPGet closes and refunds a number with no code once its time is out,
+    // so one well past it that still will not answer is written off as given back.
+    if (strtotime((string) $activation['expires_at']) < time() - 600) {
+        return $close('expired', true);
+    }
+    order_log_once($orderId, 'Could not give the held number back yet: ' . $reply['message']);
+    return false;
 }
 
 /** Email the customer what they bought, if they gave us somewhere to send it. */
@@ -303,18 +677,7 @@ function number_failed(array $order, string $code, string $message): array
         'summary' => $order['code'] . ' refused by OTPGet: ' . $code,
     ]);
 
-    // Out of stock is the customer's problem to route around; anything else
-    // is the shop's to fix, and is worth a notification.
-    if (!in_array($code, ['NO_NUMBERS', 'BAD_COUNTRY', 'BAD_SERVICE', 'NO_SERVICE'], true)) {
-        notify('admin_api_error', [
-            'order_code' => $order['code'],
-            'service'    => order_label($order),
-            'provider'   => 'OTPGet',
-            'error'      => $message,
-            'admin_url'  => url('admin/orders/' . $orderId),
-            'admin_link' => 'admin/orders/' . $orderId,
-        ]);
-    }
+    number_refusal_notify($order, $code, $message);
 
     // Refunded whenever no code ever arrived - the first number or a
     // replacement, it is the same customer holding nothing for their money.
@@ -324,6 +687,25 @@ function number_failed(array $order, string $code, string $message): array
     }
 
     return [false, number_trouble($code)];
+}
+
+/**
+ * Tell the admin OTPGet refused a purchase. Out of stock is the customer's
+ * problem to route around; anything else is the shop's to fix.
+ */
+function number_refusal_notify(array $order, string $code, string $message): void
+{
+    if (in_array($code, ['NO_NUMBERS', 'BAD_COUNTRY', 'BAD_SERVICE', 'NO_SERVICE'], true)) {
+        return;
+    }
+    notify('admin_api_error', [
+        'order_code' => $order['code'],
+        'service'    => order_label($order),
+        'provider'   => 'OTPGet',
+        'error'      => $message,
+        'admin_url'  => url('admin/orders/' . (int) $order['id']),
+        'admin_link' => 'admin/orders/' . (int) $order['id'],
+    ]);
 }
 
 /** A refusal that means "none of these left", which another server may still have. */
@@ -771,11 +1153,17 @@ function numbers_finish_due(int $limit = 50): int
 function number_state(array $order): array
 {
     $activation = order_activation($order);
+    // A number held for an unpaid order is not the customer's yet: until the
+    // money arrives the page draws only its shape.
+    $hold = $activation && $activation['status'] === 'held' ? $activation : null;
+    if ($hold || ($activation && $activation['status'] === 'queued')) {
+        $activation = null;
+    }
     $release    = number_can_release($order, $activation);
     $messages   = $activation ? (json_decode((string) ($activation['messages'] ?? '[]'), true) ?: []) : [];
     $attempts   = (int) $order['attempts'];
     $dial       = (string) col('SELECT dial_code FROM countries WHERE id = ?', [(int) ($order['country_id'] ?? 0)], '');
-    $number     = (string) ($activation['number'] ?? $order['number'] ?? '');
+    $number     = (string) ($activation['number'] ?? ($hold ? '' : $order['number'] ?? ''));
     $digits     = ltrim($number, '+');
     $local      = $dial !== '' && str_starts_with($digits, $dial) ? substr($digits, strlen($dial)) : $digits;
     $isEmail    = ($order['product'] ?? '') === 'email';
@@ -799,6 +1187,9 @@ function number_state(array $order): array
                              && $order['paid_at'] !== null && $attempts < number_attempts_max(),
         'attempts'      => $attempts,
         'attempts_max'  => number_attempts_max(),
+        'held'          => $hold !== null,
+        'hold_left'     => $hold && !empty($order['hold_until']) ? max(0, strtotime((string) $order['hold_until']) - time()) : 0,
+        'quote'         => $hold && ($order['quote_price'] ?? null) !== null ? (float) $order['quote_price'] : null,
         'error'         => $order['status'] === 'api_error'
                              ? number_trouble((string) strtok((string) $order['api_error'], ':')) : '',
     ];

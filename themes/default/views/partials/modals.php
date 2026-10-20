@@ -27,9 +27,19 @@
       <div><small>Your order code</small><b data-pay-code></b></div>
       <button class="copy" type="button" data-copy="" data-pay-copy>Copy</button>
     </div>
+    <p class="hold-line" data-pay-hold hidden><svg class="icon"><use href="#i-clock"></use></svg>
+      <span>Your number is held for you for <b data-hold-left="0">0:00</b> - pay before then.</span></p>
     <div data-pay-slot></div>
     <p class="help modal-foot">You can also pay later from the order page:
       <a href="#" data-pay-link>open order</a></p>
+  </div>
+</div>
+
+<div class="modal-back" id="quoteModal" hidden>
+  <div class="modal modal-sm" role="dialog" aria-modal="true" aria-label="The price changed" tabindex="-1">
+    <button class="modal-x" type="button" data-close aria-label="Close">
+      <svg class="icon"><use href="#i-close"></use></svg></button>
+    <div data-quote-slot></div>
   </div>
 </div>
 

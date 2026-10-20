@@ -230,6 +230,8 @@ CREATE TABLE IF NOT EXISTS `orders` (
   `otp_code` VARCHAR(190) NOT NULL DEFAULT '',
   `api_error` VARCHAR(500) NOT NULL DEFAULT '',
   `sending_at` DATETIME NULL,
+  `hold_until` DATETIME NULL,
+  `quote_price` DECIMAL(12,2) NULL,
   `payment_method_id` INT UNSIGNED NULL,
   `trx_id` VARCHAR(120) NOT NULL DEFAULT '',
   `paid_amount` DECIMAL(12,2) NULL,
@@ -250,6 +252,7 @@ CREATE TABLE IF NOT EXISTS `orders` (
   KEY `ix_orders_country` (`country_id`),
   KEY `ix_orders_method` (`payment_method_id`),
   KEY `ix_orders_created` (`created_at`),
+  KEY `ix_orders_hold` (`hold_until`),
   CONSTRAINT `fk_orders_user` FOREIGN KEY (`user_id`)
     REFERENCES `users` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_orders_offer` FOREIGN KEY (`offer_id`)
@@ -634,6 +637,8 @@ INSERT INTO `settings` (`k`, `v`) VALUES
   ('auto_buy_number',       '1'),
   ('auto_refund',           '1'),
   ('loss_guard',            '1'),
+  ('hold_before_pay',       '1'),
+  ('hold_minutes',          '10'),
   ('rate_sanity_factor',    '5'),
   ('max_numbers_per_order', '3'),
   ('number_lifetime',       '20'),

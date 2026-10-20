@@ -106,4 +106,18 @@ return [
         'sqlite' => ['ALTER TABLE "posts" ADD COLUMN "image_prompt" TEXT NULL',
                      'ALTER TABLE "posts" ADD COLUMN "image_alt" TEXT NOT NULL DEFAULT \'\''],
     ],
+    // A number is bought before it is paid for, so its live price is known
+    // before the customer is charged: the order holds it for a few minutes,
+    // and a price above the one shown waits for the customer to agree to it.
+    '2026_10_hold_before_pay' => [
+        'label'  => 'Hold the number while the customer pays, at its live price',
+        'mysql'  => ["ALTER TABLE `orders` ADD COLUMN `hold_until` DATETIME NULL AFTER `sending_at`",
+                     "ALTER TABLE `orders` ADD COLUMN `quote_price` DECIMAL(12,2) NULL AFTER `hold_until`",
+                     "CREATE INDEX `ix_orders_hold` ON `orders` (`hold_until`)"],
+        'sqlite' => ['ALTER TABLE "orders" ADD COLUMN "hold_until" TEXT',
+                     'ALTER TABLE "orders" ADD COLUMN "quote_price" REAL',
+                     'CREATE INDEX IF NOT EXISTS "ix_orders_hold" ON "orders" ("hold_until")'],
+        'both'   => ["INSERT INTO settings (`k`, `v`) VALUES ('hold_before_pay', '1')",
+                     "INSERT INTO settings (`k`, `v`) VALUES ('hold_minutes', '10')"],
+    ],
 ];

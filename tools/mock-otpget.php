@@ -28,6 +28,9 @@
                            (exercises buying from another server instead)
  *   service "Netflix"     the SMS never arrives (exercises expiry and change number)
  *   service "Tinder"      ERROR_PROVIDER_1 on purchase
+ *   service "Instagram"   on SMS server 1 the number is charged at 3.4 times its
+ *                         listed price, the way a live price outruns the
+ *                         listing (exercises the hold and the new-price question)
  */
 
 declare(strict_types=1);
@@ -255,6 +258,9 @@ if ($file === 'handler_api.php') {
                 $text('ERROR_PROVIDER_' . $type . ':Server ' . $type . ' error');
             }
             $price = $priceFor($type, $country, (int) $service[2]);
+            if ($service[1] === 'Instagram' && $type === '1') {
+                $price = round($price * 3.4, 2);
+            }
             if ($load()['balance'] < $price) {
                 $text('NO_BALANCE');
             }

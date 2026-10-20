@@ -199,8 +199,9 @@ function cron_check_numbers(): string
     }
 
     $finished = numbers_finish_due();
+    $released = numbers_release_due(40);
 
-    return sprintf('%d checked, %d closed', count($open) + count($stuck), $finished);
+    return sprintf('%d checked, %d closed, %d held numbers given back', count($open) + count($stuck), $finished, $released);
 }
 
 function cron_rentals(): string

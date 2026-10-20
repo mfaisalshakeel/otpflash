@@ -820,3 +820,28 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
 }
+
+/* ---- a held number: its clock, and its new price to agree to ---- */
+.hold-line{display:flex;align-items:center;gap:8px;margin:12px 0 0;padding:9px 12px;border-radius:12px;
+  background:var(--brand-soft);border:1px solid var(--brand-line);color:var(--ink-2);font-size:.88rem}
+.hold-line .icon{width:17px;height:17px;color:var(--brand);flex:none}
+.hold-line b{font-variant-numeric:tabular-nums;color:var(--ink)}
+.modal .hold-line{margin:0 0 14px}
+.quote{display:grid;gap:12px}
+.quote-head{display:flex;align-items:center;gap:12px}
+.quote-head b{display:block;font-size:1.08rem;line-height:1.3}
+.quote-head small{color:var(--muted)}
+.quote-ico{width:42px;height:42px;border-radius:12px;display:grid;place-items:center;flex:none;
+  background:var(--warn-soft);color:var(--warn)}
+.quote-ico .icon{width:21px;height:21px}
+.quote p{margin:0;color:var(--ink-2);font-size:.93rem}
+.quote-clock{font-variant-numeric:tabular-nums}
+.quote-price{display:flex;align-items:center;justify-content:center;gap:18px;padding:14px;border-radius:14px;
+  background:var(--bg-soft);border:1px solid var(--line);text-align:center}
+.quote-price small{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.quote-price s{color:var(--muted);font-weight:600}
+.quote-price b{font-size:1.45rem;color:var(--ink)}
+.quote-arrow{color:var(--muted);font-size:1.2rem}
+.quote form{margin:0}
+.quote-foot{margin:0;text-align:center}
+.quote.is-over .quote-price{opacity:.5}
