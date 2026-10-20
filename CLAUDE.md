@@ -155,10 +155,26 @@ OTPGet reply.
   built from the two data files fold them into one service, so the customer
   sees one WhatsApp with every server under it. A name that matches nothing is
   still sold, under OTPGet's words, with a lettered icon - never dropped.
-- **Sync is one unit per request** (`sync_units()` → `sync_unit($key)`, keys
-  like `sms:1:5` or `email:2:instagram.com`), driven by the update screen's
-  stepper on *Connection & sync* and a few units per cron run. A shared host
-  cuts a request off at thirty seconds; one country never comes near it.
+- **A service is found by `match_key`, never by slug alone.** The slug is the
+  admin's (it is the landing page's address); `match_key` is written by the
+  sync and nothing else: the catalogue slug for a known brand, else the name
+  with spaces squeezed out, so "Tik Tok" and "TikTok" are one row. Finding
+  services by slug made a second WhatsApp the day someone renamed the first.
+  Countries fall back to `iso2` for the same reason.
+- **Two syncs at once never duplicate.** `services.slug`, `countries.slug`
+  and the offer key are UNIQUE, and every insert that loses that race catches
+  the duplicate and adopts the winner's row instead of failing.
+- **Sync goes two dozen units at a time** (`SYNC_STEP_UNITS`). OTPGet has no
+  bulk listing - a catalogue is one request per server and country - so
+  `sync_units_run()` sends a batch through `OtpGet::parallel()` (curl_multi,
+  16 in flight) and stores each unit on its own. One stepper request per
+  batch, the list refresh is one parallel round, and cron reads one batch per
+  run. **Every `sync_unit()` case must ask OTPGet before it writes anything**:
+  `parallel()` runs each piece up to its first request to learn the URL and
+  throws that run away.
+- The first sync starts by itself: saving an accepted key on an empty shop
+  lands on `/admin/otpget?sync=1`, whose stepper autostarts. The reload when
+  it finishes drops the query, or it would start again.
 - An offer OTPGet stops listing is marked `missing`, not deleted - orders point
   at it - and is sold again the moment it reappears.
 - **`offer_sellable_sql()` is the one answer** to "may a customer buy this
@@ -169,19 +185,39 @@ OTPGet reply.
 ## Pricing
 
 `offer_price()`: OTPGet's cost → base currency (`to_base`) → plus the
-product's markup (or the default) → never below `min_price` → rounded **up**
-to `price_rounding`. A price typed on the Catalogue screen is stored in
-`price_override` and wins until unpinned. `reprice_offers()` rebuilds every
-unpinned price, and runs whenever a setting or a rate that feeds it changes.
+product's markup (or the default), **and at least `min_profit` over cost** →
+never below `min_price` → rounded **up** to `price_rounding`. A price typed on
+the Catalogue screen is stored in `price_override` and wins until unpinned -
+but never below `offer_cost_floor()` (cost + min profit): the screen refuses
+it, and a sync that finds the cost has risen past a pin lifts the pin and
+says so in the audit log. `reprice_offers()` rebuilds every unpinned price,
+and runs whenever a setting or a rate that feeds it changes.
 
 `catalogue_explainer()` writes these rules in words, with the numbers in
 force, and both Catalogue and Connection & sync render it through
 `admin/_explain` - so the two screens cannot describe it differently.
 
 **The price is read back from the offer on every order.** Nothing the browser
-says about money is trusted. And `loss_guard` stops a purchase whose current
-OTPGet cost has risen above what the customer paid: the order waits for the
-admin instead of being filled at a loss.
+says about money is trusted.
+
+**Never sell below today's cost.** OTPGet says what it charged only after it
+has charged it, and an SMS number cannot be handed back for two minutes, so
+the check has to come first:
+
+- `offer_refresh()` re-reads an offer's unit when its cost is older than
+  `price_check_minutes` (10) - one request, shared by everyone buying it in
+  those minutes.
+- **Ordering** compares the price the customer was shown with the refreshed
+  one. Up means refused, with the options redrawn at the new price
+  (`repick`) - the next press buys at it. A price is never raised after the
+  button that showed it was pressed.
+- **Buying** - a number, a rental, a renewal - asks `order_loss_refusal()`,
+  the one loss rule, on the refreshed cost. A refusal is `PRICE_UP`: a wallet
+  customer is refunded at once, a guest's order waits for the admin, who is
+  notified. `loss_guard` off lets an admin sell at a loss on purpose.
+- **After buying**, what OTPGet actually charged is written back to the offer,
+  so the next customer pays enough, and a number that did cost more than it
+  sold for is logged on the order and audited.
 
 ## Numbers
 
@@ -207,6 +243,9 @@ and everything else to `number_buy()` when `auto_buy_number` is on.
   so the live page and the first render cannot disagree.
 - Stock errors (`NO_NUMBERS` and the like) are not notified to the admin -
   they are weather - but every other refusal is.
+- **A wallet customer is refunded whenever no code ever arrived** - the first
+  number or a replacement. They are holding nothing for their money either
+  way. A guest has no wallet, so a guest's order waits for the admin.
 
 ## Rentals
 
@@ -253,6 +292,18 @@ returns a path on this site. A blocked account is simply not found by
   that have stock.
 - On a phone the panes become steps; the furthest one already chosen is shown
   first.
+- **The picker asks questions a customer would ask** - "Which app?", "Which
+  country?", "Buy your number" - and has no sort buttons or counts. Lists are
+  ordered by `store_rank()`: popular first, then what sold most in the last
+  thirty days (counted every ten minutes), then the admin's order, then the
+  built-in order of the data file, then the name - so WhatsApp leads, not
+  Amazon because it starts with an A.
+- **The cheapest option is chosen and shown; the rest fold under "More
+  options".** Four radios labelled "Server 1/2/6" is a question most people
+  cannot answer and should not have to.
+- The hero carries the headline and one short `tagline`. The longer `lead`
+  is still written for every landing page, but only for the meta description
+  and the structured data.
 - Ordering finishes without leaving the page: the options form posts over
   `fetch`; a wallet purchase lands on the order page, a gateway order opens the
   pay modal with the order code and a copy button. **No payment method means
@@ -592,6 +643,10 @@ php tools/check-admin-css.php
 php -S 127.0.0.1:8000 tools/dev-router.php     # the app
 php -S 127.0.0.1:8001 tools/mock-otpget.php    # a fake OTPGet
 ```
+
+The mock answers instantly and the built-in server takes one request at a
+time, which hides exactly what the parallel sync is for. To measure it, start
+the mock as `MOCK_LATENCY_MS=400 PHP_CLI_SERVER_WORKERS=16 php -S ...`.
 
 Use the router script: without it `php -S` answers `/sitemap.xml` and
 `/robots.txt` from disk. **The router serves its own parent directory**, not

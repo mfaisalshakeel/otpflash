@@ -79,10 +79,14 @@ Log in at `https://yourdomain.com/admin`.
    Rentals), which SMS servers, which email servers and rental providers. Give
    the servers names if you like ("Fast", "Cheap") - customers see those.
 3. **Set your markup.** One default percentage, optionally a different one per
-   product, a minimum price and how prices are rounded (always up).
-4. **Press Sync.** The catalogue is read one country at a time with a progress
-   bar, so a shared host's thirty-second limit never cuts it off. With
-   *keep the catalogue fresh* on, cron re-reads a few countries every run.
+   product, the least profit you will take on any sale, a minimum price and
+   how prices are rounded (always up).
+4. **Sync.** Saving an accepted key on an empty shop starts the first sync by
+   itself. OTPGet has no "everything at once" listing, so the catalogue is
+   read two dozen countries at a time, all at once - a full catalogue takes
+   about a minute, with a progress bar, and a shared host's thirty-second
+   limit never cuts it off. With *keep the catalogue fresh* on, cron re-reads
+   another two dozen every run.
 5. **Add a payment method** under *Payment methods*, and switch it on. Without
    one, guests have no way to pay (account holders can still use the wallet
    once you credit it).
@@ -91,11 +95,31 @@ The shop is selling from this point.
 
 ### How a price is made
 
-`OTPGet cost → converted to your base currency → + markup → never below the
-minimum → rounded up`. A price you type on the Catalogue screen is **pinned**:
-it stays put when OTPGet's cost moves, until you unpin it. The Catalogue and
-OTPGet screens both carry a short explanation of these rules with the numbers
-currently in force.
+`OTPGet cost → converted to your base currency → + markup (and at least your
+minimum profit) → never below the minimum price → rounded up`. A price you type
+on the Catalogue screen is **pinned**: it stays put when OTPGet's cost moves,
+until you unpin it - but it can never be below cost plus your minimum profit.
+The screen refuses such a pin, and if OTPGet's cost later rises past one, the
+next sync lifts it and the audit log says so. The Catalogue and OTPGet screens
+both carry a short explanation of these rules with the numbers in force.
+
+### You never sell below cost
+
+OTPGet only says what it charged after it has charged it, so the shop checks
+first. When an offer's cost is more than ten minutes old (*Settings → Numbers*)
+it asks OTPGet for today's price - once when the customer orders, and again
+just before the number is bought:
+
+- a price that went **up** while the customer was looking is shown to them,
+  with the options redrawn, before they pay it;
+- if it rose between paying and buying (a manual payment confirmed an hour
+  later), the number is **not** bought: an account holder is refunded to their
+  wallet at once, and a guest's order waits for you with a notification;
+- whatever OTPGet actually charged is written back to the offer, so the next
+  customer pays the right price.
+
+Switch *Never buy a number for more than it sold for* off only if you mean to
+sell at a loss.
 
 An offer OTPGet stops listing is marked *missing* and leaves the shop by
 itself; it comes back by itself if it is listed again. Switching a service or
@@ -324,7 +348,10 @@ to misbehave so the hard paths can be seen:
 | Tinder | OTPGet refusing the purchase - the `api_error` path |
 | Antarctica | no numbers in stock |
 
-`MOCK_SMS_DELAY=20` (seconds) and `MOCK_CANCEL_AFTER` change the timings.
+`MOCK_SMS_DELAY=20` (seconds) and `MOCK_CANCEL_AFTER` change the timings, and
+`MOCK_LATENCY_MS=400` makes every reply as slow as the real network. To see a
+sync's requests arrive together, give the server workers:
+`PHP_CLI_SERVER_WORKERS=16 php -S 127.0.0.1:8001 tools/mock-otpget.php`.
 The mock keeps its state in the system temp folder and must never be uploaded
 anywhere real - the release script refuses to ship it.
 
