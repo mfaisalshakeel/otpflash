@@ -5,23 +5,32 @@ describes what is actually there rather than an intention.
 
 ## What this is
 
-A social-media-growth storefront plus admin panel, both complete. Plain PHP 8,
-MySQL or SQLite, no framework, no Composer, no build step. It has to run on ordinary cPanel shared
-hosting, so: no CLI requirement beyond an optional cron job, no writable paths
-outside `config/`, `storage/` and `uploads/`.
+OTP Flash: a shop that resells virtual numbers, temporary email inboxes and
+rented numbers from [OTPGet](https://otpget.com/docs), with a customer portal,
+a blog and an admin panel. Plain PHP 8, MySQL or SQLite, no framework, no
+Composer, no build step. It has to run on ordinary cPanel shared hosting, so:
+no CLI requirement beyond an optional cron job, no writable paths outside
+`config/`, `storage/` and `uploads/`.
+
+It was built from the codebase of an SMM panel. The machinery that is not about
+what is sold - installer, updater, CRUD engine, payments, notifications, audit
+log, themes, chat buttons - came across unchanged; providers, platforms,
+categories, packages, import and link rules did not.
 
 ## Shape
 
 ```
-index.php              the only web entry point
-cron.php               CLI entry point
-app/core/bootstrap.php config, errors, session, security headers
-app/core/resolver.php  URL -> controller file
-app/helpers/           the function library (see below)
-controllers/           one file per URL
-views/                 one file per screen
-assets/                css + js, no build step
-install/               installer, schema, seed
+index.php                 the only web entry point
+cron.php                  CLI entry point
+app/core/                 bootstrap (config, errors, session, headers), resolver, version
+app/helpers/              the function library (see below)
+app/controllers/          one file per URL; admin/ is the panel
+app/views/admin/          admin screens, plus the CRUD list/form
+app/payments/             one file per payment gateway
+themes/default/           storefront, portal and blog views; assets/app.css, app.js
+assets/                   admin css/js, flags/, brands/brands.svg, vendor/ (Summernote, jQuery)
+install/                  installer, schema.sql, schema.sqlite.sql, migrations.php
+tools/                    dev router, mock OTPGet, release builder, admin CSS checker
 ```
 
 ## Routing
@@ -30,62 +39,67 @@ File-based, no route table.
 
 | URL | runs |
 |---|---|
-| `/` | `controllers/home.php` |
-| `/track` | `controllers/track.php` |
-| `/admin` | `controllers/admin/index.php` |
-| `/admin/services` | `controllers/admin/services.php` |
-| `/admin/services/edit/7` | same file, `$params = ['edit', '7']` |
-| `/instagram`, `/instagram/followers`, `/refund-policy` | `controllers/_fallback.php` |
-| `/order`, `/order/GK-8F42KD`, `/order/GK-8F42KD/pay` | `controllers/order.php` |
-| `/api/track` | `controllers/api.php` |
-| `/hook/zurvapay/16/GK-8F42KD` | `controllers/hook.php`, a gateway's own webhook |
+| `/` | `home.php` - the picker |
+| `/whatsapp`, `/whatsapp/pakistan`, `/refund-policy` | `_fallback.php`: a page first, then a service (and country) landing page, which re-enters `home.php` |
+| `/country/pakistan`, `/temporary-email/facebook`, `/rent-number/united-kingdom` | `country.php`, `temporary-email.php`, `rent-number.php` - landing pages, also through `home.php` |
+| `/api/picker`, `/api/track` | `api.php` - JSON for the picker and the tracker |
+| `/order`, `/order/OF-8F42KD3M`, `/order/OF-…/pay`, `/status`, `/change`, `/cancel`, `/retry` | `order.php` |
+| `/login`, `/register`, `/forgot`, `/reset/{token}`, `/logout` | one file each |
+| `/account`, `/account/orders`, `/account/rentals/7`, `/account/wallet`, `/account/profile` | `account.php` |
+| `/blog`, `/blog/{slug}`, `/blog/category/{slug}`, `/blog/tag/{tag}`, `/blog/feed` | `blog.php` |
+| `/hook/{gateway}/{method-id}/{CODE}` | `hook.php`, a gateway's own webhook |
 | `/sitemap.xml`, `/robots.txt` | named in the resolver, since a dot fails the slug rule |
-| `/admin/update`, `/admin/update/plan`, `/admin/update/step` | `controllers/admin/update.php` |
+| `/admin/...` | `admin/{first-segment}.php`, after `admin/_middleware.php` |
 | `/install` | `install/index.php`, before any routing exists |
-| anything else | `controllers/_404.php` |
+| anything else | `_404.php` |
 
 Rules:
 
-- **No URL contains `.php`.** `/install` is a directory with an `index.php`, so
-  every server resolves it without a rewrite rule; `/install/index.php` 301s to
-  `/install`.
+- **No URL contains `.php`.** `/install/index.php` 301s to `/install`.
 - A URL segment must match `^[A-Za-z0-9_-]+$` or the request 404s. This is what
   stops path traversal — there is no other place to get it wrong.
 - `current_path()` works out the mount point from the configured `base_url`,
   then from `DOCUMENT_ROOT` vs `BASE_PATH`, and only falls back to
-  `SCRIPT_NAME`. Servers disagree about `SCRIPT_NAME` — PHP's built-in server
-  reports the directory index it resolved, Apache reports the rewritten front
-  controller — and taking its dirname eats a real URL segment.
+  `SCRIPT_NAME`, which servers disagree about.
 - Files starting with `_` are includes, never routes.
-- Every `controllers/admin/*` request runs `controllers/admin/_middleware.php`
-  first. That is where the login check and the CSRF check live, so individual
-  admin controllers never repeat them.
-- Controllers are plain PHP files, not classes. They see `$params` and the
-  helpers. They end by calling `view()` or `redirect()`.
+- Every admin request runs `admin/_middleware.php` first: the login check and
+  the CSRF check live there, so admin controllers never repeat them.
+- Controllers are plain PHP files that see `$params` and the helpers, and end
+  in `view()` (which exits) or `redirect()`. `view()` puts the rendered page in
+  `$content` for the layout, so never pass a view variable called `content`.
+- **A page slug may not shadow the shop.** The pages editor refuses the words
+  the shop uses for itself and any service's slug, because `_fallback.php`
+  looks pages up first.
 
 ## Helpers
 
-`app/helpers/functions.php` is loaded for every request and holds the whole
-general-purpose set. Add to it rather than writing a one-off inline:
+`app/helpers/functions.php` is loaded for every request:
 
-- config / db — `cfg`, `db`, `q`, `one`, `all`, `col`, `insert_row`, `update_row`, `delete_row`
+- config / db — `cfg`, `db`, `q`, `one`, `all`, `col`, `insert_row`, `update_row`, `delete_row`, `optional_count`, `optional_all`
 - settings — `setting`, `set_setting`, `settings_all`
-- output — `e`, `money`, `qty_fmt`, `excerpt`, `when`
+- output — `e`, `money`, `base_currency_symbol`, `qty_fmt`, `excerpt`, `when`
 - urls — `base_url`, `url`, `asset`, `redirect`, `current_path`, `is_https`
 - views — `view`, `render`, `partial`
 - forms — `csrf_token`, `csrf_field`, `csrf_verify`, `old`, `keep_old`, `flash`, `flashes`
-- auth — `admin_user`, `is_admin`, `require_admin`
-- misc — `slugify`, `random_code`, `client_ip`, `rate_limit`, `rate_limit_hit`, `log_line`
+- auth — `admin_user`, `is_admin`, `require_admin`, `current_user`, `is_logged_in`, `require_login`
+- misc — `slugify`, `random_code`, `client_ip`, `rate_limit`, `rate_limit_hit`, `log_line`, `order_label`, the chat-channel functions
 
-Loaded on demand by the controllers that need them:
+Loaded by the controllers that need them:
 
-- `crud.php` — the shared admin CRUD (`crud_handle`, `options_from`)
-- `SmmApi.php` — the only class in the codebase
-- `detect.php` — platform/category guessing for the import screen
-- `orders.php` — `send_order_to_provider`, `sync_order_statuses`, `map_provider_status`
-- `cron.php` — `run_cron_tasks`, shared by `cron.php` and `controllers/cron.php`
-- `migrate.php` — `migrations_pending`, `migration_apply`, `migrations_run`
-- `update.php` — `update_available`, `update_steps`, `update_run_step`
+- `OtpGet.php` — the API client, the only class in the codebase
+- `catalog.php` — products, servers, sync, pricing, the name matching, the picker queries, `catalogue_explainer()`
+- `numbers.php` — buying a number or inbox, checking it, changing, cancelling, expiring; `number_state()`
+- `rentals.php` — starting, refreshing, renewing and cancelling rentals
+- `wallet.php` — `wallet_credit`, `wallet_debit`, deposits, the statement
+- `orders.php` — placing, paying (`confirm_order_payment`), fulfilling (`fulfil_order`), refunding
+- `storefront.php` — the picker's state and its landing-page URLs
+- `users.php` — sign-up, sign-in, password resets
+- `seo.php`, `blog.php` — the head tags and JSON-LD; what is published, contents lists, related posts
+- `crud.php`, `paging.php`, `upload.php`, `audit.php`, `notify.php`, `stats.php`, `charts.php`, `currency.php`, `rebase.php`, `impact.php`, `payments.php`, `payfields.php`, `qr.php`, `theme.php`, `mail.php`, `guard.php`, `cron.php`, `migrate.php`, `update.php`
+
+`countries-data.php` and `services-data.php` are data, generated once: every
+ISO country with its dialling code and the names OTPGet writes it under, and
+180 apps with their brand icon, colour and aliases.
 
 ## Database
 
@@ -93,263 +107,196 @@ Loaded on demand by the controllers that need them:
   builds the right connection, and SQLite gets `foreign_keys`, WAL and a busy
   timeout turned on. A config with no `db_driver` means MySQL.
 - **Write SQL both understand.** No `NOW()`, no `INTERVAL`, no
-  `ON DUPLICATE KEY UPDATE` — bind a `date('Y-m-d H:i:s')` instead of asking the
-  database for the time, and spell an upsert out. The schema exists twice,
-  `install/schema.sql` and `install/schema.sqlite.sql`; keep them in step.
-- Every query goes through `q`/`one`/`all`/`col`, which prepare and bind. There
-  is no string interpolation of values into SQL anywhere. Where a column or
-  table name is dynamic (the CRUD engine) it comes from a spec written in PHP,
-  never from the request.
-- `settings` is a key/value table read once per request.
-- Order status is an enum: `pending, paid, processing, completed, partial,
+  `ON DUPLICATE KEY UPDATE`, no `||` or `CONCAT()` (the two disagree about
+  joining strings), no `CAST(... AS INTEGER)` (write `column + 0`). Bind a
+  `date('Y-m-d H:i:s')` instead of asking the database for the time, and spell
+  an upsert out. The schema exists twice, `install/schema.sql` and
+  `install/schema.sqlite.sql`; keep them in step, seeds included.
+- Every query goes through `q`/`one`/`all`/`col`, which prepare and bind. Where
+  a column or table name is dynamic it comes from PHP, never from the request.
+- **Claim, don't check.** Anything two requests could do at once - mark paid,
+  buy a number, credit a deposit, cancel a rental - is an UPDATE conditional
+  on the state it moves away from (`claim()`), and only the request whose
+  UPDATE touched a row carries on (`claim()` and `with_lock()` live in
+  `guard.php`). The polling page, cron and an admin all
+  arrive at the same order.
+- Order status is an enum: `pending, paid, processing, completed, expired,
   cancelled, refunded, api_error`.
-- Foreign keys use `ON DELETE SET NULL` where history matters (an order keeps
-  working when its service is deleted) and `CASCADE` where it does not.
+- `orders.product` says what was sold: `sms`, `premium`, `cheap`, `email`,
+  `rental`, and two that are not catalogue products - `deposit` (wallet top-up)
+  and `renewal` (more time on a rental). Revenue figures leave deposits out:
+  they are the customer's money until spent.
+- Foreign keys use `ON DELETE SET NULL` where history matters and `CASCADE`
+  where it does not.
 
-## Shared admin CRUD
+## OTPGet
 
-Simple admin screens describe their table once and `crud_handle()` runs the
-list / new / edit / save / delete / toggle cycle against
-`views/admin/crud/list.php` and `form.php`. Providers, platforms, categories,
-payment methods, pages and FAQs all work this way.
+`OtpGet` (app/helpers/OtpGet.php) wraps five endpoint families - SMS
+(`handler_api.php`), Premium, Cheap, Email and Rental - which do not agree
+about anything: some answer `ACCESS_NUMBER:id:phone:price`, some CSV, some
+JSON with their own status codes. The class flattens all of them to the same
+shapes - `buy()` returns `order_id, phone, price, validity`, `status()` returns
+`state` (`waiting`, `received`, `cancelled`) and `code` - and every failure to
+`['error' => CODE, 'message' => words]`. Nothing outside the class parses an
+OTPGet reply.
 
-Write a screen by hand only when it needs more than the spec can say — services
-(bulk actions), import, orders (detail with actions), settings, messages.
+- TLS verification stays on.
+- `tools/mock-otpget.php` implements every endpoint the shop calls, so the
+  whole shop can be driven without an account. Netflix never receives an SMS,
+  Tinder is refused, Antarctica has no stock.
 
-`unique` on a field is unique in the whole table; **`unique:column`** is
-unique only among the rows sharing that column's value. Categories are why:
-the constraint on them is `(platform_id, slug)`, because every platform is
-meant to have its own `/followers`, and a table-wide check would refuse the
-second platform. Declaring it is not optional politeness - without it the
-database raises the violation and the admin gets an error page instead of
-the field saying what is wrong. `crud_save()` also catches a duplicate key
-around the write itself and hands the form back, which covers a constraint
-a spec never declared and two admins saving the same new slug at once.
+## The catalogue
 
-Two spec keys are easy to confuse:
+- **An offer is one thing OTPGet sells**: product + server + OTPGet's country
+  id + OTPGet's service id, unique on those four. It carries OTPGet's `cost`
+  in OTPGet's currency and our `price` in the base currency.
+- **Countries and services are ours**, matched by name. OTPGet writes "WA",
+  "Whatsapp" and "WhatsApp Messenger" on different servers; the alias indexes
+  built from the two data files fold them into one service, so the customer
+  sees one WhatsApp with every server under it. A name that matches nothing is
+  still sold, under OTPGet's words, with a lettered icon - never dropped.
+- **Sync is one unit per request** (`sync_units()` → `sync_unit($key)`, keys
+  like `sms:1:5` or `email:2:instagram.com`), driven by the update screen's
+  stepper on *Connection & sync* and a few units per cron run. A shared host
+  cuts a request off at thirty seconds; one country never comes near it.
+- An offer OTPGet stops listing is marked `missing`, not deleted - orders point
+  at it - and is sold again the moment it reappears.
+- **`offer_sellable_sql()` is the one answer** to "may a customer buy this
+  offer": the picker, the landing pages, the sitemap and `order.php` all ask
+  it, because an offer the picker hides but the order form accepts is a price
+  nobody meant to sell at.
 
-- `empty` is only the **label on a select's blank choice**. It says nothing
-  about the column.
-- `nullable` is what stores NULL when the field comes back blank. Without it a
-  blank field falls back to `default`, then to `''`.
+## Pricing
 
-Getting that backwards is how "Detect from the balance reply" tried to write
-NULL into `providers.currency`, which is `NOT NULL`.
+`offer_price()`: OTPGet's cost → base currency (`to_base`) → plus the
+product's markup (or the default) → never below `min_price` → rounded **up**
+to `price_rounding`. A price typed on the Catalogue screen is stored in
+`price_override` and wins until unpinned. `reprice_offers()` rebuilds every
+unpinned price, and runs whenever a setting or a rate that feeds it changes.
 
-## Service import
+`catalogue_explainer()` writes these rules in words, with the numbers in
+force, and both Catalogue and Connection & sync render it through
+`admin/_explain` - so the two screens cannot describe it differently.
 
-`controllers/admin/import.php`.
+**The price is read back from the offer on every order.** Nothing the browser
+says about money is trusted. And `loss_guard` stops a purchase whose current
+OTPGet cost has risen above what the customer paid: the order waits for the
+admin instead of being filled at a loss.
 
-- The provider catalogue is fetched once and cached in `storage/cache/` for 30
-  minutes. "Refresh from API" forces a refetch. If the provider is unreachable
-  the cached copy is still shown, with a warning.
-- Auto-detect matches the **service name first, the provider's category name
-  second** — the name is more specific. Word lists live at the top of
-  `detect.php`; matching is whole-word and allows a plural, because providers
-  write "Followers" not "Follower".
-- Markup sets the price: `cost × (1 + markup/100)`.
-- A service already in the catalogue is matched on
-  `(provider_id, provider_service_id)`. Re-importing with "update existing"
-  refreshes cost, price and limits but keeps the name and description, because
-  an admin may have rewritten them.
-- **`services.service_type` is the provider's own word** - Default, Package,
-  Custom Comments, Subscriptions, whatever they sell - stored as they wrote it
-  rather than mapped onto a list of ours, because a type nobody anticipated is
-  still the answer to "why does this one behave unlike its neighbours". It is
-  refreshed on re-import like the cost, not kept like the name: it is their
-  fact. The Services screen shows it as a chip and filters on it, and the
-  filter offers only the types actually present plus **No type given**, which
-  is how the services somebody added by hand are found. The form takes it as a
-  free text box with suggestions, for exactly those.
+## Numbers
 
-## Themes
+`fulfil_order()` is the one door from "paid" to "delivered": deposits go to
+the wallet, rentals to `rental_start()`, renewals to `rental_renew_from_order()`,
+and everything else to `number_buy()` when `auto_buy_number` is on.
 
-- A theme is a folder under `themes/` with `theme.php` beside `views/` and
-  `assets/`. Nothing keeps a list — `themes_available()` scans the directory —
-  so adding one never means editing a file that already exists.
-- `render()` looks in the active theme's views, then the **default theme's**,
-  then `app/views`. A theme therefore ships only the views whose structure
-  differs and inherits the rest; `viralborn` ships four files and gets the
-  order page, the tracking page and the modal from `default`.
-- Because inherited views come with the default theme's class names, a theme's
-  stylesheet has to cover that whole vocabulary. Both shipped themes are
-  written in the same order so they read side by side.
-- `theme_asset()` falls back the same way, so a theme with no `app.js` of its
-  own still gets one — which is why a theme must keep the ids the script
-  needs: `#platStrip`, `#catTabs`, `#serviceCards`, `#svcTitle`, and the
-  card's `data-` attributes. `#svcTitle` is rewritten with `textContent`, so
-  it may not hold markup that has to survive a switch. `#heroCta` is optional
-  — the shipped hero has no button and the script skips it — but a theme that
-  adds one keeps the id and keeps it to plain text, for the same reason.
-  The hero headline is **not** in that list: it is one fixed sentence, so
-  nothing rewrites it and a theme may say whatever it likes there.
-- **The hero is one partial**, `partials/hero.php`, rendered by both themes:
-  the band, the drawn phone and the floating chips are the same shape
-  whatever the colour, and the colour is mixed from `--brand` by whichever
-  stylesheet is loaded. A theme that wants a different hero drops in its own
-  copy of that partial, which is the same inheritance as every other view.
-  **It carries the headline and four points** — no badge, no sentence of
-  promises, no button. The headline is one fixed sentence rather than the
-  platform and category being viewed: those are already named by the lit
-  tab, the heading over the cards and the cards themselves, and saying it
-  again in the largest type only pushed the platform bar further down. The
-  points are two words each because the prose line they replaced was three
-  lines of reading on a phone between the headline and that bar, which is
-  the choice the whole page hangs off and so should be first to tap.
-  `support_channel_line()` writes the fourth one's second line from the
-  channels that are actually switched on — "On Telegram" under a headline is
-  a promise, and a shop with no Telegram would be making it to everyone.
-- A page that opens on the hero gives the header to the band — no bar, no
-  line, white type on the colour. `body:has(.hero) > header` asks the
-  question the layout cannot, because the layout renders the header before it
-  knows what the page is; a browser without `:has()` keeps the white bar,
-  which is a plain page rather than a broken one.
-- A manifest may declare `brand`, the colour the theme was drawn around.
-  Activating a theme adopts it — but only while the colour on record is still
-  the **previous theme's** own, so a colour the admin chose is never
-  overwritten.
+- An order can go through several numbers (`activations`, one row each, up to
+  `max_numbers_per_order`). The order's own `number` and `otp_code` are the
+  current ones; the history is in the activations.
+- `number_check()` asks OTPGet about the live activation, throttled to one
+  question every four seconds per order however many tabs are polling.
+- **The SMS servers' two-minute rule is checked here first.** OTPGet refuses a
+  cancel within two minutes of buying, so *Change number* and *Cancel* show a
+  countdown instead of a button that fails.
+- A number that runs out of time is released back to OTPGet (which refunds
+  us), and `number_lapsed()` refunds an account holder's wallet when
+  `auto_refund` is on. A guest's expired order offers a fresh number instead,
+  since a guest has no wallet to refund into.
+- `number_state()` is everything the order page draws - status words, the
+  number with and without its dialling code, the code, every code, seconds
+  left, what may be pressed. The page and `/order/{CODE}/status` both use it,
+  so the live page and the first render cannot disagree.
+- Stock errors (`NO_NUMBERS` and the like) are not notified to the admin -
+  they are weather - but every other refusal is.
 
-## Service packages
+## Rentals
 
-- **A service with no packages still shows quantity cards.** `service_tiers()`
-  falls back to a ladder of round numbers (`QUANTITY_LADDER`), trimmed to what
-  the provider accepts and spread across the range, priced at the service's own
-  rate. This is what makes a fresh install look like the reference without an
-  admin hand-entering five rows per service; `auto_packages` in Settings turns
-  it off. A generated tier carries **no id**, so the order posts a quantity
-  alone and the server prices it from the rate — the same number the card
-  showed. *Generate from the service* on the Packages screen writes the ladder
-  out as real rows so the prices can then be edited.
-- What tells a fixed-quantity card from a typed one in the script is whether
-  it **has a quantity input**, not whether it has a package id — a generated
-  tier is fixed and has no package behind it.
-- A service can be sold in preset packages — "500 followers for 165" — as well
-  as by quantity. A package carries **its own price**, not a rate, which is the
-  whole point: a bigger package can genuinely cost less per thousand, and the
-  admin list shows the per-thousand figure so that discount is visible.
-- `bonus_quantity` is delivered free on top. The order's quantity is
-  `quantity + bonus_quantity`, because that is what the provider is asked for;
-  the cost is still the rate times that, so margin stays honest.
-- **`catalogue_mode` decides what a category sells.** `services` (the default)
-  shows every service in the category as its own card. `single` shows only the
-  service the category names in `categories.service_id`, so the customer picks
-  a quantity rather than a service — the way the big shops do it. A category
-  that names none falls back to its first active service rather than rendering
-  an empty tab.
-- The front cards come from `partials/cards.php`: one card per package for a
-  service that has them, the ordinary quantity card for a service that does
-  not, so nothing ever disappears from the grid.
-- The packaged services then share **one** custom-quantity panel underneath,
-  with a service picker when there is more than one. A "custom" card per
-  service sitting among the tiers gave no way to tell which service it
-  belonged to. The panel is an ordinary `.card`, so choosing a service
-  rewrites its `data-` attributes rather than re-rendering: the price maths
-  and the order modal keep working on it unchanged.
-- `order.php` reads the price **back from the package row**. The quantity the
-  browser sends for a package order is not even looked at, and a package id
-  that does not belong to the service is refused.
+Rentals need an account: the inbox lives in the portal, renewal is from the
+wallet or a gateway, and a guest would have nowhere to come back to.
+`rental_refresh()` reads the inbox (throttled to one call per ten seconds) and
+stores each SMS once, keyed by a fingerprint of its sender, body and time, so
+re-reading never duplicates. `rentals_expire()` closes what has run out; an
+admin can also close a rental on our side or extend our record of it, which
+never touches OTPGet's own expiry.
 
-## Currency on the import screen
+## The wallet
 
-- A provider's catalogue is priced in **its own** currency. Every figure the
-  import screen shows is converted with `currency_rate($provider['currency'])`
-  before it is printed, because otherwise it is the provider's number wearing
-  our symbol — which is worse than showing nothing.
-- No rate means **no listing**. The screen says which currency is missing and
-  offers to add it and fetch today's rate, then re-reads the catalogue. A
-  provider that never said what it bills in is offered Check instead.
-- `currency_add()` inserts the row and calls the rate feed; `KNOWN_CURRENCIES`
-  only exists so it arrives with a name and a symbol rather than three bare
-  letters.
+`users.balance` is the number and `wallet_transactions` is the story of it:
+every change writes a line, in the same transaction, carrying the balance it
+left behind. The balance only moves through `wallet_move()`, whose debit is
+`UPDATE ... SET balance = balance - ? WHERE id = ? AND balance >= ?` - never
+read, add, write - so two purchases in two tabs cannot spend the same rupee.
+An admin adjustment always carries a note, because the customer reads it.
 
-## Explaining the settings to the admin
+## Customer accounts
 
-Two settings between them decide whether a service is shown at all and what
-shape it takes, and neither is visible from the screen you are standing on.
-`catalogue_explainer()` writes that in words **once**, and Services and Import
-both render it through `admin/_explain` — so the two screens cannot drift into
-describing the same system differently. The note opens the first time and
-stays shut after, remembered per screen.
-
-## Service names on the storefront
-
-A card carries two names: `data-name`, the raw one the provider gave, and
-`data-label`, the words a person reads. **The customer only ever sees the
-label**, and `card_label()` decides what it is, because the two catalogue
-modes ask different questions:
-
-- `single` — the category names one service and the customer picks only a
-  quantity. Every card is the same service, so its raw name says nothing and
-  "Instagram Followers" is the honest label.
-- `services` — every service gets its own card, and the name is now the only
-  thing telling one card from the next. Hiding it leaves a grid of identical
-  headings, which is what it did until a label fixed to platform + category
-  was pointed out.
-
-The rule lives in one function so the three places that draw a card - the
-package card, the service card and the custom panel's picker - cannot drift.
-The order modal clamps the label to two lines: the card behind it carries the
-whole name, and four lines there push the order button off a phone.
-
-## Card feature lines
-
-The ticked points on a card come from `service_feature_lines()`: the service's
-own `features`, else `default_features` from Settings. A freshly imported
-service therefore has ticks on it without anyone typing them. Set them for
-many services at once from the Services screen's bulk bar; an empty box clears
-them, which puts those services back on the default set.
+`users.php` follows the admin login's rules: `password_hash`, rehash on login,
+`session_regenerate_id(true)` on every sign-in, 8 failures per IP per ten
+minutes, one vague failure message, and a dummy hash verified when the email
+is unknown so the answer takes the same time either way. Reset links are
+single-use, an hour long, and stored only as a SHA-256 hash; asking for one
+never says whether the address has an account. `safe_next()` only ever
+returns a path on this site. A blocked account is simply not found by
+`current_user()`, which signs it out at its next click.
 
 ## The storefront
 
-- `controllers/home.php` renders `/`, `/{platform}` and `/{platform}/{category}`
-  — `_fallback.php` looks the rows up and leaves them in `$GLOBALS`.
-- Only platforms, categories and services that are active are shown, and a
-  category with no active service is left out of the tabs entirely.
-- The platform strip and the category tabs are **real links**, so the site works
-  and is crawlable without JavaScript. `assets/js/app.js` only adds the live
-  price and the order modal; the order form posts normally when it is blocked.
-- Meta title and description come from the category, then the platform, then a
-  sensible generated line. Every page sets a canonical URL.
+- **The picker is the home page**: tabs for numbers, email and rentals, then
+  panes for service → country → options. It is drawn complete on the server -
+  every list item is a link to its own landing page and every option is a
+  real form - so it works, and is crawled, without JavaScript. `app.js` then
+  filters as you type and fetches only the pane that changed from
+  `/api/picker`, keeping the address bar on the landing page of the choice.
+- The `data-` names in `partials/picker.php` and `partials/options.php` are
+  what `app.js` reads; a theme that redraws them keeps them.
+- **A landing page with nothing on sale is `noindex`** and says so, rather than
+  a page of empty lists pretending to be content. The sitemap only lists pairs
+  that have stock.
+- On a phone the panes become steps; the furthest one already chosen is shown
+  first.
+- Ordering finishes without leaving the page: the options form posts over
+  `fetch`; a wallet purchase lands on the order page, a gateway order opens the
+  pay modal with the order code and a copy button. **No payment method means
+  no guest order** - the form refuses before it writes a row.
+- The order page (`/order/{CODE}`) polls `/order/{CODE}/status` while anything
+  can still change and redraws only when the status does; the code pops in
+  with the tab title flashing.
+
+## Blog and SEO
+
+- **`post_live_sql()` is the one rule for "published"**: status published and
+  a publish time that has arrived. The blog, the feed, the sitemap, related
+  posts and the home page all use it, so a scheduled post cannot leak through
+  one of them.
+- Post and page content is admin-written HTML printed as written (the same
+  trust as `head_code`). Images dropped into Summernote are uploaded to
+  `uploads/content/` through `/admin/media/upload`, never inlined as base64.
+- `post_toc()` gives every H2/H3 an id - keeping one the editor wrote - and
+  returns the contents list; three or more headings earn one.
+- `seo_head()` prints every head tag from the `seo` array a controller hands
+  its view; no view writes its own `<title>` or canonical. JSON-LD is built by
+  the `schema_*()` functions. Search results, empty lists, previews and pages
+  marked hidden are `noindex, follow`.
+- **Strip tags as spaces.** `strip_tags('a</p><p>b')` is `ab`; `excerpt()`,
+  `seo_clip()`, `post_excerpt()` and the checklist all replace tags with a
+  space first, so a description never reads "works.Pick a number".
+- `seo_checklist()` is advice for the editor, never a gate.
+
+## Explaining the settings to the admin
+
+`admin/_explain` is a note that opens the first time and stays shut after,
+remembered per screen. Its lines are written by a helper, not the view, so two
+screens describing the same rules render the same words.
+
+## Themes
+
+- A theme is a folder under `themes/` with `theme.php`, `views/` and
+  `assets/`; `themes_available()` scans the directory. `render()` looks in the
+  active theme, then `default`, then `app/views`, so a theme ships only the
+  views it changes. One theme ships, `default` (Flash Light).
+- A page that opens on the hero gives the header to the band through
+  `body:has(.hero) .site-head`; a browser without `:has()` keeps a plain white
+  bar.
 - The theme colour from Settings is written into `--brand` in the layout.
-
-## Order flow
-
-`pending → paid → processing → completed`, with `api_error` parked to one side.
-
-- **Placing finishes in the modal.** The form posts over `fetch`, `order.php`
-  answers with JSON, and the modal swaps to a success panel carrying the order
-  code and a copy button. The code is the only thing the customer has to keep,
-  so it is the one thing the panel makes easy to take away. The panel sits
-  **after** `</form>`: showing it hides the form, and a panel inside the form
-  would be hidden along with it.
-- With exactly one active redirect gateway there is nothing to choose, so the
-  panel offers it straight away; with two or more it links to the order page,
-  where the choice lives. `sole_redirect_method()` is that test.
-- **No payment method means no order.** The form refuses before it writes a
-  row, because an order nobody can pay for is a row nobody will ever action.
-- The name is copied onto the order as `service_label` when it is placed, not
-  looked up later. A label read back through the service row would change
-  under a finished order when an admin renames the service, and single-service
-  mode has to keep its promise on the tracker too.
-- `send_order_to_provider()` is the only place an order is handed to an API. A
-  failure stores the provider's own words in `api_error` and leaves the order
-  where it is, so it can be retried.
-- A service with no provider is manual: the order moves to `processing` and a
-  person delivers it. No API call is made.
-- `map_provider_status()` turns provider wording into our enum. **An unknown
-  status maps to `processing`, never to `completed`** — never silently finish an
-  order we are not sure about.
-- `sync_order_statuses()` groups open orders per provider and uses the
-  multi-status call, so a hundred open orders is a handful of requests.
-- Whether a provider answers a batch is read from the **shape** of its reply,
-  not its contents: keyed by order id means yes, a flat status object means it
-  read `order` and ignored `orders`. `multi_status_probe()` therefore needs no
-  real orders — it asks about ids that will not exist — so a provider can be
-  checked the moment it is added. The one reply it cannot read is a flat error
-  for a batch of unknown ids, which is also what a batching provider says; that
-  answers "cannot tell yet" and records nothing rather than guessing. Providers
-  has its own **Multi-status** button, and Check asks as well.
-- Every state change writes an `order_logs` row.
 
 ## Contact channels
 
@@ -398,31 +345,6 @@ channel in it.
 Telegram's `t.me` links cannot carry a prefilled message, which is why
 `chat_channel()` takes one and uses it only where the channel supports it, and
 why the order code is on screen with a copy button either way.
-
-## Adding a provider
-
-**A provider is tested before it is saved.** `provider_probe()` asks for the
-balance and touches no table, so the add form can prove the key works before
-there is a row - a provider whose key is wrong is otherwise a row that accepts
-services, takes orders and fails every one of them at the moment the money has
-already changed hands.
-
-- Only a **refused connection** stops the save. A billing currency with no
-  exchange rate, or a batch-status question that cannot be answered until an
-  order exists, are things to go and do - not reasons to throw away a key the
-  provider just accepted. `connected` is that distinction; `ok` is "everything
-  came back clean".
-- The same call brings back the balance, the currency and the batch-status
-  answer, so a provider that passes is **saved already knowing all three**.
-  What the provider said fills the boxes left blank and never overwrites a
-  currency the admin picked by hand, which is why the probe is told what was
-  in that box. `supports_multi_status` is the one finding the admin can
-  overrule, because "work it out automatically" is that select's blank choice.
-- `provider_check()` is the same probe plus the write, so the Check button and
-  the add form cannot drift into testing different things.
-- Editing re-tests **only when the URL or the key changed**. On a shared host a
-  slow provider is most of the request, and changing a sort order should not
-  cost one.
 
 ## Payment gateways
 
@@ -531,7 +453,8 @@ the way can write.
   one is a decision about what counts and they have to agree with each other.
   The rule throughout: an order is money only once it is paid, so `pending`,
   `cancelled` and `refunded` are out of every revenue, cost and profit figure
-  while still counting as orders.
+  while still counting as orders - and so are deposits, which are the
+  customer's money until they spend it.
 - **Never put the status list in a statement twice.** Placeholders bind by
   position, so a second `status IN (?, ?, …)` in the same query silently shifts
   every later binding and the answer comes back zero — no error, just wrong.
@@ -589,87 +512,44 @@ attribute silently does nothing.
 
 These are the rules the code already follows; keep them.
 
-- **Output:** everything printed in a view goes through `e()`. The two
-  exceptions are deliberate and commented: page content and `head_code`, both
-  written by an admin.
+- **Output:** everything printed in a view goes through `e()`. The exceptions
+  are deliberate and commented: page and post content, and `head_code`, all
+  written by an admin; and `catalogue_explainer()`'s lines, which escape their
+  own values.
 - **SQL:** prepared statements only, via the helpers.
-- **CSRF:** every non-GET admin request is checked in `_middleware.php`. Forms
-  use `csrf_field()`. A bad token ends the request with 419.
-- **Passwords:** `password_hash` / `password_verify`, rehashed on login when the
-  algorithm moves on.
-- **Sessions:** `session_regenerate_id(true)` on login and on password change.
-  Cookies are `httponly`, `samesite=Lax`, and `secure` over HTTPS.
-- **Login:** throttled per IP, 8 failures per 10 minutes. Successful logins do
-  not count against the budget. The failure message never says which field was
-  wrong.
+- **CSRF:** every non-GET admin request is checked in `_middleware.php`; every
+  storefront and portal form carries `csrf_field()` and is checked in its
+  controller. A bad token ends the request with 419.
+- **Passwords and sessions:** `password_hash` / `password_verify`, rehashed on
+  login; `session_regenerate_id(true)` on every sign-in, admin or customer;
+  cookies `httponly`, `samesite=Lax`, and `secure` over HTTPS.
+- **Login:** throttled per IP, 8 failures per 10 minutes, for admins and
+  customers alike. The failure message never says which field was wrong.
+- **The order code is the key.** It is eight random characters after the
+  prefix, and whoever holds it can see the order and change its number - which
+  is what lets a guest come back from another device. Cancelling is the
+  exception: it refunds a wallet, so it also needs the account that placed the
+  order. The number actions (`/status`, `/change`, `/cancel`, `/retry`) are
+  POSTs carrying the CSRF token, and each is throttled per IP.
+- **Money:** prices are read back from the offer; the wallet only moves
+  through `wallet_move()`; every paid-state change is a claim. A webhook is a
+  faster poll, never a second way of deciding (see Payment gateways).
 - **Uploads:** accepted only if `getimagesize()` can read them, saved with an
-  extension we chose, and nothing in `uploads/` is ever executed.
-- **A `.htaccess` directive the server does not understand is a 500**, not a
-  line it skips - and a 500 in `uploads/` is every image on the site gone.
-  So `php_flag engine off` lives inside `<IfModule mod_php.c>` guards: it is
-  an unknown directive where PHP runs as FastCGI, PHP-FPM or LiteSpeed, which
-  is most cPanel hosting now. **`php_admin_flag` and `php_admin_value` are
-  refused in a `.htaccess` on every server**, module or not, so they belong
-  in a vhost and never in this repository. `uploads/.htaccess` therefore says
-  the same thing three ways - the guarded flag, `RemoveHandler`, and a
-  `FilesMatch` deny - and only the last one works without knowing how the
-  host wired PHP up, which is why it is the one that has to be right.
-  Everything else in a shipped `.htaccess` is guarded by the module that
-  understands it. `Options` cannot be, so it carries a comment saying it is
-  the line to drop if a host refuses it.
+  extension we chose, and nothing in `uploads/` is ever executed. A
+  `.htaccess` directive a server does not understand is a 500, so
+  `uploads/.htaccess` keeps `php_flag` inside `<IfModule mod_php.c>` and also
+  blocks PHP with `RemoveHandler` and a `FilesMatch` deny - only the last works
+  without knowing how the host runs PHP, which is why it has to be right.
+  `php_admin_*` never goes in a `.htaccess`.
 - **Installer:** refuses to run once `install/install.lock` exists.
 - **Cron URL:** `/cron/{cron_key}` compared with `hash_equals`; a wrong key is a
-  plain 404, so the endpoint cannot be probed for.
+  plain 404.
 - **Paths:** `app/`, `config/`, `storage/`, `themes/*/views` and
-  `install/*.{sql,lock}` are denied in `.htaccess` - as rewrite rules, which
-  are relative to the directory and so hold for a panel in a subfolder, and
-  again through `mod_alias` for a server with no `mod_rewrite`. Each of those
-  folders also carries its own deny file, because a rule in a parent is one
-  careless upload away from being gone. The nginx equivalent is in the
-  README, where `/install/` is **not** denied wholesale: the installer is how
-  the panel is set up.
-- **Money:** the order price is recalculated from the service row on the server
-  every time. A price posted by the browser is ignored.
-- **Links:** when a platform sets `url_prefix`, an order's link must be on that
-  host, so an Instagram service cannot be ordered with a TikTok link.
-  `link_is_on_host()` is the rule: the host must **be** that host or a
-  subdomain of it. "Contains" is not good enough — `instagram.com.example.net`
-  contains `instagram.com`. The browser applies the same rule as you type, but
-  only to answer sooner; the server still decides.
-- **...and the right kind of link on it.** Views are counted on one reel, so a
-  reel order placed with a profile link is an order the provider cannot fill.
-  **A link rule is a row**, in `link_rules`, not a line in the code: a name, a
-  pattern, an example and the words to refuse with. A category points at as
-  many as it accepts, in `categories.link_rules`, and **any one matching is a
-  link we take** — which is what lets one tab sell reel views and post views.
-  The rows this release ships with are the shapes it used to hold in code;
-  they arrive seeded and are editable, switchable and deletable like anything
-  else, and `/admin/link-rules` is where an admin writes the next one.
-
-  `match_type` is `simple` or `regex`. Simple is the admin's language — the
-  path with `*` for anything, matched anywhere in it, so `/reel/` takes every
-  reel link there is — and it is quoted with `preg_quote()` so a dot is a dot.
-  `regex` is the way out for the seeded rows and for an admin who means it;
-  the form compiles whatever is typed before it saves, because a pattern that
-  will not run refuses every link on the shop and explains nothing. The form
-  also carries a **copy-ready prompt**: paste a link on the end of it, give it
-  to an AI, and the answer drops into `pattern` with `match_type` on `regex`.
-
-  **`link_rule()` is the one answer** to "what links does this category take":
-  the field's label, its example, the sentence it refuses with, the regular
-  expression the browser runs as you type and the check the server does
-  afterwards all come back from that one call, so they cannot disagree. The
-  combined pattern is one alternation, so the browser asks exactly what the
-  server will ask. A category that has chosen no rules falls back to the kind
-  read from the service name and then its own name — what every category did
-  before rules were rows — so a shop that never opens the screen is unchanged.
-  A platform nobody wrote a rule for is not checked at all: an admin adding
-  their own platform gets the host rule and nothing in the way. `link_attrs()`
-  is the one place a card says all of this, because three partials draw a card
-  and a rule written three times drifts.
-
-- **Spam:** the order and contact forms each carry a hidden honeypot field and
-  a per-IP throttle.
+  `install/*.{sql,lock}` are denied in `.htaccess` (as rewrite rules and again
+  through `mod_alias`), and each of those folders carries its own deny file.
+  The nginx equivalent is in the README.
+- **Spam:** the order, contact and sign-up forms carry a hidden `website`
+  honeypot and a per-IP throttle; every customer-facing POST is throttled.
 
 ## Style
 
@@ -683,17 +563,19 @@ These are the rules the code already follows; keep them.
 
 ## Design
 
-The admin follows direction A in `mockups/admin-a.html` (light sidebar, indigo
-accent). The front site will follow one of `mockups/front-*.html`. The mockups
-stay in the repository as the visual reference; they ship with no PHP and are
-not part of the deployed site.
+The admin is the light-sidebar, indigo-accent panel the SMM codebase used.
+The storefront is *Flash Light*: a violet gradient hero that the header sits
+on, the picker as a white card overlapping it, and the same card language for
+the order page and the portal. Brand icons come from Simple Icons and flags
+from flag-icons, both bundled under `assets/` with their licences; nothing is
+loaded from a CDN.
 
 ## Releasing
 
 `bash tools/build-release.sh` stages only what the live site needs and zips it
-into `build/`. `mockups/` and `tools/` stay in the repository but never ship -
-`tools/mock-provider.php` must not reach a real server. The script fails loudly
-if anything on that list sneaks in.
+into `build/otp-flash-YYYY-MM-DD.zip`. `tools/` stays in the repository but
+never ships - `tools/mock-otpget.php` hands out numbers and codes to anyone who
+asks and must not reach a real server. The script fails loudly if it sneaks in.
 
 ## Testing
 
@@ -707,31 +589,30 @@ find . -name '*.php' -not -path './.git/*' -exec php -l {} \;
 php tools/check-admin-css.php
 
 # a real run
-php -S localhost:8000 tools/dev-router.php     # the app
-php -S localhost:8001 tools/mock-provider.php  # a fake provider
+php -S 127.0.0.1:8000 tools/dev-router.php     # the app
+php -S 127.0.0.1:8001 tools/mock-otpget.php    # a fake OTPGet
 ```
 
-Use the router script. Without it `php -S` answers `/sitemap.xml` and
-`/robots.txt` from disk, finds no such file and returns 404, while Apache
-rewrites both to the front controller — so the two servers disagree about
-exactly the URLs the resolver names specially.
+Use the router script: without it `php -S` answers `/sitemap.xml` and
+`/robots.txt` from disk. **The router serves its own parent directory**, not
+the server's `-t` - so to test an unpacked release, copy the router into that
+release's `tools/` and start it from there, or you are testing the working
+copy without knowing it.
 
-Run the install-to-completed pass **on both drivers**. The two bugs that only
-one of them showed were `NOW()` left in the installer's admin INSERT, which
-SQLite has no function for, and `current_path()` trusting `SCRIPT_NAME`, which
-only broke once a router script changed what the server reported.
+Then, **on both drivers**: install from an empty database, point *OTPGet* at
+`http://127.0.0.1:8001/stubs` with any 8-character key, sync, and walk:
 
-Then: install from an empty database, add the mock provider, import, place an
-order, mark it paid, run `php cron.php` a few times and watch it complete. An
-order whose link contains `fail-me` exercises the `api_error` path.
+- a guest buying with a manual method, an admin pressing *Mark paid*, and the
+  guest's open order page turning into the number and then the code by itself;
+- a customer signing up, being credited from *Customers*, buying from the
+  wallet, an email inbox and a rental (whose inbox fills on the next cron);
+- a Netflix number (never gets an SMS): wind its activation's `expires_at`
+  back, run `php cron.php`, and watch it expire and refund the wallet;
+- a Tinder number for the `api_error` path.
 
-Then the upgrade path, which is the one the working copy never exercises:
-take a copy of the previous release's database, point the new code at it, and
-open every admin screen before running the update. The panel must stay usable
-while the database is behind, because `/admin/update` lives inside it.
+Then the upgrade path: take a copy of the previous release's database, point
+the new code at it, and open every admin screen before running the update.
+The panel must stay usable while the database is behind, because
+`/admin/update` lives inside it.
 
-Before a release, do that run against the **zip**, not the working copy -
-unpack `build/*.zip` somewhere clean and install it from zero. The one bug that
-only showed up that way was a CRUD form field missing from a POST becoming NULL
-in a NOT NULL column, which the working copy never hit because its forms always
-carried every field.
+Before a release, do the install against the **zip**, not the working copy.

@@ -1,11 +1,13 @@
-# SMM Panel
+# OTP Flash
 
-A small social-media-growth storefront with an admin panel, written in plain PHP
-with no framework and no Composer. It runs on ordinary shared hosting: upload,
-open the installer, done.
+A virtual-number shop for OTP verification, with an admin panel, written in
+plain PHP with no framework and no Composer. Numbers, temporary email inboxes
+and rented numbers come from [OTPGet](https://otpget.com/docs); OTP Flash puts
+its own prices on them, takes the payment, buys the number the moment it is
+paid for and shows the code on the customer's screen as soon as it arrives.
 
-**Status:** complete and tested — storefront, ordering, payment, tracking and
-the full admin panel.
+It runs on ordinary shared hosting: upload, open the installer, paste your
+OTPGet key, sync, done.
 
 ---
 
@@ -13,16 +15,18 @@ the full admin panel.
 
 | | |
 |---|---|
-| **Storefront** | Platform switcher, category tabs, live pricing, order modal, FAQ, content pages, contact form, sitemap |
-| **Ordering** | Order → payment details → transaction id → tracking by code, plus a JSON status endpoint |
-| **Admin** | Dashboard, orders, services, provider import, platforms, categories, pages, FAQs, messages, payment methods, settings |
-| **Providers** | Any SMM API v2 provider. Import a provider's catalogue, mark it up, and resell |
-| **Orders** | Mark paid → send to provider → statuses come back on cron → completed |
-| **Manual services** | A service with no provider is never sent to an API; you deliver it yourself |
-| **Design** | Direction A from `mockups/` — clean light front, light sidebar admin |
+| **Storefront** | Pick an app, a country and a server on the home page itself - searchable lists with brand icons and flags, sorted by popularity, price or name. Every choice is a real landing page (`/whatsapp`, `/whatsapp/pakistan`, `/country/pakistan`) |
+| **Products** | SMS numbers on OTPGet's servers 1-6, Premium numbers, Budget numbers, Email OTP inboxes and Rentals (12 hours to a year, with an inbox). Each one switches on and off from the admin |
+| **The number page** | Number with copy buttons (with and without the country code), a countdown, the code the moment it lands, *Change number* (free) and *Cancel* - no refresh needed |
+| **Guests** | Buy without an account: choose, pay, keep the order code. A number that never gets its SMS can be swapped for a free one |
+| **Customer portal** | Sign up / sign in, dashboard, wallet with one-tap purchases, deposits through any payment method, automatic refunds to the wallet, order history, rentals with a live inbox and renewal |
+| **Payments** | Manual methods (JazzCash, EasyPaisa, bank - the customer sends a reference and an admin confirms) and redirect / QR gateways such as Paytm Business. Wallet balance for signed-in customers |
+| **Admin** | Dashboard, orders, customers, rentals, wallet ledger, OTPGet connection and sync, catalogue with per-offer price pinning, services, countries, blog, pages, FAQs, SEO, payment methods, currencies, emails, notifications, audit log, themes, updates |
+| **Blog / CMS** | Posts with the Summernote editor, image upload, cover image, categories, tags, scheduling, a live SEO checklist and Google preview, RSS feed |
+| **SEO** | Titles and descriptions per page, canonical URLs, Open Graph and X cards, JSON-LD (Organization, WebSite search box, Breadcrumbs, Product price range, FAQ, BlogPosting), a sitemap index split by type with images, robots.txt, verification tags |
 
 Requirements: PHP 8.0+, the `mbstring`, `json` and `curl` extensions, and a
-database — either **MySQL 5.7+ / MariaDB 10.3+** (`pdo_mysql`) or **SQLite**
+database - either **MySQL 5.7+ / MariaDB 10.3+** (`pdo_mysql`) or **SQLite**
 (`pdo_sqlite`). SQLite needs no database server at all: the whole thing lives
 in one file under `storage/`, which is already blocked from the web.
 
@@ -30,37 +34,33 @@ in one file under `storage/`, which is already blocked from the web.
 
 ## Installing on cPanel
 
-1. **Create the database** — only if you want MySQL. In cPanel → *MySQL
+1. **Create the database** - only if you want MySQL. In cPanel → *MySQL
    Databases*, create a database and a user, and give the user *All Privileges*
-   on it. cPanel prefixes the names, so they look like `myacct_smm`,
-   `myacct_smmuser`.
+   on it. Picking **SQLite** in the installer instead skips this step.
 
-   Picking **SQLite** in the installer instead skips this step entirely.
+2. **Upload the zip** (see *Building the upload zip* below) to `public_html`,
+   or a subfolder, and extract it.
 
-2. **Upload the files.** Put everything in `public_html` (or a subfolder if the
-   panel is not on the main domain). `mockups/` and `tools/` are development
-   aids and do not need to go up.
-
-3. **Make three folders writable** (755 is usually enough, 775 if your host is
-   strict): `config/`, `storage/logs/`, `uploads/branding/`.
+3. **Make these folders writable** (755 is usually enough, 775 if your host is
+   strict): `config/`, `storage/`, `uploads/branding/`, `uploads/content/`.
 
 4. **Open `https://yourdomain.com/install`.** It checks the server, lets you
    choose MySQL or SQLite, creates the tables and seed data, then asks for your
-   admin username and password. It writes `config/config.php` with a random app
-   key and cron key, and locks itself afterwards.
-
-   Visiting any other page before this redirects here, so you cannot miss it.
+   admin login, the shop name and - optionally - your OTPGet API key. It writes
+   `config/config.php` with a random app key and cron key, and locks itself.
 
 5. **Delete the `install/` folder.** Everything keeps working without it.
 
-6. **Add the cron job** (cPanel → *Cron Jobs*, every 5 minutes):
+6. **Add the cron job** (cPanel → *Cron Jobs*, **every minute**):
 
    ```
    php /home/youraccount/public_html/cron.php
    ```
 
-   If your host does not allow CLI cron, use the URL form instead — the full
-   address is shown in *Settings → Cron*:
+   Every minute matters here: a number lives for twenty minutes, and cron is
+   what notices an expired one and refunds it, catches a payment whose
+   customer closed the tab, and keeps rental inboxes current. If your host
+   does not allow CLI cron, use the URL form shown in *Admin → Cron*:
 
    ```
    https://yourdomain.com/cron/your-cron-key
@@ -70,61 +70,176 @@ Log in at `https://yourdomain.com/admin`.
 
 ---
 
-## Updating to a newer release
+## First hour: connecting OTPGet
 
-The database is the only thing an update has to touch, and the panel does that
-part itself.
+1. **Admin → OTPGet → Connection & sync.** Paste your API key (from your
+   OTPGet account) and save. The screen asks OTPGet for your balance straight
+   away, so a wrong key is caught now rather than at the first order.
+2. **Choose what to sell**: which products (SMS, Premium, Budget, Email,
+   Rentals), which SMS servers, which email servers and rental providers. Give
+   the servers names if you like ("Fast", "Cheap") - customers see those.
+3. **Set your markup.** One default percentage, optionally a different one per
+   product, a minimum price and how prices are rounded (always up).
+4. **Press Sync.** The catalogue is read one country at a time with a progress
+   bar, so a shared host's thirty-second limit never cuts it off. With
+   *keep the catalogue fresh* on, cron re-reads a few countries every run.
+5. **Add a payment method** under *Payment methods*, and switch it on. Without
+   one, guests have no way to pay (account holders can still use the wallet
+   once you credit it).
 
-1. **Back up the database.** An update only adds tables, columns and settings,
-   but a backup costs a minute and a restore does not.
+The shop is selling from this point.
 
-2. **Upload the new files over the old ones.** Leave `config/`, `storage/` and
-   `uploads/` alone — those are yours, and nothing in a release overwrites
-   them.
+### How a price is made
 
-3. **Open *Update* in the admin sidebar.** It compares the version in the files
-   (`app/core/version.php`) with the version recorded in the database, lists
-   the changes that are outstanding, and applies them one at a time with a
-   progress bar.
+`OTPGet cost → converted to your base currency → + markup → never below the
+minimum → rounded up`. A price you type on the Catalogue screen is **pinned**:
+it stays put when OTPGet's cost moves, until you unpin it. The Catalogue and
+OTPGet screens both carry a short explanation of these rules with the numbers
+currently in force.
 
-   Every screen shows a banner while an update is outstanding, so there is no
-   way to upload a release and forget this step.
+An offer OTPGet stops listing is marked *missing* and leaves the shop by
+itself; it comes back by itself if it is listed again. Switching a service or
+a country off hides every offer it has.
 
-Each change runs as its own request. A migration that rewrites a large table is
-exactly the kind of thing a shared host cuts off at thirty seconds, and running
-them one per request keeps each one well inside the limit. A change that has
-already been applied is recorded and never runs twice, so pressing the button
-again is safe.
+### Services and countries
+
+OTPGet names apps and countries in its own words ("Whatsapp", "WA",
+"Pakistan (+92)"). The sync matches them to a built-in list of 180 apps with
+brand icons and every country with its flag and dialling code, so the same app
+from six servers shows up as one row with six options. Anything it cannot
+match is still sold, under OTPGet's name, with a lettered icon. Rename, recolour,
+reorder, hide or write a landing-page introduction for any of them under
+*Services* and *Countries*.
 
 ---
 
-## Themes
+## How an order moves
 
-Two ship: **Clean Light** (soft gradients, light palette) and **Warm Gradient**
-(pink-to-coral hero with the platform chooser sitting across it). Switch in
-*Admin → Themes*; the new theme's own colour is applied unless you have picked
-one yourself in Settings.
+```
+pending ──paid──> paid ──bought──> processing ──code──> completed
+                                       │
+                                       ├── no code in time ──> expired (refunded to the wallet)
+                                       └── OTPGet refused ───> api_error (retry, or refund)
+```
 
-To add a third, copy a folder under `themes/`, change `theme.php` and edit what
-you want. A theme only ships the views it changes — anything it leaves out comes
-from the default theme — and no existing file needs touching for it to appear in
-the admin.
+- **Paying** - a guest pays through a payment method; a signed-in customer can
+  also pay from their wallet in one tap. A manual payment waits for an admin
+  to press *Mark paid*; a gateway confirms itself.
+- **Buying** - the number is bought from OTPGet the moment the order is paid
+  (switch *buy at once* off to press *Deliver* yourself). If OTPGet's price
+  has risen above what the customer paid since the last sync, the order waits
+  for you instead of being filled at a loss.
+- **Waiting** - the order page asks for the code every few seconds; cron asks
+  too, so a closed tab does not matter.
+- **No SMS** - after OTPGet's two-minute rule the customer can *Change number*
+  (free, up to three numbers per order by default) or *Cancel*. A number that
+  runs out of time is given back to OTPGet, which refunds us, and an account
+  holder is refunded to their wallet automatically. A guest's order offers a
+  fresh number instead.
+- **Rentals** need an account. The number and its inbox live under
+  *Account → Rentals*, every SMS is kept, and the customer can renew from the
+  same page.
+
+Every state change writes a line in the order's log, and every admin action is
+in the audit log.
+
+---
+
+## The customer's wallet
+
+`users.balance` is the figure and the *Wallet ledger* is the story of it: every
+deposit, purchase, refund and admin adjustment is a line carrying the balance
+it left behind, written in the same transaction as the change. A customer sees
+the same lines, with your notes, in their portal.
+
+- **Deposits** are ordinary orders for the amount, paid through any payment
+  method; confirming one credits the wallet.
+- **Adjustments** are made on the customer's own screen (*Customers → open →
+  Adjust the wallet*) and always carry a note, because the customer reads it.
+- A balance can never go below zero - the debit is one conditional UPDATE, so
+  two purchases in two tabs cannot both spend the same rupee.
+
+---
+
+## The blog and SEO
+
+**Blog posts** are written in Summernote. Pictures dropped into the editor are
+uploaded to `uploads/content/`, never pasted in as base64. Use *Heading 2* for
+sections: they become the contents list at the top of the post and the
+"On this page" links beside it.
+
+Beside the editor, *Search appearance* shows the post as Google would, counts
+the title and description, and runs a checklist - length, headings, images
+with alt text, links, and your focus keyword in the title, description, first
+paragraph and address. It is advice, not a gate.
+
+A publish date in the future schedules the post: it stays out of the blog, the
+sitemap and the feed until then. *Hide from search engines* keeps a post
+reachable by link but out of the index.
+
+**Admin → SEO** holds what every page shares: the title format, the default
+description, the share image, your business name and social profiles, the
+Google and Bing verification codes, extra robots.txt lines, and the switch for
+service / country landing pages. It also shows how many addresses the sitemap
+holds and links to it - submit `https://yourdomain.com/sitemap.xml` once in
+Google Search Console and Bing Webmaster Tools; it keeps itself up to date.
+
+---
+
+## Updating to a newer release
+
+1. **Back up the database.**
+2. **Upload the new files over the old ones.** Leave `config/`, `storage/` and
+   `uploads/` alone - nothing in a release overwrites them.
+3. **Open *Update* in the admin sidebar.** It lists the outstanding database
+   changes and applies them one per request with a progress bar. Every screen
+   shows a banner while an update is outstanding.
+
+---
+
+## Emptying things out, and changing the base currency
+
+**Admin → Maintenance** clears in bulk, each job needing the word DELETE typed
+first and recorded in the audit log before it runs: the catalogue (offers -
+orders keep what they were sold as), orders, or everything transactional.
+
+**Currencies → Make base** changes the base currency after you have prices:
+offers, orders, wallets and the ledger are converted at one rate in a single
+transaction. Money is stored to two decimals, so take a backup before a change
+you might want to reverse.
+
+---
+
+## Chat buttons: WhatsApp, Telegram and email
+
+Fill the channels in under **Settings → Contact**, then choose which belong in
+each place under **Settings → Chat buttons** (floating bubble, header, home
+page band, contact page, order pages). A blank channel is never offered. The
+WhatsApp message on an order page is prefilled with the order code, the number
+and the amount.
+
+---
+
+## Taking payment with Paytm Business
+
+**Payment methods → New → Paytm Business (UPI QR)**, fill in your Merchant ID
+and Business UPI ID, save it active. The customer scans a QR for the exact
+amount and the order confirms itself when the money lands - the page polls,
+cron polls, and a payment reported short of the order is not accepted. UPI
+settles in rupees, so add **INR** under Currencies if your base is something
+else.
 
 ---
 
 ## Nginx
 
-There is no `.htaccess` on nginx, so the rewrite and the deny rules have to go
-in the server block:
-
 ```nginx
 server {
     listen 80;
     server_name yourdomain.com;
-    root /var/www/smm;
+    root /var/www/otpflash;
     index index.php;
 
-    # Everything that is not a real file goes to the front controller
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
@@ -137,17 +252,12 @@ server {
 
     # Application internals are never served
     location ~ ^/(app|config|storage)/ { deny all; return 404; }
-
-    # A theme's code is private; its assets folder is not.
     location ~ ^/themes/[^/]+/views/ { deny all; return 404; }
 
-    # The installer itself has to be reachable - it is how the panel is set
-    # up - so only what is inside it that nobody should read is denied.
+    # The installer has to be reachable; only its private files are denied.
     location ~ ^/install/.*\.(sql|lock)$ { deny all; return 404; }
 
-    # Nothing in uploads/ is ever executed. The ^~ is what makes this win
-    # against the \.php$ block above; without it an uploaded .php would be
-    # handed straight to PHP-FPM.
+    # Nothing in uploads/ is ever executed. ^~ makes this win over \.php$.
     location ^~ /uploads/ {
         location ~ \.(php|phtml|phps|php[0-9]|phar|pl|py|cgi|sh)$ { deny all; return 404; }
     }
@@ -159,196 +269,11 @@ server {
 
 ### If Apache answers 500 and nothing has reached PHP
 
-A `.htaccess` directive the server does not understand is not skipped - it is
-a 500 for everything in that folder. Two of them are worth knowing about:
-
-- **`php_flag` / `php_value`** only exist where PHP runs as an Apache module.
-  On FastCGI, PHP-FPM or LiteSpeed - which is most cPanel hosting now - they
-  are unknown directives. `php_admin_flag` and `php_admin_value` are worse:
-  they are refused in a `.htaccess` on *every* server, module or not. The
-  shipped `uploads/.htaccess` keeps the flag inside `<IfModule mod_php.c>`
-  guards and stops PHP running there two other ways as well, so it is safe
-  on either kind of host.
-- **`Options`** needs `AllowOverride Options`. If the 500 is at the root and
-  started with the upload, try the file without its `Options -Indexes` line;
-  `IndexIgnore *` beside it says the same thing through another override
-  class.
-
----
-
-## Adding a provider and importing services
-
-1. **Admin → Providers → Add provider.** Give it a name you will recognise, the
-   provider's API endpoint (usually something ending in `/api/v2`) and your API
-   key. Save, then press **Check balances** to confirm the key works — the
-   balance appears in the sidebar.
-
-2. **Admin → Import Services.** Pick the provider. The catalogue is fetched once
-   and cached for 30 minutes; **Refresh from API** forces a new fetch.
-
-3. **Filter down to what you want.** Search by name, or narrow by the provider's
-   own category.
-
-4. **Check the two settings above the table:**
-   - *Auto-detect platform & category* reads each service name and fills in the
-     platform and category for you. It reads the service name first and the
-     provider's category name second, because the name is more specific —
-     "Telegram Reactions" sits in a provider category called "Telegram Members"
-     but belongs under Likes.
-   - *Markup %* sets your selling price: `cost × (1 + markup/100)`.
-
-5. **Tick the rows and press Import.** Services you already have are shown as
-   *have it* and unticked by default. Importing them again with *update existing*
-   on refreshes cost, price and limits but keeps any name or description you
-   edited.
-
-6. **Admin → Services** to tidy up: rename, write a description and feature
-   ticks, set which are *most popular*, or use the bulk bar to activate, apply a
-   markup, re-sync prices or deactivate in one go.
-
-To sell something you fulfil by hand, add a service and leave **Buy from** set to
-*Manual*. Those orders move to *processing* on payment and wait for you.
-
-**Adding a provider tests it first.** Saving the form asks the provider for its
-balance before the row is written: a URL or key it refuses is not saved, and
-the reason is shown under the key field. One that answers is saved already
-knowing its balance, the currency it bills in and whether it can report on
-several orders in one request — so there is nothing to press afterwards. The
-screen then says what else it found: a billing currency with no exchange rate
-yet, or a catalogue that came back empty, are things to go and fix rather than
-reasons to refuse a working key.
-
-Editing re-tests only when the URL or the key changed. Changing a sort order
-does not cost you a round trip to the provider, and the **Check** button on the
-list is there for asking again whenever you want.
-
----
-
-## How an order moves
-
-```
-pending ──mark paid──► paid ──send──► processing ──cron──► completed
-   │                     │                │
-   │                     └── api_error ◄──┘ (provider refused; the reason is kept)
-   └── cancelled / refunded
-```
-
-With *auto-send orders* on (Settings), marking an order paid sends it straight
-to the provider. Cron then refreshes statuses, pulls back start count and
-remains, and marks orders completed. Nothing is ever silently completed — an
-unknown provider status stays *processing*.
-
----
-
-## Emptying things out, and changing the base currency
-
-**Admin → Maintenance** clears things in bulk. Three jobs, each needing the
-word DELETE typed before it will run, each recorded in the audit log before it
-runs:
-
-- **Clear the catalogue** — every service and package. Orders keep the name,
-  quantity and price they were placed with, so history still reads correctly.
-- **Clear orders** — orders, their logs and any payment screenshots.
-- **Start fresh** — both, plus messages, notifications, the email log and cron
-  history. Keeps your admin account, settings, providers, platforms,
-  categories, payment methods, currencies, pages, FAQs and the audit log.
-
-Deleting a service no longer deactivates it when orders point at it. It did,
-out of caution, but it was never needed: `orders.service_id` is
-`ON DELETE SET NULL` and each order carries its own copy of what it bought.
-
-**The base currency can now be changed after you have prices.** Currencies →
-*Make base* shows how many services, packages, orders and rates will be
-rewritten, asks you to type the currency code, then converts all of them at
-one ratio in a single transaction. Nothing is re-fetched from providers:
-dividing a stored amount by the rate gives exactly what rebuilding it against
-the new base would.
-
-Two things to know. Past order amounts are converted too, so they read in the
-new currency rather than the one they were taken in. And money is stored to
-two decimals, so switching back and forth drifts by a paisa or a cent per
-row — take a backup before a change you might want to reverse.
-
----
-
-## Chat buttons: WhatsApp, Telegram and email
-
-The shop can be reached on any of three channels, and **which button appears
-where is a setting**, not something baked into the theme.
-
-Fill the channels in under **Admin → Settings → Contact**: a WhatsApp number
-with its country code, a Telegram username (`@yourshop`, `yourshop` or the
-whole `https://t.me/yourshop` link — all three are accepted) and a support
-email. A channel you leave blank is simply not offered anywhere.
-
-Then tick which of them belongs in each place under **Settings → Chat
-buttons**:
-
-| Place | What it is |
-|---|---|
-| Floating bubble | The bubble in the corner of every page |
-| Header and menu | The "Need help?" link beside Track Order |
-| Home page band | The "not sure which package" block |
-| Contact page | The buttons above the message form |
-| Order and payment pages | Sending a receipt, and the "something wrong?" line |
-
-Tick none for a place and no button appears there. Tick two and both appear,
-side by side or stacked.
-
-**No button is named after its app.** A customer looking for help is choosing
-a way to reach you, not a brand, and a shop that moves from one messenger to
-another should not have to hunt down every button that named the old one.
-Which app it is, is the icon's job — and the name is in every button's `title`
-and `aria-label`, so a screen reader still says it.
-
-- The **floating bubbles are round and carry no words at all**, one circle per
-  channel, stacked in the corner.
-- In-page buttons say **Chat** (WhatsApp), nothing (Telegram — its icon alone)
-  or the address (email).
-- The menu inside the burger is the exception: it is a list of words with no
-  icons, so there each channel is named.
-
-Two things worth knowing:
-
-- **A receipt is prefilled where the channel can carry one.** WhatsApp and
-  email both take a message; Telegram's `t.me` links cannot, so that one just
-  opens the chat — which is why the order code is always on screen with a copy
-  button beside it.
-- **The number the order form asks the customer for is still a WhatsApp
-  number.** That is how you reach *them*, and it is a separate thing from how
-  they reach you.
-
----
-
-## Taking payment with Paytm Business
-
-Paytm Business collects into a UPI id, so the customer is shown a QR for the
-exact amount and the order confirms itself when the money lands. Nobody types a
-transaction id and nobody has to match one up afterwards.
-
-1. **Admin → Payment Methods → New**, pick **Paytm Business (UPI QR)**.
-2. Fill in your **Merchant ID (MID)** and **Business UPI ID**, both from the
-   Paytm Business dashboard, and optionally the name you want shown in the UPI
-   app (the site name is used otherwise).
-3. Save it active.
-
-What the customer sees: they place the order, land on `/order/{CODE}/qr`, scan
-the QR with any UPI app - or tap *Pay in your UPI app* on a phone - and the page
-notices the payment within a few seconds and moves them on. With *auto-send
-orders* on, the order goes to the provider the moment it is confirmed.
-
-Two things worth knowing:
-
-- **UPI settles in rupees.** If your base currency is not INR, add **INR** under
-  Admin → Currencies so there is a rate to convert with. Without one the QR is
-  refused rather than drawn for a figure nobody can stand behind.
-- **The customer who pays and closes the tab is still covered.** The
-  *Check watched payments* cron task asks Paytm about orders that are still
-  awaiting payment, for a day after they were placed.
-
-A payment Paytm reports for less than the order asks for is *not* confirmed: the
-order stays where it is and both figures are written into its log, because the
-alternative is delivering for nothing.
+A `.htaccess` directive the server does not understand is a 500, not a line it
+skips. `php_flag` only exists where PHP is an Apache module, so the shipped
+`uploads/.htaccess` keeps it inside `<IfModule mod_php.c>` and blocks PHP two
+other ways as well. If the 500 is at the root, try the root `.htaccess`
+without its `Options -Indexes` line.
 
 ---
 
@@ -357,54 +282,51 @@ alternative is delivering for nothing.
 ```
 index.php              front controller; every URL lands here
 cron.php               scheduled work (CLI)
-app/core/              bootstrap and the resolver
-app/helpers/           functions.php, crud.php, SmmApi.php, detect.php, orders.php, cron.php
-controllers/           one file per URL; controllers/admin/ is the admin
-views/                 one file per screen, plus layouts/ and admin/crud/
-assets/                css and js
-install/               installer and schema (delete after installing)
-mockups/               the HTML design mockups this was built from
-tools/                 mock-provider.php, for testing without a real API
+app/core/              bootstrap, resolver, version
+app/helpers/           functions.php, OtpGet.php (the API client), catalog.php,
+                       numbers.php, rentals.php, wallet.php, orders.php,
+                       storefront.php, seo.php, blog.php, users.php, cron.php …
+app/controllers/       one file per URL; admin/ is the admin
+app/views/admin/       the admin screens
+themes/default/        the storefront and portal: views/, assets/app.css, app.js
+assets/                admin css/js, flags, brand icons, vendor (Summernote, jQuery)
+install/               installer, both schemas, migrations
+tools/                 dev router, mock OTPGet, release builder, CSS checker
 ```
 
-Routing is file-based: `/admin/services` runs `controllers/admin/services.php`.
-No route table to keep in sync.
+Routing is file-based: `/admin/catalogue` runs `app/controllers/admin/catalogue.php`.
 
 ---
 
 ## Running it locally
 
 ```bash
-php -S localhost:8000                         # the site
-php -S localhost:8001 tools/mock-provider.php # a fake provider
+php -S 127.0.0.1:8000 tools/dev-router.php      # the shop, behaving like Apache
+php -S 127.0.0.1:8001 tools/mock-otpget.php     # a fake OTPGet
 ```
 
-That is enough: every page a person clicks works, including `/install`.
+Use the router: without it the built-in server answers `/sitemap.xml` and
+`/robots.txt` from disk. Note that it serves the folder it lives in (its
+parent), so to try an unpacked release zip, copy it into that release's own
+`tools/`.
 
-The one gap is `/sitemap.xml` and `/robots.txt`. PHP's built-in server answers
-any URL with a file extension straight from disk and never reaches `index.php`,
-so those two 404 locally — they are fine on Apache and nginx, and `/sitemap`
-and `/robots` serve the same thing everywhere. If you want the dotted versions
-locally too:
+### Testing without a real OTPGet account
 
-```bash
-php -S localhost:8000 tools/dev-router.php
-```
+In *Admin → OTPGet*, set the base URL to `http://127.0.0.1:8001/stubs` and use
+any key of 8+ characters. The mock implements every endpoint the shop uses -
+SMS, Premium, Budget, Email and Rental - with a realistic catalogue, and
+delivers a code a few seconds after a number is bought. Some names are wired
+to misbehave so the hard paths can be seen:
 
-which makes the built-in server behave like Apache with the shipped
-`.htaccess`. It is development only and is not in the release zip.
+| Choose | and you get |
+|---|---|
+| Netflix | a number that never receives an SMS - expiry and automatic refund |
+| Tinder | OTPGet refusing the purchase - the `api_error` path |
+| Antarctica | no numbers in stock |
 
-## Testing without a real provider
-
-```bash
-php -S 127.0.0.1:8001 tools/mock-provider.php
-```
-
-Add a provider with API URL `http://127.0.0.1:8001/` and any key. It returns 40
-realistic services, accepts orders, and walks each order forward on every status
-call, so you can watch the whole flow complete. An order whose link contains
-`fail-me` is refused, which is a quick way to see the `api_error` path.
-
+`MOCK_SMS_DELAY=20` (seconds) and `MOCK_CANCEL_AFTER` change the timings.
+The mock keeps its state in the system temp folder and must never be uploaded
+anywhere real - the release script refuses to ship it.
 
 ---
 
@@ -414,50 +336,35 @@ call, so you can watch the whole flow complete. An order whose link contains
 bash tools/build-release.sh
 ```
 
-Writes `build/smm-panel-YYYY-MM-DD.zip` with only what the live site needs. The
-mockups and the development tools are deliberately left out — the mock provider
-must never reach a real server.
+Writes `build/otp-flash-YYYY-MM-DD.zip` with only what the live site needs.
 
 ---
 
 ## What a customer sees
 
 ```
-/                        the default platform
-/instagram               that platform
-/instagram/followers     that platform and category
-/faq  /contact  /track   content and tracking
-/install                 the installer, until it locks itself
-/order/GK-8F42KD         their order: summary, payment details, live status
-/api/track?code=...      the same status as JSON
-/sitemap.xml /robots.txt for search engines (also at /sitemap and /robots)
+/                              buy a number: app → country → server
+/whatsapp  /whatsapp/pakistan  landing pages for an app, and an app in a country
+/country/pakistan              every app in one country
+/temporary-email[/facebook]    email OTP inboxes
+/rent-number[/united-kingdom]  rentals
+/order/OF-8F42KD3M             their order: pay, then the number and the code, live
+/login /register /account      the portal: dashboard, orders, rentals, wallet, profile
+/blog  /blog/{post}            the blog, categories, tags, /blog/feed
+/faq  /contact  /track         help and tracking by order code
+/sitemap.xml  /robots.txt      for search engines
 ```
 
-No URL anywhere has `.php` in it. The platform strip and the category tabs are
-real links, so the site works — and is crawlable — with JavaScript blocked. The script only adds the live price
-and the order modal; without it the same form posts normally.
-
-The price is recalculated from the service row on every order. Nothing the
-browser says about money is trusted.
-
+No URL has `.php` in it. The picker's lists are real links, so the site works,
+and is crawled, with JavaScript blocked; the script adds live filtering, the
+pay modal and the live number page. Nothing the browser says about money is
+trusted - the price is read back from the offer on every order.
 
 ---
 
 ## MySQL or SQLite?
 
 Both are first-class; the installer asks once and writes the choice into
-`config/config.php` as `db_driver`.
-
-| | MySQL / MariaDB | SQLite |
-|---|---|---|
-| Setup | create a database and user first | nothing to set up |
-| Where the data lives | on the database server | `storage/database.sqlite` |
-| Backups | export through phpMyAdmin or mysqldump | copy the one file |
-| Good for | any size, several sites sharing a server | a single shop; simplest possible install |
-
-The SQLite file sits in `storage/`, which `.htaccess` and the nginx config
-already deny, so it is not reachable over the web. Back it up the way you would
-back up a database — it *is* the database.
-
-To move between them, install fresh on the other driver and re-import your
-services; there is no converter.
+`config/config.php` as `db_driver`. SQLite keeps everything in one file in
+`storage/` (copy it to back up); MySQL suits a busier shop or a server shared
+with other sites. There is no converter between them.

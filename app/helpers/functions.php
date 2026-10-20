@@ -803,28 +803,6 @@ function chat_channel(string $key, string $message = ''): ?array
 }
 
 /**
- * Where support actually is, for the line under "Support" in the hero.
- *
- * Named from the channels that are switched on rather than written into the
- * markup, because "On Telegram" under a headline is a promise - and a shop
- * with no Telegram would be making it to every visitor. With nothing set up
- * at all it says when instead of where, which is the one claim that stays
- * true either way.
- */
-function support_channel_line(): string
-{
-    foreach (array_keys(CHAT_CHANNELS) as $key) {
-        $channel = chat_channel($key);
-        if ($channel === null) {
-            continue;
-        }
-        return $key === 'email' ? 'By email' : 'On ' . $channel['name'];
-    }
-
-    return '24/7';
-}
-
-/**
  * Which channels the admin asked for in one place, set up or not.
  *
  * Separate from chat_channels() because the admin screen needs this answer
