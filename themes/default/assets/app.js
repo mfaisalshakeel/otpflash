@@ -96,6 +96,59 @@
     if (event.key === 'Escape') { $$('.modal-back').forEach(closeModal); }
   });
 
+  // ------------------------------------------- our own confirm and alert --
+  // The browser's confirm() is a grey box that names the website and looks
+  // like a warning from the phone itself; this is ours, in the shop's
+  // colours, and says the same thing. Resolves true for the main button.
+  //   ask({ title, message, ok, cancel, tone: 'danger' | 'info', alert: true })
+  function ask(options) {
+    var back = $('#askModal');
+    if (!back) {
+      back = document.createElement('div');
+      back.className = 'modal-back';
+      back.id = 'askModal';
+      back.hidden = true;
+      back.innerHTML = '<div class="modal modal-sm ask" role="alertdialog" aria-modal="true" aria-labelledby="askTitle" tabindex="-1">' +
+        '<span class="ask-ico" aria-hidden="true"></span><h2 class="modal-title" id="askTitle"></h2><p class="ask-text"></p>' +
+        '<div class="ask-acts"><button class="btn btn-ghost" type="button" data-ask="no"></button>' +
+        '<button class="btn btn-primary" type="button" data-ask="yes"></button></div></div>';
+      document.body.appendChild(back);
+    }
+    var tone = options.tone || (options.alert ? 'info' : 'danger');
+    $('.ask', back).className = 'modal modal-sm ask ask-' + tone;
+    $('#askTitle', back).textContent = options.title || (options.alert ? 'Heads up' : 'Are you sure?');
+    $('.ask-text', back).textContent = options.message || '';
+    var yes = $('[data-ask="yes"]', back), no = $('[data-ask="no"]', back);
+    yes.textContent = options.ok || (options.alert ? 'OK' : 'Yes, go ahead');
+    yes.className = 'btn ' + (tone === 'danger' && !options.alert ? 'btn-danger' : 'btn-primary');
+    no.textContent = options.cancel || 'Go back';
+    no.hidden = !!options.alert;
+    return new Promise(function (resolve) {
+      function finish(answer) {
+        back.removeEventListener('click', onClick);
+        document.removeEventListener('keydown', onKey);
+        closeModal(back);
+        resolve(answer);
+      }
+      function onClick(event) {
+        var button = event.target.closest('[data-ask]');
+        if (button) { finish(button.dataset.ask === 'yes'); return; }
+        if (event.target === back) { finish(false); }
+      }
+      function onKey(event) { if (event.key === 'Escape') { finish(false); } }
+      back.addEventListener('click', onClick);
+      document.addEventListener('keydown', onKey);
+      openModal(back);
+      setTimeout(function () { yes.focus(); }, 30);
+    });
+  }
+  // A form's own words for its confirmation: data-confirm, and optionally
+  // data-confirm-title / data-confirm-ok / data-confirm-tone.
+  function askForm(form) {
+    return ask({ title: form.dataset.confirmTitle, message: form.dataset.confirm,
+                 ok: form.dataset.confirmOk, tone: form.dataset.confirmTone });
+  }
+
   // ---------------------------------------------------------- the drawer --
   document.addEventListener('click', function (event) {
     var toggle = event.target.closest('[data-drawer]');
@@ -107,6 +160,11 @@
   });
 
   // ------------------------------------------------------------- copying --
+  // The clipboard API exists only on HTTPS pages, so a shop served over
+  // plain http (or an old phone) falls back to selecting the text and asking
+  // the browser to copy it - and when even that is refused, the text is put
+  // on screen, selected, to long-press. Saying "Copied" without copying is
+  // the one thing this must never do.
   function copyText(text, button) {
     function done() {
       if (!button) { toast('Copied'); return; }
@@ -115,23 +173,47 @@
       button.textContent = 'Copied';
       setTimeout(function () { button.innerHTML = was; button.classList.remove('is-copied'); }, 1500);
     }
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, function () { legacyCopy(text); done(); });
+    function fallback() {
+      if (legacyCopy(text)) { done(); } else { showToCopy(text); }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done, fallback);
       return;
     }
-    legacyCopy(text);
-    done();
+    fallback();
   }
   function legacyCopy(text) {
     var carrier = document.createElement('textarea');
     carrier.value = text;
-    carrier.setAttribute('readonly', '');
-    carrier.style.position = 'fixed';
-    carrier.style.left = '-9999px';
+    // iOS selects nothing in a read-only field and scrolls to one placed far
+    // off screen, so it is editable, tiny, transparent and where we are.
+    carrier.setAttribute('aria-hidden', 'true');
+    carrier.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;font-size:16px';
     document.body.appendChild(carrier);
+    carrier.focus();
     carrier.select();
-    try { document.execCommand('copy'); } catch (error) { /* nothing else to try */ }
+    carrier.setSelectionRange(0, text.length);
+    var copied = false;
+    try { copied = document.execCommand('copy'); } catch (error) { copied = false; }
     document.body.removeChild(carrier);
+    return copied;
+  }
+  function showToCopy(text) {
+    var box = $('#copyBox');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'copyBox';
+      box.className = 'copy-box';
+      box.setAttribute('role', 'dialog');
+      box.innerHTML = '<span>Press and hold to copy</span><input readonly><button type="button" aria-label="Close">&times;</button>';
+      document.body.appendChild(box);
+      $('button', box).addEventListener('click', function () { box.hidden = true; });
+    }
+    var field = $('input', box);
+    field.value = text;
+    box.hidden = false;
+    field.focus();
+    field.setSelectionRange(0, text.length);
   }
   document.addEventListener('click', function (event) {
     var button = event.target.closest('[data-copy]');
@@ -853,12 +935,17 @@
         releaseIn--;
         var label = $('[data-change-text]', changeBtn);
         if (releaseIn > 0) {
-          label.textContent = 'Change number in ' + fmtClock(releaseIn);
+          label.textContent = 'Free change in ' + fmtClock(releaseIn);
         } else {
-          label.textContent = 'Change number';
-          changeBtn.disabled = false;
+          // Cancel opens either way; a change only while free ones are left.
           var cancel = $('[data-cancel]', root);
           if (cancel) { cancel.disabled = false; }
+          if (changeBtn.dataset.left === '0') {
+            label.textContent = 'No free changes left';
+          } else {
+            label.textContent = 'Change number - free';
+            changeBtn.disabled = false;
+          }
         }
       }
     }
@@ -925,17 +1012,28 @@
     $$('form[data-numact]', root).forEach(function (form) {
       form.addEventListener('submit', function (event) {
         event.preventDefault();
-        if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) { return; }
-        var button = $('button[type="submit"]', form);
-        busy(button, true);
-        stopped = true;
-        post(form.action, new FormData(form)).then(function (data) {
-          if (data && data.message) { toast(data.message); }
-          setTimeout(refreshPage, data && data.ok ? 200 : 1400);
-        }).catch(function () {
-          busy(button, false);
-          stopped = false;
-          toast('We could not reach the shop. Please try again.');
+        (form.dataset.confirm ? askForm(form) : Promise.resolve(true)).then(function (go) {
+          if (!go) { return; }
+          var button = $('button[type="submit"]', form);
+          busy(button, true);
+          stopped = true;
+          post(form.action, new FormData(form)).then(function (data) {
+            if (data && data.ok) {
+              if (data.message) { toast(data.message); }
+              refreshPage();
+              return;
+            }
+            // A refusal is said in a box that waits to be read, not a toast
+            // that is gone before the reason is.
+            busy(button, false);
+            stopped = false;
+            ask({ alert: true, title: 'That did not go through', message: (data && data.message) || 'Please try again.' })
+              .then(refreshPage);
+          }).catch(function () {
+            busy(button, false);
+            stopped = false;
+            ask({ alert: true, title: 'No connection', message: 'We could not reach the shop. Check your connection and try again.' });
+          });
         });
       });
     });
@@ -964,19 +1062,41 @@
       if (form.closest('[data-live]')) { return; }
       form.addEventListener('submit', function (event) {
         event.preventDefault();
-        if (form.dataset.confirm && !window.confirm(form.dataset.confirm)) { return; }
-        var button = $('button[type="submit"]', form);
-        busy(button, true);
-        post(form.action, new FormData(form)).then(function (data) {
-          if (data && data.message) { toast(data.message); }
-          setTimeout(refreshPage, data && data.ok ? 200 : 1400);
-        }).catch(function () {
-          busy(button, false);
-          toast('We could not reach the shop. Please try again.');
+        (form.dataset.confirm ? askForm(form) : Promise.resolve(true)).then(function (go) {
+          if (!go) { return; }
+          var button = $('button[type="submit"]', form);
+          busy(button, true);
+          post(form.action, new FormData(form)).then(function (data) {
+            if (data && data.ok) {
+              if (data.message) { toast(data.message); }
+              refreshPage();
+              return;
+            }
+            busy(button, false);
+            ask({ alert: true, title: 'That did not go through', message: (data && data.message) || 'Please try again.' })
+              .then(refreshPage);
+          }).catch(function () {
+            busy(button, false);
+            ask({ alert: true, title: 'No connection', message: 'We could not reach the shop. Check your connection and try again.' });
+          });
         });
       });
     });
   }
+
+  // ------------------------------------------------------ cancelling --
+  // The choice folds out under its button; nothing is sent until one of
+  // the buttons inside it is pressed.
+  document.addEventListener('click', function (event) {
+    var opener = event.target.closest('[data-cancel-open]');
+    var closer = event.target.closest('[data-cancel-close]');
+    if (!opener && !closer) { return; }
+    var scope = (opener || closer).closest('.numcard, .panel, main') || document;
+    var boxEl = $('[data-cancel-box]', scope);
+    if (!boxEl) { return; }
+    boxEl.hidden = !!closer;
+    if (opener) { boxEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+  });
 
   // ============================================================== tracker ==
   var trackModal = $('#trackModal');
@@ -1035,10 +1155,20 @@
   });
 
   // ============================================== confirm before posting ==
+  // Asked first, on the way down, so nothing else sees the submit until the
+  // answer is yes - then the form is sent again with the answer on it.
   document.addEventListener('submit', function (event) {
     var form = event.target;
     if (!form.matches('form[data-confirm]') || form.matches('[data-numact]')) { return; }
-    if (!window.confirm(form.dataset.confirm)) { event.preventDefault(); }
+    if (form.dataset.confirmed === '1') { delete form.dataset.confirmed; return; }
+    event.preventDefault();
+    event.stopPropagation();
+    var submitter = event.submitter;
+    askForm(form).then(function (go) {
+      if (!go) { return; }
+      form.dataset.confirmed = '1';
+      if (form.requestSubmit) { form.requestSubmit(submitter && submitter.form === form ? submitter : undefined); } else { form.submit(); }
+    });
   }, true);
 
   // ========================================================= rental inbox ==

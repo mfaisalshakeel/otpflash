@@ -10,6 +10,7 @@
  *
  * @var array  $order  @var ?array $state  number_state(), for number products
  * @var bool   $owner  the signed-in customer placed it
+ * @var array  $cancel  order_cancel_choice()  @var bool $cancelOpen  back from signing in to cancel
  * @var array  $methods  @var array $gateways  @var bool $checkOnLoad  @var array $payErrors
  */
 $status    = (string) $order['status'];
@@ -67,6 +68,57 @@ $again = !empty($order['service_slug']) ? url((string) $order['service_slug']) :
         </div>
         <?php partial('partials/pay', ['order' => $order, 'methods' => $methods,
             'gateways' => $gateways, 'chat' => $chat, 'payErrors' => $payErrors]); ?>
+        <?php if (!$redo && !$isDeposit): ?>
+          <form class="pay-cancel" method="post" action="<?= e(url('order/' . $order['code'] . '/cancel')) ?>" data-numact
+                data-confirm-title="Cancel this order?" data-confirm="Nothing has been charged, so there is nothing to refund."
+                data-confirm-ok="Yes, cancel it" data-confirm-tone="info">
+            <?= csrf_field() ?>
+            <button class="lnk-btn" type="submit">Changed your mind? Cancel this order</button>
+          </form>
+        <?php endif; ?>
+
+      <?php elseif ($isNumber && in_array($status, ['pending', 'paid'], true)): ?>
+        <?php /* ----------------- the number screen, before the number ---- *
+           From the moment the payment is sent this is already the screen the
+           code arrives on: the same card, with the number still to come. The
+           page asks for its state every few seconds and redraws itself as
+           the number and then the code arrive - nothing to open or press. */ ?>
+        <div class="numcard numcard-soon" data-numcard>
+          <div class="nc-head">
+            <?php if (!empty($order['service_icon']) || $order['service_name'] !== ''): ?>
+              <?= service_icon_html(['name' => $order['service_name'], 'icon' => $order['service_icon'] ?? '',
+                  'color' => $order['service_color'] ?? ''], 'svc-ico svc-ico-lg') ?>
+            <?php endif; ?>
+            <?php if ($order['country_iso'] !== ''): ?>
+              <img class="flag flag-lg" src="<?= e(flag_url($order['country_iso'])) ?>" alt="<?= e($order['country_name']) ?>" width="40" height="30">
+            <?php endif; ?>
+            <div class="nc-title">
+              <b><?= e(order_label($order)) ?></b>
+              <small><?= $isEmail ? 'Temporary email' : 'Virtual number' ?></small>
+            </div>
+          </div>
+          <div class="nc-number">
+            <small><?= $isEmail ? 'Your temporary email address' : 'Your number' ?></small>
+            <span class="nc-num nc-num-soon" aria-hidden="true"><?= $isEmail ? '••••••@••••.•••'
+                : e(($state['dial'] !== '' ? '+' . $state['dial'] . ' ' : '+') . '••• •••••••') ?></span>
+            <p class="nc-soon-line"><span class="spinner spinner-sm" aria-hidden="true"></span>
+              <?= $status === 'paid' ? 'Payment received - getting your ' . ($isEmail ? 'inbox' : 'number') . '…'
+                  : 'Confirming your payment - usually a few minutes.' ?></p>
+          </div>
+          <div class="nc-sms">
+            <div class="nc-waiting">
+              <span class="pulse" aria-hidden="true"><i></i><i></i><i></i></span>
+              <div>
+                <b>Your code will appear right here</b>
+                <small>Keep this page open. The <?= $isEmail ? 'address' : 'number' ?> shows up by itself, then the code - no need to refresh.</small>
+              </div>
+            </div>
+          </div>
+          <?php if ($status === 'pending'): ?>
+            <p class="nc-tips nc-tips-plain">Sent the wrong payment details?
+              <a href="<?= e(url('order/' . $order['code']) . '?pay=1') ?>">Send them again</a></p>
+          <?php endif; ?>
+        </div>
 
       <?php elseif ($status === 'pending'): ?>
         <?php /* ---------------------------- a manual payment to confirm ---- */ ?>
@@ -155,29 +207,35 @@ $again = !empty($order['service_slug']) ? url((string) $order['service_slug']) :
 
           <div class="nc-actions">
             <?php if ($status === 'processing'): ?>
+              <?php $freeLeft = max(0, (int) $state['attempts_max'] - (int) $state['attempts']); ?>
+              <?php /* Free, and it says so on the button: a replacement number is
+                       part of what was paid for, up to max_numbers_per_order. */ ?>
               <form method="post" action="<?= e(url('order/' . $order['code'] . '/change')) ?>" data-numact
-                    data-confirm="Give this number back and get a different one, free?">
+                    data-confirm-title="Change to a new number - free?" data-confirm-tone="info" data-confirm-ok="Yes, change it"
+                    data-confirm="This number goes back and you get a different one for <?= e($order['service_name'] ?: 'the same app') ?>, at no extra cost. <?= $freeLeft ?> free change<?= $freeLeft === 1 ? '' : 's' ?> left.">
                 <?= csrf_field() ?>
-                <button class="btn btn-ghost" type="submit" data-change data-release="<?= (int) $state['release_in'] ?>"
+                <button class="btn btn-ghost" type="submit" data-change data-release="<?= (int) $state['release_in'] ?>" data-left="<?= $freeLeft ?>"
                         <?= $state['can_change'] ? '' : 'disabled' ?>>
                   <svg class="icon"><use href="#i-refresh"></use></svg>
                   <span data-change-text><?= $state['release_in'] > 0
-                      ? 'Change number in ' . sprintf('%d:%02d', intdiv($state['release_in'], 60), $state['release_in'] % 60)
-                      : ($state['attempts'] >= $state['attempts_max'] ? 'No changes left' : 'Change number') ?></span>
+                      ? 'Free change in ' . sprintf('%d:%02d', intdiv($state['release_in'], 60), $state['release_in'] % 60)
+                      : ($freeLeft <= 0 ? 'No free changes left' : 'Change number - free') ?></span>
                 </button>
               </form>
-              <?php if ($owner): ?>
-                <form method="post" action="<?= e(url('order/' . $order['code'] . '/cancel')) ?>" data-numact
-                      data-confirm="Cancel this number and put <?= e(money((float) ($order['paid_amount'] ?? $order['price']))) ?> back in your wallet?">
-                  <?= csrf_field() ?>
-                  <button class="btn btn-ghost" type="submit" data-cancel <?= $state['can_cancel'] ? '' : 'disabled' ?>>
-                    <svg class="icon"><use href="#i-close"></use></svg> Cancel &amp; refund</button>
-                </form>
+              <?php if ($cancel['show']): ?>
+                <?php /* Waits out the same two minutes as Change number: OTPGet
+                         refuses a cancel any sooner. */ ?>
+                <button class="btn btn-ghost" type="button" data-cancel data-cancel-open <?= $cancel['wait'] > 0 ? 'disabled' : '' ?>>
+                  <svg class="icon"><use href="#i-close"></use></svg> Cancel</button>
               <?php endif; ?>
             <?php else: ?>
               <a class="btn btn-primary" href="<?= e($again) ?>"><svg class="icon"><use href="#i-plus"></use></svg> Buy another</a>
             <?php endif; ?>
           </div>
+
+          <?php if ($cancel['show']): ?>
+            <?php partial('partials/cancel', ['order' => $order, 'cancel' => $cancel, 'open' => $cancelOpen && $cancel['wait'] <= 0]); ?>
+          <?php endif; ?>
 
           <?php if ($status === 'processing' && $state['code'] === ''): ?>
             <ol class="nc-tips">
@@ -193,9 +251,10 @@ $again = !empty($order['service_slug']) ? url((string) $order['service_slug']) :
       <?php elseif ($status === 'expired'): ?>
         <div class="panel state-panel">
           <span class="state-ico state-warn"><svg class="icon"><use href="#i-clock"></use></svg></span>
-          <h2>No <?= $isEmail ? 'email' : 'SMS' ?> arrived in time</h2>
-          <p>The <?= $isEmail ? 'inbox' : 'number' ?> <b><?= e($order['number']) ?></b> was held for its full time and no code came.
-            You have not paid for nothing<?= $state && $state['can_retry'] ? ' - your next number is free.' : '.' ?></p>
+          <h2>No code arrived on this <?= $isEmail ? 'inbox' : 'number' ?></h2>
+          <p>The <?= $isEmail ? 'inbox' : 'number' ?> <b><?= e($order['number']) ?></b> closed before a code came, so it was not charged.
+            <?= !empty($order['user_id']) && $order['status'] === 'refunded' ? 'Your money is back in your wallet.'
+                : ($state && $state['can_retry'] ? 'Your next number is free.' : '') ?></p>
           <?php if ($state && $state['can_retry']): ?>
             <form method="post" action="<?= e(url('order/' . $order['code'] . '/retry')) ?>" data-numact>
               <?= csrf_field() ?>
@@ -205,6 +264,10 @@ $again = !empty($order['service_slug']) ? url((string) $order['service_slug']) :
             <p class="help"><?= (int) ($state['attempts_max'] - $state['attempts']) ?> free replacement<?= $state['attempts_max'] - $state['attempts'] === 1 ? '' : 's' ?> left on this order.</p>
           <?php else: ?>
             <p class="help">This order has used all of its numbers. Message us with the order code and we will make it right.</p>
+          <?php endif; ?>
+          <?php if ($cancel['show']): ?>
+            <button class="lnk-btn" type="button" data-cancel-open>Cancel this order instead</button>
+            <?php partial('partials/cancel', ['order' => $order, 'cancel' => $cancel, 'open' => $cancelOpen]); ?>
           <?php endif; ?>
         </div>
 
@@ -223,6 +286,10 @@ $again = !empty($order['service_slug']) ? url((string) $order['service_slug']) :
             <a class="btn btn-ghost" href="<?= e($again) ?>">Pick another country or server</a>
           </div>
           <p class="help">Your payment is safe on this order - a number bought later is still covered by it.</p>
+          <?php if ($cancel['show']): ?>
+            <button class="lnk-btn" type="button" data-cancel-open>Cancel this order instead</button>
+            <?php partial('partials/cancel', ['order' => $order, 'cancel' => $cancel, 'open' => $cancelOpen]); ?>
+          <?php endif; ?>
         </div>
 
       <?php elseif ($status === 'refunded'): ?>

@@ -45,14 +45,80 @@
     });
   })();
 
+  // --- our own confirm, alert and copy box ---------------------------------
+  // In place of the browser's confirm() and alert(): the same question, in
+  // the panel's own look, with the dangerous button red. Resolves true for
+  // the main button.  ask({ title, message, ok, cancel, alert, value })
+  // `value` shows a selected text box - the copy fallback.
+  function ask(options) {
+    var back = document.getElementById('dlgBack');
+    if (!back) {
+      back = document.createElement('div');
+      back.id = 'dlgBack';
+      back.className = 'dlg-back';
+      back.hidden = true;
+      back.innerHTML = '<div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="dlgTitle">' +
+        '<b class="dlg-title" id="dlgTitle"></b><p class="dlg-text"></p><input class="dlg-value" readonly hidden>' +
+        '<div class="dlg-acts"><button class="btn btn-ghost" type="button" data-dlg="no"></button>' +
+        '<button class="btn" type="button" data-dlg="yes"></button></div></div>';
+      document.body.appendChild(back);
+    }
+    var danger = !options.alert && options.tone !== 'info';
+    back.querySelector('.dlg-title').textContent = options.title || (options.alert ? 'Heads up' : 'Are you sure?');
+    back.querySelector('.dlg-text').textContent = options.message || '';
+    var value = back.querySelector('.dlg-value');
+    value.hidden = options.value === undefined;
+    value.value = options.value || '';
+    var yes = back.querySelector('[data-dlg="yes"]'), no = back.querySelector('[data-dlg="no"]');
+    yes.textContent = options.ok || (options.alert ? 'OK' : 'Yes, go ahead');
+    yes.className = 'btn ' + (danger ? 'btn-danger' : 'btn-primary');
+    no.textContent = options.cancel || 'Cancel';
+    no.hidden = !!options.alert;
+    back.hidden = false;
+    setTimeout(function () {
+      if (!value.hidden) { value.focus(); value.select(); } else { yes.focus(); }
+    }, 30);
+    return new Promise(function (resolve) {
+      function finish(answer) {
+        back.hidden = true;
+        back.removeEventListener('click', onClick);
+        document.removeEventListener('keydown', onKey);
+        resolve(answer);
+      }
+      function onClick(event) {
+        var button = event.target.closest('[data-dlg]');
+        if (button) { finish(button.getAttribute('data-dlg') === 'yes'); return; }
+        if (event.target === back) { finish(false); }
+      }
+      function onKey(event) {
+        if (event.key === 'Escape') { finish(false); }
+        if (event.key === 'Enter' && document.activeElement === value) { finish(true); }
+      }
+      back.addEventListener('click', onClick);
+      document.addEventListener('keydown', onKey);
+    });
+  }
+  window.adminAsk = ask;
+
   // --- confirm destructive actions ----------------------------------------
+  // Asked on the way down, before any other handler sees the submit; a yes
+  // sends the form again with the answer on it.
   document.addEventListener('submit', function (event) {
     var form = event.target;
     var message = form.getAttribute('data-confirm');
-    if (message && !window.confirm(message)) {
-      event.preventDefault();
-    }
-  });
+    if (!message) { return; }
+    if (form.getAttribute('data-confirmed') === '1') { form.removeAttribute('data-confirmed'); return; }
+    event.preventDefault();
+    event.stopPropagation();
+    var submitter = event.submitter;
+    ask({ message: message, title: form.getAttribute('data-confirm-title') || undefined,
+          ok: form.getAttribute('data-confirm-ok') || undefined, tone: form.getAttribute('data-confirm-tone') || undefined })
+      .then(function (go) {
+        if (!go) { return; }
+        form.setAttribute('data-confirmed', '1');
+        if (form.requestSubmit) { form.requestSubmit(submitter && submitter.form === form ? submitter : undefined); } else { form.submit(); }
+      });
+  }, true);
 
   // --- copy buttons --------------------------------------------------------
   document.addEventListener('click', function (event) {
@@ -67,24 +133,26 @@
       btn.textContent = 'Copied';
       setTimeout(function () { btn.textContent = original; }, 1400);
     };
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, done);
+    if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done, function () { ask({ alert: true, title: 'Copy this', message: 'Press Ctrl+C (or hold, on a phone).', value: text }); });
       return;
     }
 
     // Older browsers, and any page not served over HTTPS: the clipboard API
     // is missing there, and saying "Copied" without copying is worse than
     // not offering it.
+    // iOS will not select inside a read-only field or one far off screen.
     var carrier = document.createElement('textarea');
     carrier.value = text;
-    carrier.setAttribute('readonly', '');
-    carrier.style.position = 'fixed';
-    carrier.style.left = '-9999px';
+    carrier.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;padding:0;border:0;opacity:0;font-size:16px';
     document.body.appendChild(carrier);
+    carrier.focus();
     carrier.select();
-    try { document.execCommand('copy'); } catch (error) { /* nothing else to try */ }
+    carrier.setSelectionRange(0, text.length);
+    var copied = false;
+    try { copied = document.execCommand('copy'); } catch (error) { copied = false; }
     document.body.removeChild(carrier);
-    done();
+    if (copied) { done(); } else { ask({ alert: true, title: 'Copy this', message: 'Press Ctrl+C (or hold, on a phone).', value: text }); }
   });
 
   // --- finding your way around a long list of boxes ------------------------
@@ -228,12 +296,12 @@
           if (!result || !result.ok) {
             // Saying nothing would leave the admin believing an order that
             // is not written down anywhere.
-            alert((result && result.error) || 'That order could not be saved.');
+            ask({ alert: true, title: 'Not saved', message: (result && result.error) || 'That order could not be saved.' });
           }
         })
         .catch(function () {
           list.classList.remove('is-saving');
-          alert('That order could not be saved - check your connection and try again.');
+          ask({ alert: true, title: 'Not saved', message: 'That order could not be saved - check your connection and try again.' });
         });
     }
 
@@ -948,7 +1016,7 @@
                         $image.css('max-width', '100%');
                       });
                     } else {
-                      window.alert((data && data.error) || 'That image could not be uploaded.');
+                      window.adminAsk({ alert: true, title: 'Upload failed', message: (data && data.error) || 'That image could not be uploaded.' });
                     }
                   });
                 });

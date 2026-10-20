@@ -253,6 +253,13 @@ $failedCalls = count(array_filter($calls, static fn (array $call): bool => (int)
 
         <?php if ($order['status'] === 'pending'): ?>
           <?= $button('cancel', 'Cancel order', 'btn-ghost', 'Cancel this unpaid order?') ?>
+        <?php elseif ($cancel['show'] && $cancel['wait'] <= 0): ?>
+          <?= $button('cancel', 'Cancel order', 'btn-danger', empty($order['user_id'])
+              ? 'Cancel this order? The number goes back to OTPGet. This is a guest: return the money by hand afterwards.'
+              : 'Cancel this order? The number goes back to OTPGet and ' . money((float) ($order['paid_amount'] ?? $order['price']))
+                . ' is refunded to the customer\'s wallet.') ?>
+        <?php elseif ($cancel['show']): ?>
+          <p class="muted">Cancel is possible in <?= (int) ceil($cancel['wait'] / 60) ?> min - OTPGet refuses it any sooner.</p>
         <?php endif; ?>
       </div>
     </div>

@@ -383,6 +383,118 @@ function refund_order_to_wallet(array $order, string $why, array $fromStatuses =
     return true;
 }
 
+/**
+ * Cancel an order that has not delivered, and settle its money.
+ *
+ * The one way an order is cancelled - by its customer or by an admin - so
+ * the rules cannot differ between the two:
+ *
+ *  - nothing is cancelled once a code has arrived: the customer has what
+ *    they paid for;
+ *  - an unpaid order is simply closed;
+ *  - a live number is given back to OTPGet first (which refunds us), and
+ *    only inside OTPGet's own rules - the SMS servers refuse it for two
+ *    minutes, so the reason comes back instead;
+ *  - the money goes to the wallet of the account the order belongs to. A
+ *    guest has no wallet, so a guest's order is closed with nothing
+ *    refunded - the customer was told that before pressing, and an admin
+ *    can still return the money by hand.
+ *
+ * @return array{0: bool, 1: string}
+ */
+function order_cancel(array $order, bool $refund, string $by): array
+{
+    $id = (int) $order['id'];
+    if ((string) $order['otp_code'] !== '') {
+        return [false, 'A code has already arrived on this order, so there is nothing to cancel.'];
+    }
+    if (!in_array((string) $order['product'], NUMBER_PRODUCTS, true) && $order['status'] !== 'pending') {
+        return [false, 'Only numbers and inboxes are cancelled here.'];
+    }
+    $now = date('Y-m-d H:i:s');
+
+    if ($order['status'] === 'pending') {
+        if (!claim('orders', ['status' => 'cancelled', 'updated_at' => $now], "id = ? AND status = 'pending'", [$id])) {
+            return [false, 'This order has just changed. Refresh the page.'];
+        }
+        order_log($id, 'Cancelled by ' . $by . ' before it was paid.');
+        return [true, 'Order cancelled. Nothing was charged.'];
+    }
+
+    if ($order['status'] === 'processing') {
+        $activation = order_activation($order);
+        $can = number_can_release($order, $activation);
+        if (!$can['ok']) {
+            return [false, $can['reason']];
+        }
+        [$released, $why] = number_release($order, $activation);
+        if (!$released) {
+            return [false, $why];
+        }
+        number_lapsed($order, $activation, true, false);
+    } elseif (!in_array($order['status'], ['paid', 'api_error', 'expired'], true)) {
+        return [false, 'This order can no longer be cancelled.'];
+    } elseif (!empty($order['sending_at']) && strtotime((string) $order['sending_at']) > time() - 120) {
+        // A purchase is in flight: cancelling under it could pay for a
+        // number the customer never sees.
+        return [false, 'A number is being fetched for this order right now. Try again in a moment.'];
+    }
+
+    $fresh  = one('SELECT * FROM orders WHERE id = ?', [$id]) ?: $order;
+    $amount = money((float) ($fresh['paid_amount'] ?? $fresh['price']));
+    if ($refund && !empty($fresh['user_id'])
+        && refund_order_to_wallet($fresh, 'Cancelled by ' . $by, ['expired', 'paid', 'api_error'])) {
+        return [true, 'Cancelled. ' . $amount . ' is back in your wallet.'];
+    }
+    if (!claim('orders', ['status' => 'cancelled', 'updated_at' => $now],
+            "id = ? AND status IN ('expired', 'paid', 'api_error') AND (sending_at IS NULL OR sending_at < ?)",
+            [$id, date('Y-m-d H:i:s', time() - 120)])) {
+        return [false, 'This order has just changed. Refresh the page.'];
+    }
+    order_log($id, 'Cancelled by ' . $by . ' with no refund (' . $amount . ' paid).');
+    return [true, 'Cancelled. ' . $amount . ' was not refunded.'];
+}
+
+/**
+ * What the Cancel button can offer this visitor, for the order page to draw.
+ *
+ * `refund` is true for the account the order belongs to - and for a signed-in
+ * customer looking at a guest order this browser placed, which is moved into
+ * their account the moment they press it. Anyone else holding the code may
+ * still cancel a guest order, without a refund, having been told so.
+ *
+ * @return array{show: bool, wait: int, refund: bool, claim: bool, others: bool, amount: string, next: string}
+ */
+function order_cancel_choice(array $order, ?array $user): array
+{
+    $none = ['show' => false, 'wait' => 0, 'refund' => false, 'claim' => false, 'others' => false,
+             'amount' => '', 'next' => ''];
+    if ((string) $order['otp_code'] !== '' || !in_array((string) $order['product'], NUMBER_PRODUCTS, true)
+        || !in_array($order['status'], ['processing', 'paid', 'api_error', 'expired'], true)) {
+        return $none;
+    }
+    $wait = 0;
+    if ($order['status'] === 'processing') {
+        $release = number_can_release($order, order_activation($order));
+        if (!$release['ok'] && $release['wait'] <= 0) {
+            return $none;
+        }
+        $wait = $release['wait'];
+    }
+    $owner = $user && (int) $user['id'] === (int) ($order['user_id'] ?? 0);
+    $claim = $user && empty($order['user_id']) && in_array((string) $order['code'], browser_orders(), true);
+    return [
+        'show'   => true,
+        'wait'   => $wait,
+        'refund' => $owner || $claim,
+        'claim'  => $claim,
+        // Somebody else's account order: its refund is theirs to ask for.
+        'others' => !empty($order['user_id']) && !$owner,
+        'amount' => money((float) ($order['paid_amount'] ?? $order['price'])),
+        'next'   => 'order/' . $order['code'] . '?cancel=1',
+    ];
+}
+
 /** The order an id or a code names, with what the pages need joined on. */
 function order_full(string $code): ?array
 {

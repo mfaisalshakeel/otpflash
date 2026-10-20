@@ -38,6 +38,33 @@ function user_sign_in(array $user): void
     update_row('users', ['last_login_at' => date('Y-m-d H:i:s'), 'last_login_ip' => client_ip()],
         'id = ?', [(int) $user['id']]);
     current_user(true);
+    user_claim_browser_orders((int) $user['id']);
+}
+
+/**
+ * Move the orders this browser placed as a guest into the account just
+ * signed in to.
+ *
+ * Only orders nobody owns yet, from the last sixty days, named in this
+ * browser's signed list - so signing in moves your own guest orders and
+ * cannot take anyone else's. From then on they are refunded to the wallet
+ * like any account order.
+ *
+ * @return int orders moved
+ */
+function user_claim_browser_orders(int $userId): int
+{
+    $moved = 0;
+    foreach (browser_orders() as $code) {
+        $order = one('SELECT id, code FROM orders WHERE code = ? AND user_id IS NULL AND created_at >= ?',
+            [$code, date('Y-m-d H:i:s', time() - 60 * 86400)]);
+        if ($order && q('UPDATE orders SET user_id = ? WHERE id = ? AND user_id IS NULL', [$userId, (int) $order['id']])->rowCount()) {
+            insert_row('order_logs', ['order_id' => (int) $order['id'], 'is_internal' => 1, 'created_at' => date('Y-m-d H:i:s'),
+                'message' => 'Moved into account #' . $userId . ' when it signed in on the browser that placed it.']);
+            $moved++;
+        }
+    }
+    return $moved;
 }
 
 function user_sign_out(): void

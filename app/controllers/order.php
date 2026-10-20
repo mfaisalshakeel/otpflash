@@ -17,6 +17,7 @@
  * the offer row every time.
  */
 require_once APP_PATH . '/helpers/orders.php';
+require_once APP_PATH . '/helpers/users.php';   // user_claim_browser_orders()
 require_once APP_PATH . '/helpers/payments.php';
 require_once APP_PATH . '/helpers/notify.php';
 require_once APP_PATH . '/helpers/guard.php';
@@ -123,6 +124,11 @@ if ($code === null && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     [$orderId, $orderCode] = place_offer_order($offer, $user, $email, $whatsapp);
+    if (!$user) {
+        // So signing in later on this browser moves the order into the
+        // account - which is what lets a guest be refunded to a wallet.
+        browser_orders_remember($orderCode);
+    }
     $order = one('SELECT * FROM orders WHERE id = ?', [$orderId]);
 
     if ($pay === 'wallet') {
@@ -618,13 +624,24 @@ if (in_array($params[1] ?? '', ['status', 'change', 'cancel', 'retry'], true)
         $answer($ok, $ok ? 'Here is your number.' : $message);
     }
 
-    // cancel: only the account the order belongs to, because the refund
-    // goes to a wallet and the wallet is theirs.
+    // cancel. The refund goes to a wallet, so it goes to the account the
+    // order belongs to - or to the signed-in customer whose browser placed
+    // it as a guest, which moves it into their account first. Anyone else
+    // holding the code may cancel a guest order with no refund, having been
+    // told so ("forfeit"); an order on someone else's account is theirs.
     $user = current_user();
-    if (!$user || (int) $user['id'] !== (int) ($order['user_id'] ?? 0)) {
+    if ($user && empty($order['user_id']) && in_array((string) $order['code'], browser_orders(), true)) {
+        user_claim_browser_orders((int) $user['id']);
+        $order = one('SELECT * FROM orders WHERE id = ?', [(int) $order['id']]) ?: $order;
+    }
+    $owner = $user && (int) $user['id'] === (int) ($order['user_id'] ?? 0);
+    if (!$owner && !empty($order['user_id'])) {
         $answer(false, 'Sign in to the account that placed this order to cancel it.');
     }
-    [$ok, $message] = number_cancel((int) $order['id']);
+    if (!$owner && $order['status'] !== 'pending' && empty($_POST['forfeit'])) {
+        $answer(false, 'Sign in or create a free account to cancel with a refund to your wallet - or cancel without one.');
+    }
+    [$ok, $message] = order_cancel($order, $owner, $owner ? 'the customer' : 'a guest');
     $answer($ok, $message);
 }
 
@@ -645,6 +662,9 @@ view('order', [
     'order'       => $order,
     'state'       => $numberState,
     'owner'       => ($u = current_user()) && (int) $u['id'] === (int) ($order['user_id'] ?? 0),
+    'cancel'      => order_cancel_choice($order, current_user()),
+    // Back from signing in to cancel: the choice opens by itself.
+    'cancelOpen'  => isset($_GET['cancel']),
     'methods'     => payable_methods(),
     'gateways'    => payment_gateways(),
     // A gateway that takes the payment on its own pages sends the customer

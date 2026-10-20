@@ -279,6 +279,27 @@ and everything else to `number_buy()` when `auto_buy_number` is on.
 - **A wallet customer is refunded whenever no code ever arrived** - the first
   number or a replacement. They are holding nothing for their money either
   way. A guest has no wallet, so a guest's order waits for the admin.
+- **OTPGet may close a number on its side** - a status of `STATUS_CANCEL`, or
+  a check refused with one of `NUMBER_CLOSED_UPSTREAM` (`NO_ACTIVATION` and
+  the like). Either is acted on at the next check, page or cron, exactly like
+  a number that ran out: refunded to a wallet, or a free replacement for a
+  guest, logged and audited. It is never waited out.
+- **`order_cancel()` is the one way to cancel**, for the customer and the
+  admin alike: never once a code has arrived; an unpaid order just closes; a
+  live number goes back to OTPGet first, inside its two-minute rule; the
+  money goes to the wallet of the account the order belongs to. A guest has
+  no wallet, so the Cancel box (`partials/cancel`, `order_cancel_choice()`)
+  offers **sign in or create an account** - the order then moves into it and
+  they land back on `?cancel=1` with the refund one press away - or
+  **cancel anyway**, which says plainly that the money is lost.
+- **This browser's guest orders** are a signed cookie (`browser_orders()`),
+  written when a guest orders and read at every sign-in
+  (`user_claim_browser_orders()`), which moves those orders - and only
+  those - into the account. The signature is what stops a typed code from
+  claiming somebody else's order.
+- Changing a number is **free** and says so: the button reads "Change number
+  - free", its confirmation counts the free changes left, and it stays off
+  once there are none.
 
 ## What OTPGet and the gateways said
 
@@ -417,6 +438,23 @@ returns a path on this site. A blocked account is simply not found by
 - The order page (`/order/{CODE}`) polls `/order/{CODE}/status` while anything
   can still change and redraws only when the status does; the code pops in
   with the tab title flashing.
+- **It is the OTP screen from the first second.** While the payment is being
+  confirmed or the number bought, it already shows the number card - the
+  number's shape, dimmed, and "your code will appear right here" - so nothing
+  has to be opened or pressed between paying and the code. A paid QR payment
+  goes straight there (not to a tracker).
+- **No browser dialogs.** `confirm()`, `alert()` and `prompt()` are replaced
+  by `ask()` in `app.js` and in `admin.js`, in the shop's own look: any form
+  with `data-confirm` (plus optional `data-confirm-title`, `-ok`, `-tone`) is
+  asked through it, and a refused number action is said in it rather than in
+  a toast that is gone before it is read.
+- **Copying works over plain http.** The clipboard API exists only on HTTPS,
+  so the fallback selects the text in a field iOS will select, and when even
+  that is refused the text is shown, selected, to long-press - it never says
+  "Copied" without copying.
+- `/track` is a page of its own: `?code=`, `/track/CODE` and a bare
+  `/track?CODE` all go to the order, and a code that matches nothing is said
+  on the same page.
 
 ## Blog and SEO
 

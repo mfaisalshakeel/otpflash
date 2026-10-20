@@ -1329,3 +1329,13 @@ body.is-sorting{user-select:none}
 .clearlog-inline select{padding:9px 30px 9px 12px;font-size:13.5px}
 .clearlog .sel{min-width:172px;flex:none}
 .clearlog .sel-btn{white-space:nowrap}
+
+/* Our confirm and alert (ask() in admin.js), in place of the browser's. */
+.dlg-back{position:fixed;inset:0;z-index:300;background:rgba(15,18,35,.45);display:grid;place-items:center;padding:16px}
+.dlg{width:100%;max-width:420px;background:var(--surface);border-radius:16px;padding:22px 22px 18px;
+  box-shadow:0 24px 60px rgba(15,18,35,.25);border:1px solid var(--line)}
+.dlg-title{display:block;font-size:17px;margin-bottom:6px}
+.dlg-text{margin:0 0 16px;color:var(--ink-2);font-size:14px;line-height:1.5}
+.dlg-value{width:100%;margin:-4px 0 16px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+  background:var(--page);font-family:ui-monospace,monospace;font-size:13.5px}
+.dlg-acts{display:flex;justify-content:flex-end;gap:8px}

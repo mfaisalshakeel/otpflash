@@ -6,15 +6,15 @@
  *
  * @var array  $order   @var array $method  @var array $qr  @var string $svg
  */
-$siteName = (string) setting('site_name', 'DARK ADDA');
+$siteName = (string) setting('site_name', 'OTP Flash');
 $amount = $qr['amount'] !== '' ? $qr['amount'] : money((float) $order['price']);
 // The code, not the row's id: it is what the admin searches by, so it is
 // the only number worth putting in front of a customer.
 $orderId = (string) $order['code'];
 
-// Where the popup sends them: the home page opens its tracking panel on this
-// parameter, fills the order in and looks it up by itself.
-$trackUrl = url('?track=' . urlencode($orderId));
+// Where the popup sends them: the order itself, which is the number and its
+// code - the thing they paid for, with nothing to look up or press first.
+$trackUrl = url('order/' . rawurlencode($orderId));
 ?><!doctype html>
 <html lang="en">
 <head>
@@ -498,9 +498,9 @@ $trackUrl = url('?track=' . urlencode($orderId));
       <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>
     </div>
     <h2 class="pay-done-title">Payment Successful</h2>
-    <p class="pay-done-sub">Your order has been received</p>
-    <p class="pay-done-next">Opening your order tracking in <b id="paidCount">5</b>s</p>
-    <a class="pay-done-link" href="<?= e($trackUrl) ?>">Track it now &rarr;</a>
+    <p class="pay-done-sub">Your number is being bought now</p>
+    <p class="pay-done-next">Getting your number in <b id="paidCount">2</b>s</p>
+    <a class="pay-done-link" href="<?= e($trackUrl) ?>">Open it now &rarr;</a>
   </div>
 </div>
 
@@ -544,7 +544,7 @@ $trackUrl = url('?track=' . urlencode($orderId));
 
     paidPopup.hidden = false;
 
-    var left = 5;
+    var left = 2;
     var countdown = setInterval(function () {
       left--;
       if (paidCount) { paidCount.textContent = left > 0 ? left : 0; }

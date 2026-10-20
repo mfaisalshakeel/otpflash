@@ -906,6 +906,45 @@ function require_login(): void
     }
 }
 
+/**
+ * The orders this browser placed as a guest, newest first.
+ *
+ * Kept in a signed cookie so that a guest who later signs in or creates an
+ * account gets those orders moved into it (user_claim_browser_orders()) -
+ * which is what lets a guest's cancelled number be refunded to a wallet.
+ * The signature is what stops a typed-in code claiming somebody else's
+ * order: the list is only ever written by this site.
+ */
+function browser_orders(): array
+{
+    $raw = (string) ($_COOKIE['of_mine'] ?? '');
+    $cut = strrpos($raw, '.');
+    if ($cut === false) {
+        return [];
+    }
+    [$list, $mac] = [substr($raw, 0, $cut), substr($raw, $cut + 1)];
+    if (!hash_equals(hash_hmac('sha256', $list, (string) cfg('app_key', '')), $mac)) {
+        return [];
+    }
+    return array_values(array_filter(explode('~', $list), static fn (string $code): bool => (bool) preg_match('/^[A-Z0-9-]{4,24}$/', $code)));
+}
+
+/** Add an order to this browser's list: twenty at most, kept for sixty days. */
+function browser_orders_remember(string $code): void
+{
+    $codes = array_slice(array_values(array_unique(array_merge([strtoupper($code)], browser_orders()))), 0, 20);
+    $list  = implode('~', $codes);
+    $value = $list . '.' . hash_hmac('sha256', $list, (string) cfg('app_key', ''));
+    setcookie('of_mine', $value, [
+        'expires'  => time() + 60 * 86400,
+        'path'     => '/',
+        'secure'   => is_https(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    $_COOKIE['of_mine'] = $value;
+}
+
 /** What an order is called when a customer is reading it. */
 function order_label(array $order): string
 {

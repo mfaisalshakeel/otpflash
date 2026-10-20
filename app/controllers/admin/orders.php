@@ -139,14 +139,18 @@ if ($action === 'action' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
 
         case 'cancel':
-            if ($order['paid_at'] !== null) {
-                flash('error', 'This order is paid for. Refund it instead of cancelling it.');
-                break;
+            // The same rules as the customer's Cancel (order_cancel): the live
+            // number goes back to OTPGet, an account holder is refunded to
+            // the wallet, and a guest's money is left for the admin to return.
+            [$ok, $message] = order_cancel($order, true, 'admin');
+            if ($ok && empty($order['user_id']) && $order['paid_at'] !== null) {
+                $message .= ' This was a guest - return the money by hand, then press Mark refunded.';
             }
-            update_row('orders', ['status' => 'cancelled', 'updated_at' => date('Y-m-d H:i:s')],
-                'id = ?', [$id]);
-            order_log($id, 'Order cancelled by admin.');
-            flash('success', 'Order cancelled.');
+            if ($ok) {
+                audit_row('order.cancelled', 'orders', $id, $order,
+                    ['summary' => $order['code'] . ' cancelled by admin', 'severity' => 'warn']);
+            }
+            flash($ok ? 'success' : 'error', $message);
             break;
 
         case 'progress':
@@ -220,6 +224,7 @@ if (ctype_digit((string) $action)) {
         'subtitle' => 'Orders',
         'order'       => $order,
         'state'       => number_state($order),
+        'cancel'      => order_cancel_choice($order, null),
         'activations' => all('SELECT * FROM activations WHERE order_id = ? ORDER BY id DESC', [$id]),
         'rental'      => !empty(order_meta($order)['rental_id'])
                            ? one('SELECT * FROM rentals WHERE id = ?', [(int) order_meta($order)['rental_id']]) : null,

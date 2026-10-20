@@ -22,6 +22,16 @@
 /** Products whose order is fulfilled by a number (or an inbox). */
 const NUMBER_PRODUCTS = ['sms', 'premium', 'cheap', 'email'];
 
+/**
+ * Status-check refusals that mean OTPGet has closed the number itself.
+ *
+ * A number that OTPGet cancels on its side - or no longer has on this
+ * account - will never receive a code, so the order is treated as one whose
+ * number ran out: refunded to a wallet, or a free replacement for a guest.
+ */
+const NUMBER_CLOSED_UPSTREAM = ['NO_ACTIVATION', 'STATUS_CANCEL', 'ACCESS_CANCEL', 'BAD_STATUS',
+    'WRONG_ACTIVATION_ID', 'STATUS_404'];
+
 /** How long a number is held when OTPGet does not say, in minutes. */
 function number_lifetime(string $product): int
 {
@@ -467,6 +477,18 @@ function number_check(int $orderId, bool $force = false): void
         : $api->status((string) $activation['product'], (string) $activation['provider_order_id']);
 
     if (isset($reply['error'])) {
+        // OTPGet no longer knows the number, or says it is closed: it was
+        // cancelled on their side (a banned number, an operator problem, an
+        // order closed by hand there). That is an answer, not a hiccup, so it
+        // is acted on now rather than when the number's time runs out.
+        if ($activation['status'] === 'waiting' && in_array($reply['error'], NUMBER_CLOSED_UPSTREAM, true)) {
+            order_log((int) $order['id'], 'OTPGet closed number ' . $activation['number'] . ' on its side ('
+                . $reply['error'] . ') before a code arrived.');
+            audit('order.closed_upstream', ['entity' => 'orders', 'entity_id' => $orderId, 'severity' => 'warn',
+                'summary' => $order['code'] . ': OTPGet closed the number (' . $reply['error'] . ')']);
+            number_lapsed($order, $activation, true, true);
+            return;
+        }
         order_log_once($orderId, 'Checking the SMS failed: ' . $reply['message']);
         if (strtotime((string) $activation['expires_at']) < time() - 600 && $activation['status'] === 'waiting') {
             // Ten minutes past its time and OTPGet will not even say: let it go.
@@ -485,8 +507,12 @@ function number_check(int $orderId, bool $force = false): void
             q("UPDATE activations SET status = 'finished', closed_at = ? WHERE id = ?", [$now, $activation['id']]);
             return;
         }
-        // Closed at OTPGet without a code - it lapsed there, and lapsing
-        // there is refunded there.
+        // Closed at OTPGet without a code - it lapsed or was cancelled there,
+        // and either way OTPGet refunded us: the customer is refunded or
+        // offered a fresh number, the same as a number that ran out.
+        if (strtotime((string) $activation['expires_at']) > time() + 30) {
+            order_log((int) $order['id'], 'OTPGet cancelled number ' . $activation['number'] . ' before its time was up.');
+        }
         number_lapsed($order, $activation, true, true);
         return;
     }

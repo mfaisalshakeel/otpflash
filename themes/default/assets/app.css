@@ -489,6 +489,49 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
   color:var(--brand-deep);font-size:14px;margin:10px 0}
 .note .icon{margin-top:3px;flex:none}
 .help{font-size:13.5px;color:var(--muted);margin-top:10px}
+.lnk-btn{border:0;background:none;padding:0;font:inherit;font-size:13.5px;font-weight:700;color:var(--brand);
+  cursor:pointer;text-decoration:underline;text-underline-offset:3px;margin-top:12px}
+.pay-cancel{text-align:center;margin-top:6px}
+.track-page{max-width:520px;padding-top:4vh;padding-bottom:6vh}
+
+/* Our own confirm and alert (ask() in app.js), in place of the browser's. */
+.ask{text-align:center;max-width:400px}
+.ask-ico{width:54px;height:54px;border-radius:17px;display:grid;place-items:center;margin:0 auto 12px;font-size:26px;font-weight:800}
+.ask-danger .ask-ico{background:var(--warn-soft);color:var(--warn)}
+.ask-danger .ask-ico::before{content:"!"}
+.ask-info .ask-ico{background:var(--brand-soft);color:var(--brand)}
+.ask-info .ask-ico::before{content:"i";font-family:Georgia,serif;font-style:italic}
+.ask .modal-title{margin-bottom:6px}
+.ask-text{color:var(--ink-2);font-size:15px;margin:0 0 18px}
+.ask-acts{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.ask-acts .btn{flex:1 1 140px}
+.btn-danger{background:#dc2626;color:#fff;border:0;box-shadow:0 6px 16px rgba(220,38,38,.25)}
+.btn-danger:hover{background:#b91c1c}
+
+/* Where copying is refused: the text, selected, to long-press. */
+.copy-box{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:1200;width:min(420px,calc(100% - 32px));
+  background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow-lg);padding:12px 44px 12px 14px}
+.copy-box span{display:block;font-size:12.5px;font-weight:700;color:var(--muted);margin-bottom:6px}
+.copy-box input{width:100%;font-size:18px;font-weight:800;border:1.5px solid var(--brand-line);border-radius:10px;padding:8px 10px;
+  background:var(--brand-soft);color:var(--ink)}
+.copy-box button{position:absolute;top:8px;right:8px;width:30px;height:30px;border:0;background:none;font-size:20px;cursor:pointer;color:var(--muted)}
+
+/* ---------- cancelling a number ---------- */
+.cancel-box{margin:14px 20px 4px;padding:16px;border-radius:18px;border:1.5px solid var(--line);background:#fff;
+  text-align:left;box-shadow:var(--shadow)}
+.state-panel .cancel-box{margin:16px auto 0;max-width:460px}
+.cancel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.cancel-head b{font-size:16px}
+.cancel-x{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:#fff;cursor:pointer;
+  font-size:18px;line-height:1;color:var(--muted)}
+.cancel-box p{font-size:14px;color:var(--ink-2);margin:0 0 12px}
+.cancel-acts{display:flex;gap:8px;flex-wrap:wrap}
+.cancel-acts .btn{flex:1 1 160px}
+.cancel-anyway{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)}
+.cancel-anyway b{display:block;font-size:13.5px;color:var(--warn)}
+.cancel-anyway p{font-size:13px;margin:2px 0 10px}
+.btn-danger-soft{background:var(--warn-soft);color:var(--warn);border:1.5px solid transparent;box-shadow:none}
+.btn-danger-soft:hover{border-color:var(--warn)}
 .help a{color:var(--brand);font-weight:700}
 .field{margin-bottom:14px}
 .field label{display:block;font-weight:700;font-size:14px;margin-bottom:6px}
@@ -569,6 +612,11 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
 .nc-num{display:block;font-size:clamp(26px,5.4vw,40px);font-weight:800;letter-spacing:.01em;margin:6px 0 14px;
   font-variant-numeric:tabular-nums;word-break:break-all}
 .nc-copies{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+/* Before the number exists: its shape, dimmed, and a line saying what is
+   happening - so the screen is already the one the code will land on. */
+.nc-num-soon{color:#c9c3e6;letter-spacing:.06em}
+.nc-soon-line{display:flex;align-items:center;justify-content:center;gap:8px;margin:0;font-weight:700;color:var(--brand);font-size:14.5px}
+.spinner-sm{width:16px;height:16px;border-width:2px}
 .nc-sms{margin:16px 20px;border-radius:18px;border:1.5px dashed var(--brand-line);padding:18px}
 .nc-sms.has-code{border:1.5px solid #bfe8cd;background:var(--ok-soft)}
 .nc-waiting{display:flex;align-items:center;gap:14px}
