@@ -2,20 +2,22 @@
 /**
  * Cancelling a number: what this visitor can do, and what it costs them.
  *
- * Folded behind one Cancel button so the number screen stays about the
- * number. Opens by itself when the customer comes back from signing in to
- * cancel (?cancel=1). The choices come from order_cancel_choice(); this
- * only draws them.
+ * A dialog over the number screen, opened by its Cancel button, so the
+ * choice is in front of the customer rather than unfolding somewhere below
+ * the fold. Opens by itself when the customer comes back from signing in to
+ * cancel (?cancel=1). The choices come from order_cancel_choice(); this only
+ * draws them.
  *
  * @var array $order  @var array $cancel  order_cancel_choice()  @var bool $open
  */
 $action = url('order/' . $order['code'] . '/cancel');
 $next   = rawurlencode($cancel['next']);
 ?>
-<div class="cancel-box" id="cancel" data-cancel-box <?= $open ? '' : 'hidden' ?>>
+<div class="modal-back" id="cancel" data-cancel-box <?= $open ? '' : 'hidden' ?>>
+  <div class="modal modal-sm cancel-box" role="dialog" aria-modal="true" aria-labelledby="cancelTitle" tabindex="-1">
   <div class="cancel-head">
-    <b>Cancel this <?= $order['product'] === 'email' ? 'inbox' : 'number' ?>?</b>
-    <button class="cancel-x" type="button" data-cancel-close aria-label="Keep it">&times;</button>
+    <b id="cancelTitle">Cancel this <?= $order['product'] === 'email' ? 'inbox' : 'number' ?>?</b>
+    <button class="cancel-x" type="button" data-close data-cancel-close aria-label="Keep it">&times;</button>
   </div>
 
   <?php if ($cancel['others']): ?>
@@ -50,4 +52,5 @@ $next   = rawurlencode($cancel['next']);
       </form>
     </div>
   <?php endif; ?>
+</div>
 </div>

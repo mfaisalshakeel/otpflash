@@ -517,9 +517,7 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
 .copy-box button{position:absolute;top:8px;right:8px;width:30px;height:30px;border:0;background:none;font-size:20px;cursor:pointer;color:var(--muted)}
 
 /* ---------- cancelling a number ---------- */
-.cancel-box{margin:14px 20px 4px;padding:16px;border-radius:18px;border:1.5px solid var(--line);background:#fff;
-  text-align:left;box-shadow:var(--shadow)}
-.state-panel .cancel-box{margin:16px auto 0;max-width:460px}
+.cancel-box{text-align:left}
 .cancel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
 .cancel-head b{font-size:16px}
 .cancel-x{width:30px;height:30px;border-radius:9px;border:1px solid var(--line);background:#fff;cursor:pointer;
@@ -792,9 +790,11 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
   .acct-bal{display:none}
   .acct-chip{padding:3px}
   .sbadge{margin-left:0}
-  .modal{padding:20px 16px;border-radius:20px}
-  .modal-back{align-items:flex-end;padding:0}
-  .modal{max-height:92vh;border-radius:24px 24px 0 0}
+  /* Centred like on a computer, not a sheet pinned to the bottom: a
+     question has to be in front of the customer, and a long box scrolls
+     inside itself. */
+  .modal-back{align-items:center;padding:16px}
+  .modal{padding:22px 18px;border-radius:22px;max-height:calc(100dvh - 32px)}
   .paypick{grid-template-columns:repeat(2,1fr)}
   .nc-actions .btn{flex:1}
   .inline-form{flex-direction:column}

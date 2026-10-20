@@ -368,6 +368,9 @@
         if (doc.body && doc.body.dataset.layout !== document.body.dataset.layout) { throw new Error('other layout'); }
         cleanups.splice(0).forEach(function (stop) { stop(); });
         main.innerHTML = fresh.innerHTML;
+        // refreshPage() dims #main itself when the page has no live card, and
+        // replacing what is inside it would leave the dimming on for good.
+        main.classList.remove('is-updating');
         document.title = doc.title;
         if (doc.body) { document.body.className = doc.body.className; }
         ['meta[name="description"]', 'link[rel="canonical"]', 'meta[name="robots"]'].forEach(function (sel) {
@@ -398,6 +401,8 @@
     if (liveRoot) { initLive(liveRoot); }
     bindStateActions(root);
     holdClocks();
+    var cancelOpen = $('[data-cancel-box]:not([hidden])', root);
+    if (cancelOpen) { cancelOpen.hidden = true; openModal(cancelOpen); }
     var inboxRoot = $('[data-inbox]', root);
     if (inboxRoot) { initInbox(inboxRoot); }
     syncPaymentFields();
@@ -1237,10 +1242,9 @@
     var closer = event.target.closest('[data-cancel-close]');
     if (!opener && !closer) { return; }
     var scope = (opener || closer).closest('.numcard, .panel, main') || document;
-    var boxEl = $('[data-cancel-box]', scope);
+    var boxEl = $('[data-cancel-box]', scope) || $('[data-cancel-box]');
     if (!boxEl) { return; }
-    boxEl.hidden = !!closer;
-    if (opener) { boxEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+    if (opener) { openModal(boxEl); } else { closeModal(boxEl); }
   });
 
   // ============================================================== tracker ==

@@ -28,8 +28,13 @@ const LOG_KINDS = [
                         'what'  => 'each run of each scheduled task'],
 ];
 
-/** The ages a log can be cleared back to, in days; 0 is everything. */
-const LOG_CLEAR_AGES = [30 => 'Older than 30 days', 7 => 'Older than 7 days', 1 => 'Older than a day', 0 => 'Everything'];
+/**
+ * The ages a log can be cleared back to, in days; 0 is everything. Everything
+ * comes first, so it is what the button does unless told otherwise: with
+ * "older than 30 days" first, a shop younger than a month pressed Clear and
+ * was told there was nothing to clear.
+ */
+const LOG_CLEAR_AGES = [0 => 'Everything', 30 => 'Older than 30 days', 7 => 'Older than 7 days', 1 => 'Older than a day'];
 
 /** How many rows a log holds, and how many of them are older than $days. */
 function log_count(string $kind, int $days = 0): int

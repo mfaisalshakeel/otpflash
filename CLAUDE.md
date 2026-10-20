@@ -356,7 +356,7 @@ failures, with the last day's failures counted on the sidebar.
 
 `logs.php` knows the five tables that only ever grow - `order_calls`,
 `audit_log`, `notifications`, `email_log`, `cron_runs` (`LOG_KINDS`) - and
-`log_clear()` empties one, or what is older than 1, 7 or 30 days. The form
+`log_clear()` empties one, or what is older than 1, 7 or 30 days - everything unless told otherwise. The form
 for it (`admin/_clear-log`) sits on each log's own screen and again in a
 *Logs* box on Maintenance, and posts to `/admin/maintenance/logs`. The audit
 entry is written **after** the delete, so clearing the audit log still leaves
