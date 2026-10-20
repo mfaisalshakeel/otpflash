@@ -1,15 +1,9 @@
 <?php
-/** What went out. @var array $rows  @var array $events */
+/** What went out. @var array $rows  @var array $events  @var array $paging */
 ?>
 <div class="filters">
   <a class="btn btn-ghost" href="<?= e(url('admin/emails')) ?>">Back to templates</a>
-  <?php if ($rows): ?>
-    <form method="post" action="<?= e(url('admin/emails/log/clear')) ?>" style="margin-left:auto"
-          data-confirm="Clear the whole send log?">
-      <?= csrf_field() ?>
-      <button class="btn btn-ghost" type="submit">Clear log</button>
-    </form>
-  <?php endif; ?>
+  <?php partial('admin/_clear-log', ['kind' => 'emails', 'back' => 'admin/emails/log', 'inline' => true]); ?>
 </div>
 
 <div class="box">
@@ -41,4 +35,6 @@
       </tbody>
     </table>
   </div>
+  <?php partial('admin/_pager', ['paging' => $paging, 'base' => 'admin/emails/log', 'noun' => 'email',
+      'shown' => count($rows)]); ?>
 </div>

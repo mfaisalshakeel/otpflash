@@ -58,6 +58,28 @@ $JOBS = [
     ],
 ];
 
+// ------------------------------------------------------------ the logs ----
+// Lighter than the jobs below: a log is history, not data anything depends
+// on, so a confirm is enough and there is no word to type.
+if (($params[0] ?? '') === 'logs' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_once APP_PATH . '/helpers/logs.php';
+    $kind = (string) ($_POST['kind'] ?? '');
+    $days = (int) ($_POST['days'] ?? 30);
+    // Only a screen of this panel: the field comes back from the form.
+    $back = (string) ($_POST['back'] ?? '');
+    $back = preg_match('~^admin(/[A-Za-z0-9_-]+)*$~', $back) ? $back : 'admin/maintenance';
+
+    if (!isset(LOG_KINDS[$kind]) || !array_key_exists($days, LOG_CLEAR_AGES)) {
+        flash('error', 'Unknown log.');
+        redirect($back);
+    }
+    $deleted = log_clear($kind, $days);
+    flash('success', LOG_KINDS[$kind]['label'] . ': ' . ($deleted
+        ? qty_fmt($deleted) . ' ' . plural('entry', $deleted) . ' cleared.'
+        : 'nothing ' . ($days ? 'that old' : 'there') . ' to clear.'));
+    redirect($back);
+}
+
 // --------------------------------------------------------------- run it ----
 if (($params[0] ?? '') === 'run' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $key   = (string) ($_POST['job'] ?? '');
@@ -128,8 +150,15 @@ foreach ($JOBS as $key => $job) {
     $rows[$key] = $job + ['counts' => $counts, 'total' => array_sum($counts)];
 }
 
+require_once APP_PATH . '/helpers/logs.php';
+$logs = [];
+foreach (LOG_KINDS as $kind => $info) {
+    $logs[$kind] = $info + ['total' => log_count($kind), 'old' => log_count($kind, 30)];
+}
+
 view('admin/maintenance', [
     'title'    => 'Maintenance',
     'subtitle' => 'Emptying things out',
     'jobs'     => $rows,
+    'logs'     => $logs,
 ], 'layouts/admin');

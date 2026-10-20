@@ -54,23 +54,20 @@ if (in_array($actor, ['admin', 'customer', 'cron', 'system'], true)) {
 }
 
 $clause = $where ? ' WHERE ' . implode(' AND ', $where) : '';
-$page   = max(1, (int) ($_GET['page'] ?? 1));
-$per    = 60;
 
 // Two statements, one clause each. Putting the same conditions twice in one
 // query shifts every later binding by position and the count comes back wrong
 // with no error at all.
-$total = (int) col('SELECT COUNT(*) FROM audit_log' . $clause, $params_, 0);
-$rows  = all('SELECT * FROM audit_log' . $clause . ' ORDER BY id DESC LIMIT '
-    . $per . ' OFFSET ' . (($page - 1) * $per), $params_);
+require_once APP_PATH . '/helpers/paging.php';
+$paging = paging((int) col('SELECT COUNT(*) FROM audit_log' . $clause, $params_, 0), 60);
+$rows   = all('SELECT * FROM audit_log' . $clause . ' ORDER BY id DESC LIMIT '
+    . $paging['per'] . ' OFFSET ' . $paging['offset'], $params_);
 
 view('admin/audit', [
     'title'    => 'Audit log',
     'subtitle' => 'Who changed what, and what it used to be',
     'rows'     => $rows,
-    'total'    => $total,
-    'page'     => $page,
-    'pages'    => max(1, (int) ceil($total / $per)),
+    'paging'   => $paging,
     'search'   => $search,
     'severity' => $severity,
     'actor'    => $actor,

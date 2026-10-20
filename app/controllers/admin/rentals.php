@@ -81,11 +81,15 @@ if (ctype_digit((string) $action)) {
         redirect('admin/rentals');
     }
 
+    require_once APP_PATH . '/helpers/paging.php';
+    $inbox = paging((int) col('SELECT COUNT(*) FROM rental_messages WHERE rental_id = ?', [$id], 0), 50);
     view('admin/rental', [
         'title'    => 'Rental ' . ($rental['number'] !== '' ? $rental['number'] : '#' . $id),
         'subtitle' => 'Rentals',
         'rental'   => $rental,
-        'messages' => all('SELECT * FROM rental_messages WHERE rental_id = ? ORDER BY id DESC', [$id]),
+        'messages' => all('SELECT * FROM rental_messages WHERE rental_id = ? ORDER BY id DESC LIMIT '
+                          . $inbox['per'] . ' OFFSET ' . $inbox['offset'], [$id]),
+        'inbox'    => $inbox,
         // Matched with what follows the id too, so rental 5 does not collect 50's renewals.
         'renewals' => all("SELECT * FROM orders WHERE product = 'renewal' AND (meta LIKE ? OR meta LIKE ?) ORDER BY id DESC",
                           ['%"rental_id":' . $id . ',%', '%"rental_id":' . $id . '}%']),

@@ -1320,3 +1320,12 @@ body.is-sorting{user-select:none}
 @media (max-width:760px){
   .columns-list div{grid-template-columns:minmax(0,1fr)}
 }
+
+/* Clearing a log: the age and the red button side by side, small enough to
+   sit in a box heading or at the end of a filter bar. */
+.clearlog{display:inline-flex;align-items:center;gap:6px;margin:0}
+.clearlog select{width:auto;padding:6px 30px 6px 10px;font-size:12.5px}
+.clearlog-inline{margin-left:auto}
+.clearlog-inline select{padding:9px 30px 9px 12px;font-size:13.5px}
+.clearlog .sel{min-width:172px;flex:none}
+.clearlog .sel-btn{white-space:nowrap}

@@ -88,8 +88,9 @@ function cron_tasks(): array
         'housekeeping' => [
             'label'    => 'Housekeeping',
             'detail'   => 'Clears expired throttle rows, old cron history, abandoned '
-                        . 'locks and routine audit entries past their keep-days. '
-                        . 'Warnings and alerts in the audit log are never pruned.',
+                        . 'locks, routine audit entries past their keep-days, and API, '
+                        . 'notification and email logs past theirs. Warnings and alerts '
+                        . 'in the audit log are never pruned.',
             'every'    => 'Daily',
             'handler'  => 'cron_housekeeping',
             'throttle' => 43200,
@@ -271,9 +272,11 @@ function cron_housekeeping(): string
     require_once APP_PATH . '/helpers/audit.php';
     $locks = locks_prune();
     $audit = audit_prune();
+    require_once APP_PATH . '/helpers/logs.php';
+    $logs  = logs_prune();
 
-    return sprintf('%d throttle rows, %d old cron runs, %d stale lock(s), %d audit entries cleared',
-        $limits, $runs, $locks, $audit);
+    return sprintf('%d throttle rows, %d old cron runs, %d stale lock(s), %d audit entries, %d log rows cleared',
+        $limits, $runs, $locks, $audit, $logs);
 }
 
 // ===========================================================================

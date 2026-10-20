@@ -127,8 +127,11 @@ if ($action === 'new' || ($action === 'edit' && ctype_digit((string) ($params[1]
     ], 'layouts/admin');
 }
 
+require_once APP_PATH . '/helpers/paging.php';
+$paging = paging((int) col('SELECT COUNT(*) FROM pages', [], 0));
 view('admin/pages', [
     'title'    => 'Pages',
     'subtitle' => 'About, policies and anything else - each lives at /its-address',
-    'pages'    => all('SELECT * FROM pages ORDER BY sort_order, id'),
+    'pages'    => all('SELECT * FROM pages ORDER BY sort_order, id LIMIT ' . $paging['per'] . ' OFFSET ' . $paging['offset']),
+    'paging'   => $paging,
 ], 'layouts/admin');

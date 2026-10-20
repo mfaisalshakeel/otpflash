@@ -92,6 +92,9 @@ $GROUPS = [
         'audit_keep_days' => ['label' => 'Keep the audit log for (days)', 'type' => 'number',
             'hint' => 'Ordinary entries are pruned after this. Warnings and alerts are kept. '
                     . 'Zero keeps everything.'],
+        'log_keep_days'   => ['label' => 'Keep the API, notification and email logs for (days)', 'type' => 'number',
+            'hint' => 'Cron trims older rows once a day. Zero keeps everything. Any log can also be '
+                    . 'cleared by hand from its own screen or from Maintenance.'],
     ],
     'Mail' => [
         'mail_driver' => ['label' => 'How mail is sent', 'type' => 'select',

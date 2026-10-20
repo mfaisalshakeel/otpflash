@@ -1,6 +1,6 @@
 <?php
 /**
- * @var array $tasks  @var array $recent  @var string $cronUrl  @var string $cronCommand
+ * @var array $tasks  @var array $recent  @var array $runsPaging  @var string $cronUrl  @var string $cronCommand
  * @var bool  $orgConfigured  @var ?array $orgJob  @var array $orgHistory
  */
 $neverRan = true;
@@ -69,7 +69,8 @@ foreach ($tasks as $task) {
     </div>
 
     <div class="box">
-      <div class="box-head"><b>Recent runs</b><span class="muted">last 25</span></div>
+      <div class="box-head"><b>Recent runs</b>
+        <?php partial('admin/_clear-log', ['kind' => 'cron', 'back' => 'admin/cron']); ?></div>
       <div class="tbl-wrap">
         <table class="tbl">
           <thead><tr><th>When</th><th>Task</th><th>From</th><th>Result</th><th>Took</th></tr></thead>
@@ -92,6 +93,8 @@ foreach ($tasks as $task) {
           </tbody>
         </table>
       </div>
+      <?php partial('admin/_pager', ['paging' => $runsPaging, 'base' => 'admin/cron', 'noun' => 'run',
+          'shown' => count($recent)]); ?>
     </div>
   </div>
 

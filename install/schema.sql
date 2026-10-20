@@ -590,6 +590,7 @@ INSERT INTO `settings` (`k`, `v`) VALUES
   ('smtp_port',             '587'),
   ('smtp_secure',           'tls'),
   ('audit_keep_days',       '180'),
+  ('log_keep_days',         '90'),
   ('chat_float',            'whatsapp'),
   ('chat_header',           'whatsapp'),
   ('chat_home',             'whatsapp'),

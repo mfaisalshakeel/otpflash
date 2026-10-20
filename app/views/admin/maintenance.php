@@ -5,7 +5,7 @@
  * One box per job, each carrying its own confirmation box. A single shared
  * form would let the wrong button be pressed against the wrong typing.
  *
- * @var array $jobs
+ * @var array $jobs @var array $logs
  */
 ?>
 <div class="alert alert-warning" style="margin-bottom:18px">
@@ -53,3 +53,24 @@
     </div>
   </div>
 <?php endforeach; ?>
+
+<div class="box" style="max-width:900px;margin-bottom:16px">
+  <div class="box-head"><b>Logs</b>
+    <span class="muted">Cron trims them past <?= (int) setting('log_keep_days', '90') ?> days (Settings)</span></div>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>Log</th><th>Entries</th><th>Older than 30 days</th><th></th></tr></thead>
+      <tbody>
+      <?php foreach ($logs as $kind => $log): ?>
+        <tr>
+          <td><a class="lnk" href="<?= e(url($log['screen'])) ?>"><b><?= e($log['label']) ?></b></a>
+            <small class="sub"><?= e($log['what']) ?></small></td>
+          <td><?= qty_fmt($log['total']) ?></td>
+          <td><?= qty_fmt($log['old']) ?></td>
+          <td class="ta-r"><?php partial('admin/_clear-log', ['kind' => $kind, 'back' => 'admin/maintenance']); ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>

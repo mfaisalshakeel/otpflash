@@ -41,6 +41,7 @@
       <svg class="icon"><use href="#i-trash"></use></svg> Clear read
     </button>
   </form>
+  <?php partial('admin/_clear-log', ['kind' => 'notifications', 'back' => 'admin/notifications', 'inline' => true]); ?>
 </div>
 
 <div class="box">

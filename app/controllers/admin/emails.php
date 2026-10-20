@@ -41,17 +41,14 @@ if ($action === 'test' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if ($action === 'log') {
-    if (($params[1] ?? '') === 'clear' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-        q('DELETE FROM email_log');
-        flash('success', 'Log cleared.');
-        redirect('admin/emails/log');
-    }
-
+    require_once APP_PATH . '/helpers/paging.php';
+    $paging = paging((int) col('SELECT COUNT(*) FROM email_log', [], 0));
     view('admin/email-log', [
         'title'    => 'Email log',
         'subtitle' => 'What was sent, and what failed',
-        'rows'     => all('SELECT * FROM email_log ORDER BY id DESC LIMIT 200'),
+        'rows'     => all('SELECT * FROM email_log ORDER BY id DESC LIMIT ' . $paging['per'] . ' OFFSET ' . $paging['offset']),
         'events'   => $events,
+        'paging'   => $paging,
     ], 'layouts/admin');
     return;
 }

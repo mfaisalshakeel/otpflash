@@ -34,23 +34,20 @@ if ($search !== '') {
 
 $clause = $where ? ' WHERE ' . implode(' AND ', $where) : '';
 $from   = ' FROM order_calls c LEFT JOIN orders o ON o.id = c.order_id';
-$page   = max(1, (int) ($_GET['page'] ?? 1));
-$per    = 50;
 
 // Two statements, one clause each - the count and the page cannot share
 // bindings without shifting them.
-$total = (int) col('SELECT COUNT(*)' . $from . $clause, $binding, 0);
-$calls = all('SELECT c.*, o.code AS order_code' . $from . $clause . ' ORDER BY c.id DESC LIMIT '
-    . $per . ' OFFSET ' . (($page - 1) * $per), $binding);
+require_once APP_PATH . '/helpers/paging.php';
+$paging = paging((int) col('SELECT COUNT(*)' . $from . $clause, $binding, 0), 50);
+$calls  = all('SELECT c.*, o.code AS order_code' . $from . $clause . ' ORDER BY c.id DESC LIMIT '
+    . $paging['per'] . ' OFFSET ' . $paging['offset'], $binding);
 
 $since  = date('Y-m-d H:i:s', time() - 86400);
 view('admin/api-log', [
     'title'    => 'API log',
     'subtitle' => 'What OTPGet and the payment gateways actually said',
     'calls'    => $calls,
-    'total'    => $total,
-    'page'     => $page,
-    'pages'    => max(1, (int) ceil($total / $per)),
+    'paging'   => $paging,
     'source'   => $source,
     'result'   => $result,
     'search'   => $search,

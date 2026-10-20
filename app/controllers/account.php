@@ -18,6 +18,9 @@
  * somebody else reads as not found rather than as forbidden.
  */
 require_once APP_PATH . '/helpers/orders.php';
+
+/** SMS on one page of a rental's inbox; a long rental collects hundreds. */
+const RENTAL_INBOX_PAGE = 30;
 require_once APP_PATH . '/helpers/payments.php';
 require_once APP_PATH . '/helpers/users.php';
 require_once APP_PATH . '/helpers/paging.php';
@@ -100,9 +103,13 @@ if ($section === 'rentals') {
         csrf_verify();
         session_write_close();
         rental_refresh($rentalId);
-        $messages = all('SELECT * FROM rental_messages WHERE rental_id = ? ORDER BY received_at DESC, id DESC', [$rentalId]);
+        // The newest page only: the live inbox is the first page, and the
+        // count is of everything so a new SMS is noticed wherever it lands.
+        $messages = all('SELECT * FROM rental_messages WHERE rental_id = ? ORDER BY received_at DESC, id DESC LIMIT '
+            . RENTAL_INBOX_PAGE, [$rentalId]);
         header('Content-Type: application/json; charset=utf-8');
-        echo json_encode(['ok' => true, 'count' => count($messages),
+        echo json_encode(['ok' => true,
+            'count' => (int) col('SELECT COUNT(*) FROM rental_messages WHERE rental_id = ?', [$rentalId], 0),
             'html' => render('account/_inbox', ['messages' => $messages])]);
         exit;
     }
@@ -167,9 +174,14 @@ if ($section === 'rentals') {
     rental_refresh($rentalId);
     $rental = one('SELECT * FROM rentals WHERE id = ?', [$rentalId]);
 
+    require_once APP_PATH . '/helpers/paging.php';
+    $inboxPaging = paging((int) col('SELECT COUNT(*) FROM rental_messages WHERE rental_id = ?', [$rentalId], 0),
+        RENTAL_INBOX_PAGE);
     $page('rental', 'Rental ' . $rental['number'], [
         'rental'   => $rental,
-        'messages' => all('SELECT * FROM rental_messages WHERE rental_id = ? ORDER BY received_at DESC, id DESC', [$rentalId]),
+        'messages' => all('SELECT * FROM rental_messages WHERE rental_id = ? ORDER BY received_at DESC, id DESC LIMIT '
+                          . $inboxPaging['per'] . ' OFFSET ' . $inboxPaging['offset'], [$rentalId]),
+        'paging'   => $inboxPaging,
         'options'  => $rental['status'] === 'active' ? rental_renew_options($rental) : [],
         'iso'      => strtolower((string) $rental['country_code']),
         'canCancel'=> (string) $rental['provider'] === '2' && $rental['status'] === 'active'

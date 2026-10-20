@@ -21,9 +21,12 @@
           <div class="panel">
             <div class="ptitle"><svg class="icon"><use href="#i-inbox"></use></svg> Inbox
               <?php if ($rental['status'] === 'active'): ?><span class="sbadge sb-live" style="margin-left:auto;font-size:12px"><span class="d"></span> live</span><?php endif; ?></div>
-            <div class="inbox" <?= $rental['status'] === 'active' ? 'data-inbox data-url="' . e(url('account/rentals/' . $rental['id'] . '/inbox')) . '" data-count="' . count($messages) . '"' : '' ?>>
+            <?php /* Only the newest page listens for new SMS: an older page is history,
+                     and redrawing it with the newest would lose the reader's place. */ ?>
+            <div class="inbox" <?= $rental['status'] === 'active' && $paging['page'] === 1 ? 'data-inbox data-url="' . e(url('account/rentals/' . $rental['id'] . '/inbox')) . '" data-count="' . (int) $paging['total'] . '"' : '' ?>>
               <?php partial('account/_inbox', ['messages' => $messages]); ?>
             </div>
+            <?php partial('account/_pager', ['paging' => $paging, 'base' => 'account/rentals/' . (int) $rental['id']]); ?>
           </div>
         </div>
         <aside>

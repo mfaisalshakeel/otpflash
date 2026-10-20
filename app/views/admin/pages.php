@@ -38,4 +38,5 @@
       </tbody>
     </table>
   </div>
+  <?php partial('admin/_pager', ['paging' => $paging, 'base' => 'admin/pages', 'noun' => 'page', 'shown' => count($pages)]); ?>
 </div>

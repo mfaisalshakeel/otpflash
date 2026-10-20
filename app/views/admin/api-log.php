@@ -1,7 +1,7 @@
 <?php
 /**
  * Every call to OTPGet and the gateways.
- * @var array $calls @var int $total @var int $page @var int $pages
+ * @var array $calls @var array $paging
  * @var string $source @var string $result @var string $search
  * @var int $failedPayments @var int $failedOtpget
  */
@@ -53,20 +53,14 @@ $keep = static function (array $with): string {
   <?php if ($search !== '' || $source !== '' || $result !== ''): ?>
     <a class="btn btn-ghost" href="<?= e(url('admin/api-log')) ?>">Reset</a>
   <?php endif; ?>
+  <?php partial('admin/_clear-log', ['kind' => 'api', 'back' => 'admin/api-log', 'inline' => true]); ?>
 </div>
 
 <div class="box">
   <div class="pad">
     <?php partial('admin/_calls', ['calls' => $calls, 'withOrder' => true]); ?>
   </div>
+  <?php partial('admin/_pager', ['paging' => $paging, 'base' => 'admin/api-log', 'noun' => 'call', 'shown' => count($calls),
+      'query' => array_filter(['source' => $source, 'result' => $result, 'q' => $search], 'strlen')]); ?>
 </div>
 
-<?php if ($pages > 1): ?>
-  <div class="pager">
-    <span><?= qty_fmt($total) ?> calls &middot; page <?= $page ?> of <?= $pages ?></span>
-    <span class="pgnav">
-      <?php if ($page > 1): ?><a class="btn btn-ghost btn-sm" href="<?= e($keep(['page' => $page - 1])) ?>">&larr; Newer</a><?php endif; ?>
-      <?php if ($page < $pages): ?><a class="btn btn-ghost btn-sm" href="<?= e($keep(['page' => $page + 1])) ?>">Older &rarr;</a><?php endif; ?>
-    </span>
-  </div>
-<?php endif; ?>

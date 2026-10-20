@@ -305,6 +305,25 @@ failures, with the last day's failures counted on the sidebar.
 - `order_call()` never throws: before the migration, or on a full disk, the
   sale goes on and the line goes to the log file.
 
+## Logs
+
+`logs.php` knows the five tables that only ever grow - `order_calls`,
+`audit_log`, `notifications`, `email_log`, `cron_runs` (`LOG_KINDS`) - and
+`log_clear()` empties one, or what is older than 1, 7 or 30 days. The form
+for it (`admin/_clear-log`) sits on each log's own screen and again in a
+*Logs* box on Maintenance, and posts to `/admin/maintenance/logs`. The audit
+entry is written **after** the delete, so clearing the audit log still leaves
+the line saying it was cleared. Housekeeping trims the API, notification and
+email logs past `log_keep_days` (90); the audit log and cron history keep
+their own rules. Order logs and money are records, not logs - they go only
+with their orders.
+
+**Every list pages through `paging()` and draws `admin/_pager`** (the
+portal: `account/_pager`), so page 2 means the same everywhere. The one
+list that does not is Payment Methods, which is ordered by dragging. A rental
+inbox pages too; only its newest page listens for new SMS, so an older page
+is never redrawn under the reader.
+
 ## Rentals
 
 Rentals need an account: the inbox lives in the portal, renewal is from the

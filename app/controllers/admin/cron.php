@@ -54,6 +54,9 @@ foreach (cron_tasks() as $key => $task) {
     ];
 }
 
+require_once APP_PATH . '/helpers/paging.php';
+$runsPaging = paging((int) col('SELECT COUNT(*) FROM cron_runs', [], 0), 25);
+
 view('admin/cron', [
     'title'        => 'Cron',
     'subtitle'     => 'Scheduled work, and how to run it',
@@ -61,7 +64,9 @@ view('admin/cron', [
     'cronKey'      => (string) cfg('cron_key', ''),
     'cronUrl'      => url('cron/' . cfg('cron_key', '')),
     'cronCommand'  => 'php ' . BASE_PATH . '/cron.php',
-    'recent'       => all('SELECT * FROM cron_runs ORDER BY id DESC LIMIT 25'),
+    'recent'       => all('SELECT * FROM cron_runs ORDER BY id DESC LIMIT ' . $runsPaging['per']
+                          . ' OFFSET ' . $runsPaging['offset']),
+    'runsPaging'   => $runsPaging,
     'orgConfigured'=> cronjoborg_configured(),
     'orgJob'       => cronjoborg_configured() ? cronjoborg_job() : null,
     'orgHistory'   => cronjoborg_configured() ? cronjoborg_history(8) : [],

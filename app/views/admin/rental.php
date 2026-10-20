@@ -2,7 +2,7 @@
 /**
  * One rental and its inbox.
  *
- * @var array $rental  @var array $messages  @var array $renewals
+ * @var array $rental  @var array $messages  @var array $inbox  @var array $renewals
  */
 $button = static function (string $do, string $label, string $class = 'btn-ghost', ?string $confirm = null) use ($rental): string {
     return '<form method="post" action="' . e(url('admin/rentals/action')) . '"'
@@ -18,7 +18,7 @@ $profit = (float) $rental['price'] - (float) $rental['cost'];
 <div class="split2 split-wide">
   <div>
     <div class="box">
-      <div class="box-head"><b>Inbox</b><span class="muted"><?= qty_fmt(count($messages)) ?> message(s)</span></div>
+      <div class="box-head"><b>Inbox</b><span class="muted"><?= qty_fmt($inbox['total']) ?> message(s)</span></div>
       <div class="tbl-wrap">
         <table class="tbl tbl-tight">
           <thead><tr><th>Received</th><th>From</th><th>Message</th><th>Code</th></tr></thead>
@@ -36,6 +36,8 @@ $profit = (float) $rental['price'] - (float) $rental['cost'];
           </tbody>
         </table>
       </div>
+      <?php partial('admin/_pager', ['paging' => $inbox, 'base' => 'admin/rentals/' . (int) $rental['id'],
+          'noun' => 'message', 'shown' => count($messages)]); ?>
     </div>
 
     <?php if ($renewals): ?>

@@ -1,7 +1,7 @@
 <?php
 /**
  * The record.
- * @var array $rows @var int $total @var int $page @var int $pages
+ * @var array $rows @var array $paging
  * @var string $search @var string $severity @var string $actor @var int $alerts
  */
 $keep = static function (array $with) {
@@ -47,6 +47,7 @@ $keep = static function (array $with) {
   <?php if ($search !== '' || $severity !== '' || $actor !== ''): ?>
     <a class="btn btn-ghost" href="<?= e(url('admin/audit')) ?>">Reset</a>
   <?php endif; ?>
+  <?php partial('admin/_clear-log', ['kind' => 'audit', 'back' => 'admin/audit', 'inline' => true]); ?>
 </div>
 
 <?php if ($alerts && $severity !== 'alert'): ?>
@@ -93,20 +94,6 @@ $keep = static function (array $with) {
     </table>
   </div>
 
-  <?php if ($pages > 1): ?>
-    <div class="pager">
-      <span><?= qty_fmt($total) ?> entries</span>
-      <span class="pgnav">
-        <?php if ($page > 1): ?>
-          <a class="btn btn-ghost btn-sm" href="<?= e($keep(['page' => $page - 1])) ?>">Newer</a>
-        <?php endif; ?>
-        <span class="muted">page <?= $page ?> of <?= $pages ?></span>
-        <?php if ($page < $pages): ?>
-          <a class="btn btn-ghost btn-sm" href="<?= e($keep(['page' => $page + 1])) ?>">Older</a>
-        <?php endif; ?>
-      </span>
-    </div>
-  <?php elseif ($rows): ?>
-    <div class="pager"><span><?= qty_fmt($total) ?> entries</span></div>
-  <?php endif; ?>
+  <?php partial('admin/_pager', ['paging' => $paging, 'base' => 'admin/audit', 'noun' => 'entry', 'shown' => count($rows),
+      'query' => array_filter(['q' => $search, 'severity' => $severity, 'actor' => $actor], 'strlen')]); ?>
 </div>
