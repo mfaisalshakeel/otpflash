@@ -20,7 +20,8 @@ $isDeposit = $product === 'deposit';
 $isRental  = in_array($product, ['rental', 'renewal'], true);
 $submitted = $status === 'pending' && (trim((string) $order['trx_id']) !== '' || !empty($order['payment_details']));
 $redo      = $submitted && isset($_GET['pay']);
-$words     = ORDER_STATUS_WORDS[$status] ?? $status;
+// "Awaiting payment" reads as an accusation to someone who has just paid.
+$words     = $submitted ? 'Checking payment' : (ORDER_STATUS_WORDS[$status] ?? $status);
 $live      = ($status === 'pending' && $submitted) || $status === 'paid' || $status === 'processing'
              || ($status === 'completed' && $isNumber && $state['seconds_left'] > 0);
 
