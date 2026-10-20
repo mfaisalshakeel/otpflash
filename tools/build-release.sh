@@ -4,15 +4,15 @@
 #
 #   bash tools/build-release.sh
 #
-# Produces build/smm-panel-YYYY-MM-DD.zip containing only what the live site
+# Produces build/otp-flash-YYYY-MM-DD.zip containing only what the live site
 # needs. The mockups and these tools stay in the repository but are left out of
-# the zip - they are development material, and tools/mock-provider.php must
-# never reach a real server.
+# the zip - they are development material, and tools/mock-otpget.php must
+# never reach a real server: it hands out numbers and codes to anyone who asks.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="$ROOT/build"
-NAME="smm-panel-$(date +%Y-%m-%d)"
+NAME="otp-flash-$(date +%Y-%m-%d)"
 STAGE="$OUT/$NAME"
 
 rm -rf "$STAGE" "$OUT/$NAME.zip"
@@ -26,7 +26,7 @@ for item in index.php cron.php .htaccess README.md \
 done
 
 # Empty writable folders, with their deny rules and nothing else.
-mkdir -p "$STAGE/storage/logs" "$STAGE/storage/cache" "$STAGE/uploads/branding"
+mkdir -p "$STAGE/storage/logs" "$STAGE/storage/cache" "$STAGE/uploads/branding" "$STAGE/uploads/content"
 cp "$ROOT/storage/.htaccess" "$STAGE/storage/.htaccess"
 cp "$ROOT/uploads/.htaccess" "$STAGE/uploads/.htaccess"
 
@@ -37,7 +37,7 @@ find "$STAGE" -name '.DS_Store' -delete
 find "$STAGE" -name '*.log'     -delete
 
 # A last look, in case the list above ever drifts.
-for forbidden in mockups tools build .git config/config.php install/install.lock; do
+for forbidden in mockups tools build .git config/config.php install/install.lock tools/mock-otpget.php; do
   if [ -e "$STAGE/$forbidden" ]; then
     echo "ERROR: $forbidden ended up in the release" >&2
     exit 1
@@ -51,5 +51,5 @@ rm -rf "$STAGE"
 echo
 echo "Built $OUT/$NAME.zip  ($(du -h "$OUT/$NAME.zip" | cut -f1))"
 echo
-echo "Upload it to public_html, unzip, make config/, storage/logs/ and"
-echo "uploads/branding/ writable, then open /install"
+echo "Upload it to public_html, unzip, make config/, storage/, uploads/branding/"
+echo "and uploads/content/ writable, then open /install"

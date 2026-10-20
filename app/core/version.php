@@ -8,4 +8,4 @@
  * migration that needs it.
  */
 
-return '1.9.5';
+return '1.0.0';

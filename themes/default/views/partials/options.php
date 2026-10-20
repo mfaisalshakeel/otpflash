@@ -37,10 +37,22 @@ if (!$options):
       <b>Out of stock right now</b>
       <p>Nothing is on sale for this choice at the moment. Try another country or app - stock changes every few minutes.</p>
     <?php endif; ?>
+    <?php
+    // What each tab can honestly promise: an inbox is not a number, and a
+    // rental is not replaced when it stays quiet - it keeps what it gets.
+    $promises = match (true) {
+        $rental          => [['i-bolt', 'Yours the moment it is paid'], ['i-inbox', 'Every SMS kept in your inbox'],
+                             ['i-refresh', 'Renew it whenever you like']],
+        $tab === 'email' => [['i-bolt', 'Address on screen in seconds'], ['i-mail', 'Code appears automatically'],
+                             ['i-shield', 'No email? Refunded or replaced']],
+        default          => [['i-bolt', 'Number on screen in seconds'], ['i-sms', 'Code appears automatically'],
+                             ['i-shield', 'No SMS? The next number is free']],
+    };
+    ?>
     <ul class="opt-promise">
-      <li><svg class="icon"><use href="#i-bolt"></use></svg> Number on screen in seconds</li>
-      <li><svg class="icon"><use href="#i-sms"></use></svg> Code appears automatically</li>
-      <li><svg class="icon"><use href="#i-shield"></use></svg> <?= $rental ? 'Every SMS kept in your inbox' : 'No SMS? The next number is free' ?></li>
+      <?php foreach ($promises as [$icon, $line]): ?>
+        <li><svg class="icon"><use href="#<?= e($icon) ?>"></use></svg> <?= e($line) ?></li>
+      <?php endforeach; ?>
     </ul>
   </div>
 <?php return; endif; ?>

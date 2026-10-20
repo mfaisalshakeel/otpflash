@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------
-# SMM Panel - Apache configuration
+# OTP Flash - Apache configuration
 # ---------------------------------------------------------------
 # Every directive here is either guarded by the module that understands it or
 # is one every Apache has. A directive the server does not know is not
