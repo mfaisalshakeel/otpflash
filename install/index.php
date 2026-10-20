@@ -191,7 +191,7 @@ if ($step === 4) {
 
     render_page('Installed', 4, '
       <div class="box">
-        <div class="done">&#10003;</div>
+        <div class="done-tick">&#10003;</div>
         <h2>All set</h2>
         <p class="sub">Your OTP shop is installed and the installer is now locked. Log in, open <b>OTPGet</b> and press <b>Sync catalogue</b> to fill the shop with numbers.</p>
         ' . $cronLine . '
@@ -331,7 +331,7 @@ foreach ($checks as $check) {
     if (!$check['ok']) {
         $check['required'] ? $blocked = true : $soft = true;
     }
-    $icon  = $check['ok'] ? '<span class="ok">&#10003;</span>' : ($check['required']
+    $icon  = $check['ok'] ? '<span class="check-ok">&#10003;</span>' : ($check['required']
         ? '<span class="bad">&#10007;</span>' : '<span class="meh">!</span>');
     // The hint is only worth the room when the check did not pass - a wall of
     // explanation beside nine green ticks is noise.
@@ -1175,7 +1175,7 @@ input:focus{border-color:var(--acc);background:#fff}
 table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:14px}
 td{padding:9px 6px;border-bottom:1px solid #f0f1f6}
 td.r{text-align:right;color:var(--muted);font-size:13px}
-.ok{color:var(--ok);font-weight:700}
+.check-ok{color:var(--ok);font-weight:700}
 .bad{color:var(--bad);font-weight:700}
 .meh{color:#d97706;font-weight:700}
 .choice{display:grid;gap:10px;margin-bottom:20px}
@@ -1196,7 +1196,7 @@ pre{background:var(--page);border:1px solid var(--line);border-radius:9px;paddin
   font-size:12.5px;overflow-x:auto;margin:0 0 14px}
 .lbl{font-size:12.5px;font-weight:700;color:var(--ink-2);margin:0 0 6px}
 code{background:var(--page);border-radius:5px;padding:1px 5px;font-size:13px}
-.done{width:46px;height:46px;border-radius:50%;background:#e7f8ee;color:var(--ok);display:grid;
+.done-tick{width:46px;height:46px;border-radius:50%;background:#e7f8ee;color:var(--ok);display:grid;
   place-items:center;font-size:24px;margin-bottom:14px}
 .mt{margin-top:18px;margin-bottom:0}
 .spin{display:inline-block;width:1em;height:1em;border-radius:50%;border:2px solid currentColor;
