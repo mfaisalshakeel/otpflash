@@ -425,6 +425,8 @@ CREATE TABLE IF NOT EXISTS `posts` (
   `meta_title` VARCHAR(190) NOT NULL DEFAULT '',
   `meta_description` VARCHAR(255) NOT NULL DEFAULT '',
   `focus_keyword` VARCHAR(120) NOT NULL DEFAULT '',
+  `image_prompt` TEXT NULL,
+  `image_alt` VARCHAR(190) NOT NULL DEFAULT '',
   `tags` VARCHAR(255) NOT NULL DEFAULT '',
   `status` VARCHAR(10) NOT NULL DEFAULT 'draft',
   `is_featured` TINYINT(1) NOT NULL DEFAULT 0,

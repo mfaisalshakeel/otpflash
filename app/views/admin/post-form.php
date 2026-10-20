@@ -90,10 +90,29 @@ $when = $post['published_at'] ? date('Y-m-d\TH:i', strtotime((string) $post['pub
       <div class="pad">
         <?php partial('admin/_upload', ['name' => 'cover', 'label' => 'Shown on the list, the post and social shares',
             'current' => (string) $post['cover_path'], 'accept' => 'image/png,image/jpeg,image/webp,image/gif',
-            'hint' => '1200 × 675 works everywhere. Under 2 MB.']); ?>
+            'hint' => '1200 × 675 works everywhere, up to 10 MB. Saved as WebP, at most 1600 px wide, '
+                    . 'with a JPEG copy for WhatsApp and Facebook previews.']); ?>
         <?= $err('cover') ?>
         <?php if ($post['cover_path'] !== ''): ?>
           <label class="check-row"><input type="checkbox" name="remove_cover" value="1"> Remove the cover</label>
+        <?php endif; ?>
+
+        <?php if (array_key_exists('image_prompt', $post)): ?>
+          <div class="field" style="margin-top:14px">
+            <label for="f-image-alt">Describe the picture <span class="muted">(alt text)</span></label>
+            <input id="f-image-alt" name="image_alt" maxlength="190" value="<?= e((string) ($post['image_alt'] ?? '')) ?>"
+                   placeholder="What is in the cover, for screen readers and image search">
+          </div>
+          <div class="field">
+            <div class="label-row">
+              <label for="f-image-prompt">Image prompt</label>
+              <button class="btn btn-ghost btn-sm" type="button" data-copy-from="#f-image-prompt">
+                <svg class="icon"><use href="#i-copy"></use></svg> Copy</button>
+            </div>
+            <textarea id="f-image-prompt" name="image_prompt" rows="4"
+                      placeholder="Paste into Midjourney, DALL-E or Ideogram, then upload the picture above"><?= e((string) ($post['image_prompt'] ?? '')) ?></textarea>
+            <small>Written by the AI with the article. Generate the picture, upload it as the cover - it is converted to WebP by itself.</small>
+          </div>
         <?php endif; ?>
       </div>
     </div>

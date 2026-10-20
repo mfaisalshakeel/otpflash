@@ -132,7 +132,28 @@ function post_toc(string $html): array
         return '<h' . $m[1] . $attributes . '>' . $m[3] . '</h' . $m[1] . '>';
     }, $html) ?? $html;
 
-    return [$html, $toc];
+    return [post_lazy_images($html), $toc];
+}
+
+/**
+ * Every image in a post loads when it scrolls near, not with the page.
+ *
+ * The cover is the only picture above the fold and it is not in here, so
+ * nothing the reader sees first waits on this. An image the editor already
+ * marked keeps what it was given.
+ */
+function post_lazy_images(string $html): string
+{
+    return preg_replace_callback('~<img\b([^>]*)>~i', static function (array $m): string {
+        $attributes = $m[1];
+        if (!preg_match('~\bloading\s*=~i', $attributes)) {
+            $attributes .= ' loading="lazy"';
+        }
+        if (!preg_match('~\bdecoding\s*=~i', $attributes)) {
+            $attributes .= ' decoding="async"';
+        }
+        return '<img' . $attributes . '>';
+    }, $html) ?? $html;
 }
 
 /** Up to $limit live posts like this one: same category first, then the newest. */

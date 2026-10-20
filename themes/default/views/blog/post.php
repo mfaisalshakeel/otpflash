@@ -40,7 +40,7 @@ $share = rawurlencode($post['title'] . ' ' . $link);
   <div class="wrap blog-layout">
     <div>
       <?php if ($post['cover_path'] !== ''): ?>
-        <figure class="post-cover"><img src="<?= e(url($post['cover_path'])) ?>" alt="<?= e($post['title']) ?>"
+        <figure class="post-cover"><img src="<?= e(url($post['cover_path'])) ?>" alt="<?= e(($post['image_alt'] ?? '') !== '' ? $post['image_alt'] : $post['title']) ?>"
              width="1200" height="600" fetchpriority="high" itemprop="image"></figure>
       <?php endif; ?>
 

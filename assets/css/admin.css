@@ -1283,3 +1283,40 @@ body.is-sorting{user-select:none}
   box-shadow:0 0 0 1px rgba(0,0,0,.08)}
 /* A table inside a detail box: less air, because the box already has its own. */
 .tbl-tight th,.tbl-tight td{padding:9px 12px}
+
+/* ---------- blog CSV import ----------
+   The prompt is the thing to take away, so it sits in its own panel with the
+   copy button on it; the check screen colours each row by what will happen. */
+.import-split{align-items:start}
+.import-lead{margin:0 0 16px;font-size:13.5px;line-height:1.55}
+.import-note{display:block;margin-top:10px;font-size:12.5px}
+.label-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}
+.label-row label{margin:0}
+.prompt-box{margin-top:16px;border:1px solid var(--line);border-radius:12px;background:var(--page);padding:12px}
+.prompt-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.prompt-text{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:10px 12px;
+  font-family:ui-monospace,monospace;font-size:12.5px;line-height:1.5;resize:vertical;min-height:260px}
+.prompt-text.is-loading{opacity:.55}
+.prompt-box small{display:block;margin-top:8px;font-size:12.5px}
+.columns-box{margin-top:16px}
+.columns-box > summary{cursor:pointer;list-style:none}
+.columns-box > summary::-webkit-details-marker{display:none}
+.columns-list{display:grid;gap:8px;margin:0 0 10px}
+.columns-list div{display:grid;grid-template-columns:140px minmax(0,1fr);gap:10px;font-size:13px}
+.columns-list dt{font-weight:700}
+.columns-list dd{margin:0;color:var(--ink-2)}
+.import-tbl td{vertical-align:top}
+.import-skip td{background:color-mix(in srgb,var(--danger) 5%,var(--surface))}
+.import-skip td:first-child{box-shadow:inset 3px 0 0 var(--danger)}
+.import-replace td:first-child{box-shadow:inset 3px 0 0 var(--warn)}
+.import-ok{display:inline-flex;align-items:center;gap:5px;color:var(--ok);font-weight:700;font-size:13px}
+.import-notes{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:12.5px}
+.import-notes:empty{display:none}
+.import-problem{color:var(--danger);font-weight:600}
+.import-problem::before{content:"\2716  "}
+.import-warning{color:var(--ink-2)}
+.import-warning::before{content:"\25B2  ";color:var(--warn)}
+.import-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}
+@media (max-width:760px){
+  .columns-list div{grid-template-columns:minmax(0,1fr)}
+}

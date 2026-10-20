@@ -8,6 +8,9 @@
  *   POST /admin/posts/save        create or update
  *   POST /admin/posts/delete      remove one
  *   POST /admin/posts/duplicate   copy one as a new draft
+ *   GET  /admin/posts/import      the AI prompt and the CSV upload
+ *   POST /admin/posts/import/check  read a CSV and show what it would do
+ *   POST /admin/posts/import/save   write the rows that passed
  *
  * Written by hand rather than through the CRUD engine because a post is more
  * than its columns: a cover image, a publish time that can be in the future,
@@ -20,6 +23,123 @@ require_once APP_PATH . '/helpers/audit.php';
 require_once APP_PATH . '/helpers/paging.php';
 
 $action = $params[0] ?? 'index';
+
+// ---------------------------------------------------------------- import --
+if ($action === 'import') {
+    require_once APP_PATH . '/helpers/blogcsv.php';
+    // The import writes the image prompt, which arrives with a migration.
+    if (!table_has_column('posts', 'image_prompt')) {
+        flash('error', 'The CSV import arrives with the database update, which has not run yet. Run it here first.');
+        redirect('admin/update');
+    }
+
+    $step    = $params[1] ?? '';
+    $options = [
+        'mode'        => in_array($_POST['mode'] ?? '', ['as_file', 'live', 'schedule', 'draft'], true) ? $_POST['mode'] : 'as_file',
+        'start'       => trim((string) ($_POST['start'] ?? '')),
+        'every_hours' => max(1, min(24 * 30, (int) ($_POST['every_hours'] ?? 24))),
+        'update'      => !empty($_POST['update']),
+    ];
+    // The file is kept between the preview and the save, so what is saved is
+    // exactly what was shown - checked again, since another import or an
+    // edit may have taken a slug in between.
+    $held = static function (string $token): string {
+        return STORAGE_PATH . '/cache/blog-import-' . $token . '.csv';
+    };
+    foreach (glob(STORAGE_PATH . '/cache/blog-import-*.csv') ?: [] as $old) {
+        if (filemtime($old) < time() - 86400) {
+            @unlink($old);
+        }
+    }
+
+    if ($step === 'check' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $text = trim((string) ($_POST['paste'] ?? ''));
+        $file = $_FILES['csv'] ?? null;
+        if ($file && ($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK && is_uploaded_file($file['tmp_name'])) {
+            if ($file['size'] > 8 * 1024 * 1024) {
+                flash('error', 'Keep a CSV under 8 MB - split a bigger batch in two.');
+                redirect('admin/posts/import');
+            }
+            $text = (string) file_get_contents($file['tmp_name']);
+        }
+        if ($text === '') {
+            flash('error', 'Choose a CSV file, or paste what the AI gave you into the box.');
+            redirect('admin/posts/import');
+        }
+        // A spreadsheet saved by Excel on Windows is not UTF-8, and the first
+        // accented letter would break every comparison after it.
+        if (!mb_check_encoding($text, 'UTF-8')) {
+            $text = mb_convert_encoding($text, 'UTF-8', 'Windows-1252');
+        }
+        $read = blog_csv_read($text);
+        if ($read['error'] !== '') {
+            flash('error', $read['error']);
+            redirect('admin/posts/import');
+        }
+        $token = bin2hex(random_bytes(16));
+        file_put_contents($held($token), $text, LOCK_EX);
+
+        view('admin/post-import-check', [
+            'title'    => 'Check the import',
+            'subtitle' => 'Blog',
+            'checked'  => blog_csv_check($read['rows'], $options),
+            'unknown'  => $read['unknown'],
+            'token'    => $token,
+            'options'  => $options,
+        ], 'layouts/admin');
+    }
+
+    if ($step === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $token = (string) ($_POST['token'] ?? '');
+        if (!preg_match('/^[a-f0-9]{32}$/', $token) || !is_file($held($token))) {
+            flash('error', 'That import has expired. Upload the file again.');
+            redirect('admin/posts/import');
+        }
+        $read    = blog_csv_read((string) file_get_contents($held($token)));
+        $checked = blog_csv_check($read['rows'], $options);
+        $done    = blog_csv_save($checked);
+        @unlink($held($token));
+
+        $scheduled = count(array_filter($checked, static fn (array $item): bool => $item['action'] !== 'skip' && $item['state'] === 'scheduled'));
+        audit('post.imported', ['entity' => 'posts', 'summary' => 'CSV import: ' . $done['created'] . ' created, '
+            . $done['replaced'] . ' replaced, ' . $done['skipped'] . ' skipped']);
+        flash('success', qty_fmt($done['created']) . ' post' . ($done['created'] === 1 ? '' : 's') . ' added'
+            . ($done['replaced'] ? ', ' . $done['replaced'] . ' replaced' : '')
+            . ($scheduled ? ' (' . $scheduled . ' scheduled)' : '')
+            . ($done['skipped'] ? '. ' . $done['skipped'] . ' left out, for the reasons the check screen gave.' : '.')
+            . ' Open each one to add its cover: the image prompt is waiting beside it.');
+        redirect('admin/posts');
+    }
+
+    // The prompt's options come in the query, so the form works without the
+    // script and the script only asks for the text again (step "prompt").
+    $ask = [
+        'count'       => max(1, min(30, (int) ($_GET['count'] ?? 5))),
+        'mode'        => in_array($_GET['mode'] ?? '', ['schedule', 'live', 'draft'], true) ? $_GET['mode'] : 'schedule',
+        'start'       => trim((string) ($_GET['start'] ?? '')) ?: date('Y-m-d', strtotime('+1 day')) . ' 10:00',
+        'every_hours' => max(1, min(24 * 30, (int) ($_GET['every_hours'] ?? 24))),
+        'audience'    => mb_substr(trim((string) ($_GET['audience'] ?? '')), 0, 200) ?: 'Pakistan first, and English-speaking readers worldwide',
+        'language'    => mb_substr(trim((string) ($_GET['language'] ?? '')), 0, 60) ?: 'English',
+        'topics'      => mb_substr(trim((string) ($_GET['topics'] ?? '')), 0, 2000),
+    ];
+    $ask['start'] = date('Y-m-d H:i', strtotime(str_replace('T', ' ', $ask['start'])) ?: strtotime('tomorrow 10:00'));
+    $prompt = blog_prompt_fill(blog_prompt_template(), $ask);
+
+    if ($step === 'prompt') {
+        header('Content-Type: text/plain; charset=utf-8');
+        header('Cache-Control: no-store');
+        echo $prompt;
+        exit;
+    }
+
+    view('admin/post-import', [
+        'title'    => 'Import posts',
+        'subtitle' => 'Blog',
+        'prompt'   => $prompt,
+        'ask'      => $ask,
+        'posts'    => (int) col('SELECT COUNT(*) FROM posts', [], 0),
+    ], 'layouts/admin');
+}
 
 /** The categories for the select, id => name. */
 $categories = static fn (): array => array_column(all('SELECT id, name FROM post_categories ORDER BY sort_order, name'), 'name', 'id');
@@ -91,9 +211,15 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         'published_at'     => $publishedAt,
         'updated_at'       => date('Y-m-d H:i:s'),
     ];
+    // Columns that arrive with a migration are written only once they exist:
+    // the editor has to save on a database that is behind the code.
+    if (table_has_column('posts', 'image_prompt')) {
+        $data['image_prompt'] = $text('image_prompt', 4000);
+        $data['image_alt']    = $text('image_alt', 190);
+    }
 
     if (!empty($_FILES['cover']['name'])) {
-        $stored = store_image_upload('cover', 'content', (string) ($before['cover_path'] ?? ''));
+        $stored = store_image_upload('cover', 'content', (string) ($before['cover_path'] ?? ''), ['webp' => true, 'share' => true]);
         if ($stored['ok']) {
             $data['cover_path'] = $stored['path'];
         } else {
@@ -171,7 +297,8 @@ if ($action === 'new' || ($action === 'edit' && ctype_digit((string) ($params[1]
     $post ??= ['id' => 0, 'title' => '', 'slug' => '', 'category_id' => null, 'excerpt' => '', 'content' => '',
                'cover_path' => '', 'meta_title' => '', 'meta_description' => '', 'focus_keyword' => '',
                'tags' => '', 'status' => 'draft', 'is_featured' => 0, 'noindex' => 0,
-               'author_name' => '', 'views' => 0, 'published_at' => null];
+               'author_name' => '', 'views' => 0, 'published_at' => null]
+             + (table_has_column('posts', 'image_prompt') ? ['image_prompt' => '', 'image_alt' => ''] : []);
 
     $errors = $_SESSION['_post_errors'] ?? [];
     unset($_SESSION['_post_errors']);
@@ -179,8 +306,10 @@ if ($action === 'new' || ($action === 'edit' && ctype_digit((string) ($params[1]
     // What was just typed wins over the row, so a refused save comes back
     // with the words still in it.
     foreach (['title', 'slug', 'excerpt', 'content', 'meta_title', 'meta_description', 'focus_keyword',
-              'tags', 'author_name', 'status'] as $name) {
-        $post[$name] = old($name, $post[$name]);
+              'tags', 'author_name', 'status', 'image_prompt', 'image_alt'] as $name) {
+        if (array_key_exists($name, $post)) {
+            $post[$name] = old($name, (string) $post[$name]);
+        }
     }
 
     view('admin/post-form', [

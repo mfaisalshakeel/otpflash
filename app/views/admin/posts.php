@@ -22,7 +22,9 @@
   <?php if (array_filter($filters, 'strlen')): ?>
     <a class="btn btn-ghost" href="<?= e(url('admin/posts')) ?>">Reset</a>
   <?php endif; ?>
-  <a class="btn btn-primary" style="margin-left:auto" href="<?= e(url('admin/posts/new')) ?>">
+  <a class="btn btn-ghost" style="margin-left:auto" href="<?= e(url('admin/posts/import')) ?>">
+    <svg class="icon"><use href="#i-doc"></use></svg> Import CSV</a>
+  <a class="btn btn-primary" href="<?= e(url('admin/posts/new')) ?>">
     <svg class="icon"><use href="#i-plus"></use></svg> New post</a>
 </form>
 

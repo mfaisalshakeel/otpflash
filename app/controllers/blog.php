@@ -14,6 +14,7 @@
  */
 require_once APP_PATH . '/helpers/blog.php';
 require_once APP_PATH . '/helpers/seo.php';
+require_once APP_PATH . '/helpers/upload.php';   // image_share_path()
 
 $first  = $params[0] ?? '';
 $second = $params[1] ?? '';
@@ -89,7 +90,7 @@ if ($first !== '' && $first !== 'category' && $first !== 'tag' && $first !== 'pa
             'title'       => $post['meta_title'] !== '' ? $post['meta_title'] : $post['title'],
             'description' => $post['meta_description'] !== '' ? $post['meta_description'] : post_excerpt($post, 160),
             'canonical'   => $link,
-            'image'       => $post['cover_path'] ?: null,
+            'image'       => $post['cover_path'] !== '' ? image_share_path((string) $post['cover_path']) : null,
             'type'        => 'article',
             'published'   => $post['published_at'],
             'modified'    => $post['updated_at'],

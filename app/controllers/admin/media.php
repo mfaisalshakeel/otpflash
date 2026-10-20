@@ -19,7 +19,7 @@ if (($params[0] ?? '') !== 'upload' || $_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$stored = store_image_upload('file', 'content');
+$stored = store_image_upload('file', 'content', '', ['webp' => true]);
 
 if (!$stored['ok']) {
     echo json_encode(['ok' => false, 'error' => $stored['error']]);

@@ -418,6 +418,30 @@ returns a path on this site. A blocked account is simply not found by
   `seo_clip()`, `post_excerpt()` and the checklist all replace tags with a
   space first, so a description never reads "works.Pick a number".
 - `seo_checklist()` is advice for the editor, never a gate.
+- **Posts come in by the batch** at `/admin/posts/import`, and `blogcsv.php`
+  holds both halves of that contract: `BLOG_CSV_COLUMNS` is what the AI
+  prompt asks for and what the importer reads. The prompt is built from the
+  shop as it is (`blog_prompt_facts()`): every post already written, so
+  nothing is written twice, and the real landing pages with their prices, so
+  the links lead somewhere. Its options are filled on the server
+  (`blog_prompt_fill()`); the screen only asks for the text again.
+- **Nothing imported is saved unseen.** `blog_csv_check()` says what each row
+  would become - new, replacing, scheduled, left out - with problems that
+  keep a row out (taken slug, a title that says the same as another post by
+  word overlap, no body, an unreadable date) and warnings that do not (no
+  internal links, links to pages that do not exist, a focus keyword another
+  post already chases, lengths). The file is held in `storage/cache` between
+  the check and the save, and checked again on save; the save is one
+  transaction, so a batch that links to itself lands whole or not at all.
+- Imported HTML is not trusted like typed HTML: `blog_csv_clean_html()` drops
+  scripts, frames, forms and event handlers, turns `<h1>` into `<h2>`, reads
+  tag-less text as Markdown, and marks links out of the shop `noopener`.
+- **Images on pages are WebP.** `store_image_upload(..., ['webp' => true])`
+  re-encodes a JPEG or PNG at most `UPLOAD_MAX_WIDTH` wide (turned upright
+  first); a GIF keeps its animation and a branding image its format, since
+  mail clients cannot show WebP. A cover also gets a 1200px JPEG twin
+  (`image_share_path()`) for link previews. Post images load lazily
+  (`post_lazy_images()`); the cover does not.
 
 ## Explaining the settings to the admin
 

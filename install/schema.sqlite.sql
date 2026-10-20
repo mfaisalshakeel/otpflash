@@ -330,6 +330,8 @@ CREATE TABLE IF NOT EXISTS "posts" (
   "meta_title" TEXT NOT NULL DEFAULT '',
   "meta_description" TEXT NOT NULL DEFAULT '',
   "focus_keyword" TEXT NOT NULL DEFAULT '',
+  "image_prompt" TEXT NULL,
+  "image_alt" TEXT NOT NULL DEFAULT '',
   "tags" TEXT NOT NULL DEFAULT '',
   "status" TEXT NOT NULL DEFAULT 'draft',
   "is_featured" INTEGER NOT NULL DEFAULT 0,

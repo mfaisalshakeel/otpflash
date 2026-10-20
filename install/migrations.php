@@ -97,4 +97,13 @@ return [
                      'CREATE INDEX IF NOT EXISTS "ix_order_calls_order" ON "order_calls" ("order_id", "id")',
                      'CREATE INDEX IF NOT EXISTS "ix_order_calls_source" ON "order_calls" ("source", "ok", "id")'],
     ],
+    // A post written elsewhere (the CSV import) arrives with the prompt for
+    // its picture; the editor keeps it beside the cover to copy.
+    '2026_10_post_image_prompt' => [
+        'label'  => 'Keep each post\'s image prompt and the cover\'s alt text',
+        'mysql'  => ["ALTER TABLE `posts` ADD COLUMN `image_prompt` TEXT NULL AFTER `focus_keyword`",
+                     "ALTER TABLE `posts` ADD COLUMN `image_alt` VARCHAR(190) NOT NULL DEFAULT '' AFTER `image_prompt`"],
+        'sqlite' => ['ALTER TABLE "posts" ADD COLUMN "image_prompt" TEXT NULL',
+                     'ALTER TABLE "posts" ADD COLUMN "image_alt" TEXT NOT NULL DEFAULT \'\''],
+    ],
 ];

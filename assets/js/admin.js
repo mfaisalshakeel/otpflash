@@ -56,9 +56,12 @@
 
   // --- copy buttons --------------------------------------------------------
   document.addEventListener('click', function (event) {
-    var btn = event.target.closest('[data-copy]');
+    var btn = event.target.closest('[data-copy], [data-copy-from]');
     if (!btn) { return; }
-    var text = btn.getAttribute('data-copy');
+    // data-copy-from names a box whose current text is what gets copied, so a
+    // prompt the admin has just edited is copied as it now reads.
+    var source = btn.hasAttribute('data-copy-from') ? document.querySelector(btn.getAttribute('data-copy-from')) : null;
+    var text = source ? (source.value !== undefined ? source.value : source.textContent) : btn.getAttribute('data-copy');
     var done = function () {
       var original = btn.textContent;
       btn.textContent = 'Copied';
@@ -1033,4 +1036,42 @@
     });
     sync();
   })();
+  // --- the blog import's AI prompt ------------------------------------------
+  // The prompt is written by the server from the boxes above it; as they
+  // change, the server is asked for it again, so its words exist in one place.
+  // Without the script, "Update the prompt" does the same in a page load.
+  document.querySelectorAll('[data-prompt-form]').forEach(function (form) {
+    var box = document.getElementById('aiPrompt');
+    var refresh = form.querySelector('[data-prompt-refresh]');
+    var schedule = form.querySelector('[data-when="schedule"]');
+    if (!box) { return; }
+    if (refresh) { refresh.hidden = true; }
+    var timer = 0;
+    var asked = 0;
+    function showSchedule() {
+      if (schedule) { schedule.hidden = form.elements.mode.value !== 'schedule'; }
+    }
+    function update() {
+      var mine = ++asked;
+      box.classList.add('is-loading');
+      var query = new URLSearchParams(new FormData(form)).toString();
+      fetch(box.getAttribute('data-prompt-url') + '?' + query, { credentials: 'same-origin' })
+        .then(function (response) { return response.ok ? response.text() : Promise.reject(); })
+        .then(function (text) { if (mine === asked) { box.value = text; } })
+        .catch(function () { if (refresh) { refresh.hidden = false; } })
+        .then(function () { if (mine === asked) { box.classList.remove('is-loading'); } });
+    }
+    form.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(update, 350); });
+    form.addEventListener('change', function () { showSchedule(); clearTimeout(timer); timer = setTimeout(update, 150); });
+    form.addEventListener('submit', function (event) { event.preventDefault(); update(); });
+    showSchedule();
+  });
+
+  // The import's own schedule boxes matter only when it is asked to schedule.
+  document.querySelectorAll('[data-when-import]').forEach(function (group) {
+    var select = group.closest('form').elements.mode;
+    var show = function () { group.hidden = select.value !== group.getAttribute('data-when-import'); };
+    select.addEventListener('change', show);
+    show();
+  });
 })();
