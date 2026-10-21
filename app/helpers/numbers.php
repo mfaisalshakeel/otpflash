@@ -719,7 +719,8 @@ function number_out_of_stock(string $code): bool
  * the price it was sold for, today's cost checked first.
  *
  * Numbers only: an inbox or a rental is a different thing, not another
- * server of the same one. Up to three candidates, cheapest first, each
+ * server of the same one. Up to three candidates, best-graded and then
+ * cheapest first (offer_quality()), each
  * re-read from OTPGet if its cost is old - a stand-in bought at a loss is
  * the very thing the loss guard exists to stop.
  */
@@ -736,8 +737,14 @@ function number_stand_in(array $order, array $exclude): ?array
 
     $rows = all("SELECT o.* FROM offers o
                   WHERE o.service_id = ? AND o.country_id = ? AND {$sellable}{$skip}
-                  ORDER BY o.price, o.id LIMIT 3",
+                  ORDER BY o.price, o.id LIMIT 8",
         array_merge([(int) $order['service_id'], (int) $order['country_id']], $params, $exclude));
+    // A customer who paid for a number that delivers should not be moved to
+    // one that may not: better-graded servers are tried first, then price.
+    $rank = ['best' => 0, 'standard' => 1, 'budget' => 2];
+    usort($rows, static fn ($a, $b) =>
+        [$rank[offer_quality($a)] ?? 1, (float) $a['price']] <=> [$rank[offer_quality($b)] ?? 1, (float) $b['price']]);
+    $rows = array_slice($rows, 0, 3);
 
     $guarded = setting('loss_guard', '1') === '1';
     foreach ($rows as $row) {

@@ -614,6 +614,86 @@ function offer_sale_price(array $offer): float
         : round((float) $offer['price'], 2);
 }
 
+/** How reliable a server's numbers are, as the admin sets it per server. */
+const OFFER_QUALITIES = ['auto' => 'From its deliveries', 'best' => 'Best delivery', 'standard' => 'Standard',
+                         'budget' => 'Budget'];
+
+/** The servers whose quality can be set, and what each starts as. */
+const OFFER_QUALITY_DEFAULTS = ['1' => 'auto', '2' => 'auto', '3' => 'auto', '4' => 'auto', '5' => 'auto', '6' => 'auto',
+                                'premium' => 'best', 'cheap' => 'budget'];
+
+/**
+ * Codes delivered per server over the last thirty days, as a share of the
+ * paid numbers that finished one way or the other - a number held for an
+ * unpaid order and given back is nobody's delivery. A server with fewer than
+ * ten such numbers is left out: two misses in three is luck, not a rate.
+ *
+ * @return array<string, array{rate: float, total: int}> "product:server" => ...
+ */
+function server_delivery_rates(): array
+{
+    static $rates = null;
+    if ($rates !== null) {
+        return $rates;
+    }
+    $cached = catalogue_cache_read('delivery-rates', 600);
+    if ($cached !== null) {
+        return $rates = $cached;
+    }
+    $rates = [];
+    foreach (optional_all("SELECT a.product, a.server,
+                                  SUM(CASE WHEN a.status IN ('received', 'finished') THEN 1 ELSE 0 END) AS got,
+                                  COUNT(*) AS total
+                             FROM activations a JOIN orders o ON o.id = a.order_id
+                            WHERE a.created_at >= ? AND o.paid_at IS NOT NULL
+                              AND a.status IN ('received', 'finished', 'expired')
+                         GROUP BY a.product, a.server", [date('Y-m-d H:i:s', time() - 30 * 86400)]) as $row) {
+        if ((int) $row['total'] >= 10) {
+            $rates[$row['product'] . ':' . $row['server']] = [
+                'rate'  => round((int) $row['got'] / (int) $row['total'], 3),
+                'total' => (int) $row['total'],
+            ];
+        }
+    }
+    catalogue_cache_write('delivery-rates', $rates);
+    return $rates;
+}
+
+/** The quality setting's key for an offer: the SMS server's number, or the product. */
+function offer_quality_key(array $offer): string
+{
+    return (string) $offer['product'] === 'sms' ? (string) $offer['server'] : (string) $offer['product'];
+}
+
+/**
+ * Best, standard or budget: whether this offer's code can be counted on.
+ *
+ * What the admin set for the server wins. Left on "from its deliveries", it
+ * is read off the last thirty days - three in four codes delivered is best,
+ * under one in two is budget - and a server too new to have a record is
+ * standard. Inboxes and rentals are not graded: they are not bought for one
+ * code that either comes or does not.
+ */
+function offer_quality(array $offer): string
+{
+    $key = offer_quality_key($offer);
+    if (!isset(OFFER_QUALITY_DEFAULTS[$key]) || !in_array((string) $offer['product'], ['sms', 'premium', 'cheap'], true)) {
+        return 'standard';
+    }
+    $set = (string) setting('server_quality_' . $key, '');
+    $set = isset(OFFER_QUALITIES[$set]) ? $set : OFFER_QUALITY_DEFAULTS[$key];
+    if ($set !== 'auto') {
+        return $set;
+    }
+    $rate = server_delivery_rates()[$offer['product'] . ':' . $offer['server']]['rate'] ?? null;
+    return match (true) {
+        $rate === null => 'standard',
+        $rate >= 0.75  => 'best',
+        $rate < 0.45   => 'budget',
+        default        => 'standard',
+    };
+}
+
 /** "Server 2", "Premium", "Gmail.com", "1 month" - what an option is called. */
 function offer_option_label(array $offer): string
 {

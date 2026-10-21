@@ -258,6 +258,17 @@ body:has(.hero) .flash-wrap{position:absolute;top:70px;left:0;right:0;z-index:30
 .obadge{font-style:normal;font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
   background:var(--ok-soft);color:var(--ok);padding:2px 7px;border-radius:999px}
 .obadge-p{background:#fff1d6;color:#b45309}
+.obadge-best{background:var(--ok-soft);color:var(--ok)}
+.obadge-budget{background:#fff1d6;color:#b45309}
+.obadge-price{background:var(--brand-soft);color:var(--brand)}
+/* Choosing a budget number says what it risks, next to a way back. */
+.opt-warn{display:flex;gap:10px;align-items:flex-start;margin:10px 0 2px;padding:12px 14px;border-radius:14px;
+  background:var(--warn-soft);border:1px solid #f6d9a8;color:#7c4a03;font-size:13.5px;line-height:1.45}
+.opt-warn .icon{font-size:19px;flex:none;margin-top:1px;color:var(--warn)}
+.opt-warn b{display:block;color:#7c2d12}
+.opt-switch{display:inline-flex;margin-top:8px;padding:7px 12px;border-radius:10px;border:1.5px solid var(--ok);background:#fff;
+  color:var(--ok);font:inherit;font-weight:700;font-size:13px;cursor:pointer}
+.opt-switch:hover{background:var(--ok-soft)}
 .ocontact{display:grid;gap:9px}
 .ofield{display:grid;gap:5px}
 .ofield > span:first-child{font-size:13px;font-weight:700;color:var(--ink-2)}

@@ -33,6 +33,8 @@ $OWNED = [
     'sync_on_cron', 'sync_batch', 'low_balance_threshold',
     'server_label_1', 'server_label_2', 'server_label_3', 'server_label_4', 'server_label_5',
     'server_label_6', 'server_label_premium', 'server_label_cheap',
+    'server_quality_1', 'server_quality_2', 'server_quality_3', 'server_quality_4', 'server_quality_5',
+    'server_quality_6', 'server_quality_premium', 'server_quality_cheap',
 ];
 
 // ------------------------------------------------------------------ save --
@@ -89,7 +91,11 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     foreach (['1', '2', '3', '4', '5', '6', 'premium', 'cheap'] as $server) {
         set_setting('server_label_' . $server, mb_substr(trim((string) ($_POST['server_label_' . $server] ?? '')), 0, 40));
+        $quality = (string) ($_POST['server_quality_' . $server] ?? '');
+        set_setting('server_quality_' . $server, isset(OFFER_QUALITIES[$quality]) ? $quality : OFFER_QUALITY_DEFAULTS[$server]);
     }
+    // The picker's lists are cached, and a server's grade decides what they show first.
+    catalogue_changed();
 
     $after = settings_all(true);
     audit('otpget.settings', [

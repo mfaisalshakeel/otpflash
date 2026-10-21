@@ -203,20 +203,44 @@ $value    = static fn (string $key, string $default = ''): string => (string) se
 
       <?php /* ------------------------------------------ the names ---- */ ?>
       <div class="box">
-        <div class="box-head"><b>What customers call each option</b></div>
+        <div class="box-head"><b>What customers call each option, and how good it is</b></div>
         <div class="pad">
-          <p class="muted" style="margin-top:0">Optional. "Server 2" means nothing to a customer; "Fast" or "Best value" might.</p>
-          <div class="field2">
-            <?php foreach (['1', '2', '3', '4', '5', '6'] as $server): ?>
-              <div class="field">
-                <label for="o-l<?= $server ?>">Server <?= $server ?></label>
-                <input id="o-l<?= $server ?>" name="server_label_<?= $server ?>" value="<?= e($value('server_label_' . $server)) ?>" placeholder="Server <?= $server ?>">
+          <p class="muted" style="margin-top:0">The name is optional: "Server 2" means nothing to a customer; "Fast" or
+            "Best value" might. The grade decides what the shop recommends: it chooses the cheapest
+            <b>Best delivery</b> number first, keeps the cheapest in view, and warns anyone who picks a
+            <b>Budget</b> one that its code may not arrive. Left on "From its deliveries", a server is graded by the
+            last 30 days: 75% of codes delivered or more is Best, under 45% is Budget.</p>
+          <?php
+          $rates  = server_delivery_rates();
+          $grades = [];
+          foreach (['1', '2', '3', '4', '5', '6'] as $server) {
+              $grades[$server] = ['Server ' . $server, 'Server ' . $server, $rates['sms:' . $server] ?? null];
+          }
+          $grades['premium'] = ['Premium', 'Premium · SMS or call', $rates['premium:'] ?? $rates['premium:1'] ?? null];
+          $grades['cheap']   = ['Budget', 'Budget', $rates['cheap:1'] ?? $rates['cheap:2'] ?? $rates['cheap:'] ?? null];
+          ?>
+          <div class="grade-rows">
+            <?php foreach ($grades as $server => [$name, $placeholder, $rate]): ?>
+              <div class="grade-row">
+                <div class="field">
+                  <label for="o-l<?= e($server) ?>"><?= e($name) ?></label>
+                  <input id="o-l<?= e($server) ?>" name="server_label_<?= e($server) ?>" value="<?= e($value('server_label_' . $server)) ?>"
+                         placeholder="<?= e($placeholder) ?>">
+                </div>
+                <div class="field">
+                  <label for="o-q<?= e($server) ?>">Grade</label>
+                  <select id="o-q<?= e($server) ?>" name="server_quality_<?= e($server) ?>">
+                    <?php $current = $value('server_quality_' . $server) ?: OFFER_QUALITY_DEFAULTS[$server]; ?>
+                    <?php foreach (OFFER_QUALITIES as $key => $label): ?>
+                      <option value="<?= e($key) ?>"<?= $current === $key ? ' selected' : '' ?>><?= e($label) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                  <small class="muted"><?= $rate
+                      ? e(round($rate['rate'] * 100) . '% of ' . $rate['total'] . ' numbers got their code in 30 days')
+                      : 'Not enough numbers in 30 days to say' ?></small>
+                </div>
               </div>
             <?php endforeach; ?>
-            <div class="field"><label for="o-lp">Premium</label>
-              <input id="o-lp" name="server_label_premium" value="<?= e($value('server_label_premium')) ?>" placeholder="Premium · SMS or call"></div>
-            <div class="field"><label for="o-lc">Budget</label>
-              <input id="o-lc" name="server_label_cheap" value="<?= e($value('server_label_cheap')) ?>" placeholder="Budget"></div>
           </div>
         </div>
       </div>

@@ -727,6 +727,8 @@
       var radio = current();
       $$('.opt', form).forEach(function (opt) { opt.classList.toggle('on', opt.contains(radio)); });
       if (!radio) { return; }
+      var warn = $('[data-budget-warn]', form);
+      if (warn) { warn.hidden = radio.dataset.quality !== 'budget'; }
       var price = parseFloat(radio.dataset.price);
       var shown = radio.dataset.money || money(price);
       $$('[data-buy]', form).forEach(function (button) {
@@ -751,6 +753,13 @@
     }
     form.addEventListener('change', relabel);
     relabel();
+    // The warning's own way back to a number that delivers.
+    form.addEventListener('click', function (event) {
+      var pick = event.target.closest('[data-pick-option]');
+      if (!pick) { return; }
+      var radio = $('input[name="offer_id"][value="' + pick.dataset.pickOption + '"]', form);
+      if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); }
+    });
 
     // A returning guest's contact boxes are filled from last time, in this
     // browser only. Storage can be refused (a private window) - then they

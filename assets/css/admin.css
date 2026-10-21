@@ -1359,3 +1359,12 @@ body.is-sorting{user-select:none}
      out of the card. */
   .tbl:not(.tbl-plain) tbody td{overflow-wrap:anywhere}
 }
+
+/* ---- a server's name and grade, side by side ---- */
+.grade-rows{display:grid;gap:4px}
+.grade-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;padding:8px 0;
+  border-bottom:1px solid var(--line)}
+.grade-row:last-child{border-bottom:0}
+.grade-row .field{margin:0}
+.grade-row small{display:block;margin-top:5px}
+@media (max-width:760px){ .grade-row{grid-template-columns:minmax(0,1fr)} }

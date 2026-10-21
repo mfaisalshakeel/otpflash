@@ -58,7 +58,6 @@ if (!$options):
 <?php return; endif; ?>
 
 <?php
-$first   = $options[0];
 // Where signing in brings them back to: this very choice, not wherever the
 // partial happened to be rendered from (it is also sent back by the API).
 $next    = ltrim(substr(choice_url($tab, $service, $country), strlen(base_url())), '/');
@@ -82,27 +81,33 @@ $balance = $user ? (float) $user['balance'] : 0.0;
   </div>
 
   <?php
-  // One option, already chosen - the cheapest, which is first - and the rest
-  // folded away. Four radios with server numbers on them was a question most
-  // people could not answer and should not have to: the cheapest is what they
-  // would pick anyway, and anyone who wants another opens "More options".
+  // One option already chosen and the rest folded away - radios labelled with
+  // server numbers are a question most people cannot answer. Which one is
+  // chosen, and what stays in view, is options_arrange()'s decision.
   $option = static function (array $option, bool $chosen, bool $cheapest, bool $alone): void { ?>
-      <label class="opt<?= $chosen ? ' on' : '' ?><?= $alone ? ' opt-single' : '' ?>">
+      <label class="opt<?= $chosen ? ' on' : '' ?><?= $alone ? ' opt-single' : '' ?> opt-<?= e($option['quality']) ?>">
         <input type="radio" name="offer_id" value="<?= (int) $option['id'] ?>" data-price="<?= e((string) $option['price']) ?>"
-               data-money="<?= e(money($option['price'])) ?>" <?= $chosen ? 'checked' : '' ?>>
+               data-money="<?= e(money($option['price'])) ?>" data-quality="<?= e($option['quality']) ?>" <?= $chosen ? 'checked' : '' ?>>
         <span class="opt-radio" aria-hidden="true"></span>
         <span class="olabel"><?= e($option['label']) ?><small><?= e($option['note']) ?></small></span>
         <span class="oprice"><?= e(money($option['price'])) ?>
-          <?php if ($cheapest && !$alone): ?><em class="obadge">Best price</em><?php endif; ?>
-          <?php if ($option['product'] === 'premium'): ?><em class="obadge obadge-p">Premium</em><?php endif; ?>
+          <?php if ($option['product'] === 'premium'): ?><em class="obadge obadge-p">Premium</em>
+          <?php elseif ($option['quality'] === 'best'): ?><em class="obadge obadge-best">Best delivery</em>
+          <?php elseif ($option['quality'] === 'budget'): ?><em class="obadge obadge-budget">Budget</em><?php endif; ?>
+          <?php if ($cheapest && !$alone): ?><em class="obadge obadge-price">Lowest price</em><?php endif; ?>
         </span>
       </label>
   <?php };
-  $more = array_slice($options, 1);
+
+  ['shown' => $shown, 'more' => $more, 'recommended' => $recommended] = options_arrange($options, $rental);
+  $first  = $recommended;
+  $better = $recommended['quality'] !== 'budget' ? $recommended : null;
   ?>
   <fieldset class="opts">
     <legend class="sr-only">Choose an option</legend>
-    <?php $option($options[0], true, $options[0]['price'] <= $cheap, !$more); ?>
+    <?php foreach ($shown as $index => $one): ?>
+      <?php $option($one, $index === 0, $one['price'] <= $cheap, count($options) === 1); ?>
+    <?php endforeach; ?>
     <?php if ($more): ?>
       <details class="more-opts">
         <summary>More options <span>(<?= count($more) ?>)</span></summary>
@@ -112,6 +117,22 @@ $balance = $user ? (float) $user['balance'] : 0.0;
       </details>
     <?php endif; ?>
   </fieldset>
+
+  <?php if (array_filter($options, static fn ($o) => $o['quality'] === 'budget')): ?>
+    <div class="opt-warn" data-budget-warn <?= $recommended['quality'] === 'budget' ? '' : 'hidden' ?> role="note">
+      <svg class="icon"><use href="#i-alert"></use></svg>
+      <div>
+        <b>Budget numbers are cheaper, but the code sometimes does not arrive.</b>
+        <?php if ($better): ?>
+          For an account that matters, a <?= $better['quality'] === 'best' ? 'Best delivery' : 'standard' ?> number is the safer buy.
+          <button type="button" class="opt-switch" data-pick-option="<?= (int) $better['id'] ?>">
+            Switch to <?= e($better['label']) ?> &middot; <?= e(money($better['price'])) ?></button>
+        <?php else: ?>
+          It is the only kind on sale for this right now. If no SMS comes, you get a free new number.
+        <?php endif; ?>
+      </div>
+    </div>
+  <?php endif; ?>
 
   <?php if ($rental && !$user): ?>
     <div class="note"><svg class="icon"><use href="#i-lock"></use></svg>

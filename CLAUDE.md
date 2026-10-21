@@ -466,9 +466,16 @@ full load.
   as the SMM cards. Placing an order covers the form with a loader whose words
   move on with it. The order page redraws itself the same way when its status
   changes. Any other link or form gets the thin bar along the top.
-- **The cheapest option is chosen and shown; the rest fold under "More
-  options".** Four radios labelled "Server 1/2/6" is a question most people
-  cannot answer and should not have to.
+- **The recommended option is chosen; the cheapest stays in view; the rest
+  fold under "More options".** Four radios labelled "Server 1/2/6" is a
+  question most people cannot answer. Every number server has a grade -
+  Best delivery, Standard or Budget (`offer_quality()`), set beside its name
+  on Connection & sync, or "from its deliveries": three in four codes in the
+  last 30 days is Best, under 45% is Budget (`server_delivery_rates()`).
+  Premium starts Best and Cheap starts Budget. `options_arrange()` chooses
+  the cheapest of the best grade on offer, and choosing a Budget one shows a
+  warning that its code may not arrive, with a one-tap switch back. Stand-ins
+  try better grades first.
 - The hero carries the headline and one short `tagline`. The longer `lead`
   is still written for every landing page, but only for the meta description
   and the structured data.

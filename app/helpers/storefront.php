@@ -117,6 +117,7 @@ function picker_option(array $offer): array
         'label'   => (string) $offer['label'],
         'price'   => (float) $offer['sale_price'],
         'product' => (string) $offer['product'],
+        'quality' => offer_quality($offer),
         'note'    => match ((string) $offer['product']) {
             'premium' => 'Code by SMS or voice call',
             'cheap'   => 'Fixed range, held 20 minutes',
@@ -125,6 +126,37 @@ function picker_option(array $offer): array
             default   => 'Held ' . number_lifetime('sms') . ' minutes',
         },
     ];
+}
+
+/**
+ * Which options the buying card shows, and which one it chooses.
+ *
+ * The chosen one is the cheapest number whose code can be counted on (best
+ * before standard before budget), not simply the cheapest: a budget number
+ * that never receives its SMS is the dearest thing in the shop to the person
+ * waiting for it. The cheapest stays in view beside it, so the saving is one
+ * tap away with its warning; everything else folds under "More options".
+ * Rentals keep their own order - shortest first - and are not graded.
+ *
+ * @param array $options picker_option() rows, cheapest first
+ * @return array{shown: array, more: array, recommended: array}
+ */
+function options_arrange(array $options, bool $rental): array
+{
+    $rank = ['best' => 0, 'standard' => 1, 'budget' => 2];
+    $byQuality = $options;
+    usort($byQuality, static fn ($a, $b) =>
+        [$rank[$a['quality']] ?? 1, $a['price']] <=> [$rank[$b['quality']] ?? 1, $b['price']]);
+    $recommended = $rental ? $options[0] : $byQuality[0];
+
+    $shown = [$recommended];
+    if (!$rental && $options[0]['id'] !== $recommended['id']) {
+        $shown[] = $options[0];
+    }
+    $shownIds = array_column($shown, 'id');
+    $more = array_values(array_filter($options, static fn ($o) => !in_array($o['id'], $shownIds, true)));
+
+    return ['shown' => $shown, 'more' => $more, 'recommended' => $recommended];
 }
 
 /**
