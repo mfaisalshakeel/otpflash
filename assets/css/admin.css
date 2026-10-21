@@ -315,8 +315,10 @@ a.scard:hover{border-color:var(--acc)}
   .irow{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:1000px){
-  .side{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,.3)}
-  body.side-open .side{transform:none}
+  /* The shadow only while it is out: on a closed sidebar it bled in from
+     the left edge as a grey band beside every page. */
+  .side{position:fixed;left:0;top:0;transform:translateX(-100%);transition:transform .25s ease}
+  body.side-open .side{transform:none;box-shadow:0 0 40px rgba(0,0,0,.3)}
   body.side-open .scrim{display:block}
   .sideclose{display:block}
   .burger{display:grid;place-items:center}
@@ -575,6 +577,7 @@ a.scard:hover{border-color:var(--acc)}
 /* --- the image field ------------------------------------------------------
    The real input is still the thing that submits; it is moved out of sight
    and driven by the label, which is what a file input is built to allow. */
+.upl{position:relative}
 .upl-input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;
   clip:rect(0 0 0 0);white-space:nowrap}
 .upl .upl-zone{display:flex;align-items:center;gap:14px;width:100%;
@@ -640,7 +643,7 @@ a.scard:hover{border-color:var(--acc)}
   .tbl:not(.tbl-plain) thead{display:none}
   .tbl:not(.tbl-plain) tbody{display:block}
 
-  .tbl:not(.tbl-plain) tbody tr{display:block;padding:12px 2px;
+  .tbl:not(.tbl-plain) tbody tr{display:block;padding:12px 14px;
     border-bottom:1px solid var(--line)}
   .tbl:not(.tbl-plain) tbody tr:last-child{border-bottom:0}
   .tbl:not(.tbl-plain) tbody tr:hover{background:none;cursor:default}
@@ -654,7 +657,7 @@ a.scard:hover{border-color:var(--acc)}
   /* The tick box belongs to the whole stacked row, so it sits in its corner
      rather than on a line of its own with nothing to say. */
   .tbl:not(.tbl-plain) tbody tr{position:relative}
-  .tbl:not(.tbl-plain) tbody td.selcell{position:absolute;right:2px;top:10px;
+  .tbl:not(.tbl-plain) tbody td.selcell{position:absolute;right:14px;top:10px;
     padding:0;width:auto}
   /* ...and the values keep clear of it, or a long service name runs under
      the box on the line it shares. */
@@ -1339,3 +1342,20 @@ body.is-sorting{user-select:none}
 .dlg-value{width:100%;margin:-4px 0 16px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
   background:var(--page);font-family:ui-monospace,monospace;font-size:13.5px}
 .dlg-acts{display:flex;justify-content:flex-end;gap:8px}
+
+/* ---- the admin on a phone ----
+   iOS Safari keeps a date field at its own width whatever width it is given
+   until its native look is switched off, so the Orders filter ran off the
+   screen. The bell's dropdown is pinned to the screen rather than to the
+   bell, which has two buttons to its right and so pushed a 340px panel off
+   the left edge. */
+@media (max-width:760px){
+  input[type=date]{-webkit-appearance:none;appearance:none;min-width:0;display:block;min-height:42px}
+  .filters>*{max-width:100%}
+  .ndrop{position:fixed;left:12px;right:12px;top:70px;width:auto;max-width:none}
+  .clearlog{flex-wrap:wrap;max-width:100%}
+  .clearlog .sel{min-width:0;flex:1 1 150px}
+  /* An email or a reference is one long word; it wraps rather than runs
+     out of the card. */
+  .tbl:not(.tbl-plain) tbody td{overflow-wrap:anywhere}
+}
