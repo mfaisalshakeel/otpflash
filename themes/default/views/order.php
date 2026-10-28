@@ -12,6 +12,7 @@
  * @var bool   $owner  the signed-in customer placed it
  * @var array  $cancel  order_cancel_choice()  @var bool $cancelOpen  back from signing in to cancel
  * @var array  $methods  @var array $gateways  @var bool $checkOnLoad  @var array $payErrors
+ * @var string $payNotice  why the last attempt to pay came to nothing
  */
 $status    = (string) $order['status'];
 $product   = (string) $order['product'];
@@ -77,7 +78,8 @@ $again = !empty($order['service_slug']) ? url((string) $order['service_slug']) :
           <?php endif; ?>
         </div>
         <?php partial('partials/pay', ['order' => $order, 'methods' => $methods,
-            'gateways' => $gateways, 'chat' => $chat, 'payErrors' => $payErrors]); ?>
+            'gateways' => $gateways, 'chat' => $chat, 'payErrors' => $payErrors,
+            'payNotice' => $payNotice ?? '']); ?>
         <?php if (!$redo && !$isDeposit): ?>
           <form class="pay-cancel" method="post" action="<?= e(url('order/' . $order['code'] . '/cancel')) ?>" data-numact
                 data-confirm-title="Cancel this order?" data-confirm="Nothing has been charged, so there is nothing to refund."
@@ -354,7 +356,7 @@ $again = !empty($order['service_slug']) ? url((string) $order['service_slug']) :
         <?php if ($order['paid_at']): ?>
           <div class="orow"><span>Paid with</span><b><?= e($order['pay_source'] === 'wallet' ? 'Wallet' : ($order['payment_name'] ?? '-')) ?></b></div>
         <?php endif; ?>
-        <div class="ototal"><span>Total</span><span class="big"><?= e(money($order['price'])) ?></span></div>
+        <div class="ototal"><span>Total</span><span class="big"><?= price($order['price']) ?></span></div>
       </div>
 
       <div class="panel">

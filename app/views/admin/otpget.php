@@ -258,6 +258,21 @@ $value    = static fn (string $key, string $default = ''): string => (string) se
             <input id="o-batch" name="sync_batch" type="number" min="1" max="500" value="<?= e($value('sync_batch', '144')) ?>">
             <small>Read together, in about ten seconds. 144 every two minutes walks even a very big catalogue end to end in under half an hour.</small>
           </div>
+
+          <?php /* Off by default, so a shop that never opens this screen keeps
+                   selling what OTPGet lists. On, nothing new is published
+                   under a brand's name until somebody has looked at it. */ ?>
+          <div class="field">
+            <label class="switch block">
+              <input type="checkbox" name="hold_new_services" value="1"
+                     <?= $value('new_services_active', '1') === '0' ? 'checked' : '' ?>>
+              <span class="track"></span> New apps wait for me before going on sale
+            </label>
+            <small>A new app OTPGet starts listing arrives switched off, and you turn it on from
+              <a class="lnk" href="<?= e(url('admin/services')) ?>">Services</a>. Its landing page
+              404s until you do. Apps already in your catalogue are not touched, so this never
+              empties a shop that is selling.</small>
+          </div>
         </div>
       </div>
 

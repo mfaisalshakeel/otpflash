@@ -118,7 +118,7 @@ $paneTitle = [
                     <span class="pname"><?= e($row['name']) ?>
                       <?php if ($row['dial'] !== ''): ?><small>+<?= e($row['dial']) ?></small><?php endif; ?></span>
                   <?php endif; ?>
-                  <span class="pprice"><small>from</small><?= e(money($row['from'])) ?></span>
+                  <span class="pprice"><small>from</small><?= price($row['from']) ?></span>
                 </a>
               </li>
             <?php endforeach; ?>

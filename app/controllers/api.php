@@ -91,4 +91,59 @@ if ($action === 'track') {
     ]);
 }
 
+// ------------------------------------------------------------- currency ----
+// Asked once by a browser that has no currency cookie yet, and again
+// whenever the visitor picks one from the switcher. It is the only place the
+// visitor's country is ever worked out, which is what keeps that work off
+// the rendering path: no page waits for it, and no cached page carries it.
+if ($action === 'currency') {
+    // Per visitor and never shared: the answer is this person's currency.
+    header('Cache-Control: private, no-store');
+    header('Vary: Cookie');
+
+    $send = static function (array $currency, bool $chosen) use ($answer): never {
+        // Written here as well as by the script so the next request already
+        // knows, and left readable by script because the script is what
+        // rewrites the prices.
+        setcookie(CURRENCY_COOKIE, (string) json_encode([
+            'c' => $currency['code'], 's' => $currency['symbol'], 'r' => $currency['rate'],
+            'd' => $currency['decimals'], 't' => $currency['step'], 'm' => $chosen ? 1 : 0,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES), [
+            'expires'  => time() + CURRENCY_COOKIE_DAYS * 86400,
+            'path'     => '/',
+            'secure'   => is_https(),
+            'httponly' => false,
+            'samesite' => 'Lax',
+        ]);
+
+        $answer(['ok' => true, 'currency' => $currency, 'chosen' => $chosen]);
+    };
+
+    // The visitor picking one. Their choice from here on, and never guessed
+    // over again - which is the whole point of writing it down.
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        csrf_verify();
+        if (!rate_limit('api_currency_set', 60, 600)) {
+            $answer(['ok' => false, 'error' => 'Too many changes, please slow down'], 429);
+        }
+
+        $code = strtoupper(trim((string) ($_POST['code'] ?? '')));
+        if (!isset(currency_choices()[$code])) {
+            $answer(['ok' => false, 'error' => 'That is not a currency this shop shows.'], 400);
+        }
+
+        currency_remember_for_user($code);
+        $send(currency_payload($code), true);
+    }
+
+    // No cookie yet, so work it out. A crawler never gets here - it does not
+    // run the script that asks - and geo_country() refuses one anyway.
+    if (!rate_limit('api_currency', 30, 600)) {
+        $answer(['ok' => true, 'currency' => currency_payload(base_currency()['code']), 'chosen' => false]);
+    }
+
+    $found = currency_detect();
+    $send($found, !empty($found['chosen']));
+}
+
 $answer(['ok' => false, 'error' => 'Unknown endpoint'], 404);

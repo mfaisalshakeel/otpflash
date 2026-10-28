@@ -89,19 +89,31 @@ if ($part === 'countries' && $landing) {
 if ($part === 'pairs' && $landing) {
     [$numbers, $params] = offer_sellable_sql('o', tab_products('numbers'));
     $page = max(1, (int) ($_GET['p'] ?? 1));
-    $rows = all("SELECT DISTINCT s.slug AS service, c.slug AS country, s.is_popular AS sp, c.is_popular AS cp
-                   FROM offers o
-                   JOIN services s ON s.id = o.service_id AND s.is_active = 1
-                   JOIN countries c ON c.id = o.country_id AND c.is_active = 1
-                  WHERE {$numbers}
-               ORDER BY s.slug, c.slug
-                  LIMIT " . SITEMAP_PAIRS_PER_PART . ' OFFSET ' . (($page - 1) * SITEMAP_PAIRS_PER_PART), $params);
-    $urls = [];
-    foreach ($rows as $row) {
-        $urls[] = ['loc' => url($row['service'] . '/' . $row['country']),
-                   'priority' => $row['sp'] && $row['cp'] ? '0.8' : '0.6', 'freq' => 'daily'];
+
+    // This is the one part that can run to twenty thousand rows, and it is
+    // also the one crawlers ask for over and over. Collecting the rows and
+    // then collecting a second array of urls built from them held both in
+    // memory at once - twenty-four megabytes here, and roughly twice that on
+    // MySQL, which buffers the whole result set before PHP copies it. So it
+    // is written out as it is read: one row in, one line out, nothing kept.
+    $rows = q("SELECT DISTINCT s.slug AS service, c.slug AS country, s.is_popular AS sp, c.is_popular AS cp
+                 FROM offers o
+                 JOIN services s ON s.id = o.service_id AND s.is_active = 1
+                 JOIN countries c ON c.id = o.country_id AND c.is_active = 1
+                WHERE {$numbers}
+             ORDER BY s.slug, c.slug
+                LIMIT " . SITEMAP_PAIRS_PER_PART . ' OFFSET ' . (($page - 1) * SITEMAP_PAIRS_PER_PART), $params);
+
+    echo '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+    echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+    while ($row = $rows->fetch()) {
+        echo '  <url><loc>' . e(url($row['service'] . '/' . $row['country'])) . '</loc>'
+           . '<changefreq>weekly</changefreq>'
+           . '<priority>' . ($row['sp'] && $row['cp'] ? '0.8' : '0.6') . '</priority>'
+           . "</url>\n";
     }
-    $urlset($urls);
+    echo "</urlset>\n";
+    exit;
 }
 
 if ($part === 'blog') {

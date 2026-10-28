@@ -26,6 +26,12 @@
     return symbol + gap + text;
   }
 
+  // The server's price() in one line: the same span, the same marker, so a
+  // row this script builds converts exactly like one the server sent.
+  function priceHtml(base) {
+    return '<span class="pr" data-base="' + esc(String(base)) + '">' + esc(money(base)) + '</span>';
+  }
+
   function esc(text) {
     return String(text == null ? '' : text).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -406,6 +412,7 @@
     var inboxRoot = $('[data-inbox]', root);
     if (inboxRoot) { initInbox(inboxRoot); }
     syncPaymentFields();
+    showPrices(root);
   }
 
   function initPicker(box) {
@@ -497,13 +504,13 @@
         var sub = row.sub || (row.count + (row.count === 1 ? ' country' : ' countries'));
         return head + ' data-icon="' + esc(row.icon) + '" data-color="' + esc(row.color) + '">' + iconHtml(row) +
           '<span class="pname">' + esc(row.name) + '<small>' + sub + '</small></span>' +
-          '<span class="pprice"><small>from</small>' + esc(money(row.from)) + '</span></a>';
+          '<span class="pprice"><small>from</small>' + priceHtml(row.from) + '</span></a>';
       }
       var flag = flags + '/' + (row.iso || 'xx') + '.svg';
       return head + ' data-iso="' + esc(row.iso) + '" data-dial="' + esc(row.dial) + '">' +
         '<img class="flag" src="' + esc(flag) + '" alt="" width="28" height="21" loading="lazy" decoding="async" onerror="this.src=\'' + esc(flags) + '/xx.svg\'">' +
         '<span class="pname">' + esc(row.name) + (row.dial ? '<small>+' + esc(row.dial) + '</small>' : '') + '</span>' +
-        '<span class="pprice"><small>from</small>' + esc(money(row.from)) + '</span></a>';
+        '<span class="pprice"><small>from</small>' + priceHtml(row.from) + '</span></a>';
     }
     function hrefFor(pane, row) {
       var base = CFG.base.replace(/\/$/, '');
@@ -550,6 +557,7 @@
         ul.innerHTML = '<li class="pempty">Nothing on sale here right now.</li>';
       } else {
         ul.innerHTML = rows.map(function (row) { return '<li>' + itemHtml(pane, row, hrefFor(pane, row)) + '</li>'; }).join('');
+        showPrices(ul);
         numberRows(pane);
         if (pane === 'country') { sortLocal(pane); }
       }
@@ -630,6 +638,7 @@
         }
         if (slot) {
           slot.innerHTML = data.html;
+          showPrices(slot);
           slot.removeAttribute('aria-busy');
           bindOptions(slot);
         }
@@ -730,7 +739,11 @@
       var warn = $('[data-budget-warn]', form);
       if (warn) { warn.hidden = radio.dataset.quality !== 'budget'; }
       var price = parseFloat(radio.dataset.price);
-      var shown = radio.dataset.money || money(price);
+      // The button is relabelled with the figure the rest of the page is
+      // showing, so a Pay button never disagrees with the price above it.
+      var shown = visitorMoney
+        ? formatMoney(price, visitorMoney)
+        : (radio.dataset.money || money(price));
       $$('[data-buy]', form).forEach(function (button) {
         // Signed in: the wallet pays when it covers this option, and when it
         // does not the same button pays directly - never a trip to top up.
@@ -1053,6 +1066,13 @@
         var key = field.getAttribute('name').slice(3);
         field.toggleAttribute('aria-invalid', !!(data && data.fields && data.fields[key]));
       });
+      // A gateway's own questions carry the key it asked under, because
+      // their names are scoped to the method so two gateways asking for a
+      // phone number cannot read each other's answer.
+      $$('[data-ask-key]', form).forEach(function (field) {
+        var key = field.getAttribute('data-ask-key');
+        field.toggleAttribute('aria-invalid', !!(data && data.fields && data.fields[key]));
+      });
     }).catch(function () { busy(button, false); form.submit(); });
   });
 
@@ -1350,6 +1370,182 @@
     })();
   }
 
+  // ===================================================== the visitor's money ==
+  // Every price is rendered by the server in the shop's own currency and
+  // marked `data-base`. This rewrites the text - and only the text - into
+  // whatever currency the visitor reads in. data-base is never touched, so
+  // converting twice, or converting a page swapped in by fetch, is safe.
+  //
+  // It lives in the browser so the page the server sends is the same page
+  // for every visitor on earth, cacheable by anything in front of it, while
+  // each person still sees their own visitorMoney. Nothing here decides what anyone
+  // is charged: that is the order's business, and the order is in base.
+
+  var CUR_COOKIE = 'of_currency';
+  var visitorMoney = null;
+
+  function readCurrencyCookie() {
+    var parts = ('; ' + document.cookie).split('; ' + CUR_COOKIE + '=');
+    if (parts.length !== 2) { return null; }
+    try {
+      var raw = decodeURIComponent(parts.pop().split(';').shift());
+      var got = JSON.parse(raw);
+      return (got && got.c && got.r > 0) ? got : null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function writeCurrencyCookie(value) {
+    document.cookie = CUR_COOKIE + '=' + encodeURIComponent(JSON.stringify(value))
+      + ';path=/;max-age=31536000;samesite=Lax'
+      + (location.protocol === 'https:' ? ';secure' : '');
+  }
+
+  // Up to the currency's own step, never down - rounding a price down is a
+  // discount nobody agreed to give - and to the places the currency has.
+  function formatMoney(base, cur) {
+    var value = base / (cur.r || 1);
+    var step = parseFloat(cur.t) || 0;
+    if (step > 0) { value = Math.ceil(Number((value / step).toFixed(6))) * step; }
+
+    var places = parseInt(cur.d, 10);
+    if (isNaN(places)) { places = 2; }
+    var text = value.toFixed(places);
+    if (places > 0) { text = text.replace(/\.?0+$/, ''); }
+    text = text.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+    var gap = /[A-Za-z]$/.test(cur.s || '') ? ' ' : '';
+    return (cur.s || cur.c) + gap + text;
+  }
+
+  function showPrices(root) {
+    if (!visitorMoney) { return; }
+    // Both the class and the attribute, so this can only ever touch a span
+    // price() wrote. Setting textContent on anything else empties it.
+    $$('span.pr[data-base]', root || document).forEach(function (tag) {
+      var base = parseFloat(tag.getAttribute('data-base'));
+      if (!isNaN(base)) { tag.textContent = formatMoney(base, visitorMoney); }
+    });
+    $$('[data-cur-code]').forEach(function (tag) { tag.textContent = visitorMoney.c; });
+    $$('[data-curpick] [data-cur]').forEach(function (opt) {
+      var mine = opt.getAttribute('data-cur') === visitorMoney.c;
+      opt.setAttribute('aria-selected', mine ? 'true' : 'false');
+      opt.classList.toggle('on', mine);
+    });
+  }
+
+  function useCurrency(next, chosen) {
+    visitorMoney = next;
+    visitorMoney.m = chosen ? 1 : 0;
+    writeCurrencyCookie(visitorMoney);
+    showPrices(document);
+  }
+
+  // Where /api/currency lives, taken from the document's own base so a shop
+  // installed in a subfolder still finds it.
+  function apiUrl(path) {
+    return new URL(path, document.baseURI).toString();
+  }
+
+  // One request, once, for a visitor we have never seen. A crawler never
+  // reaches this - it does not run scripts - which is exactly why detection
+  // lives here and not in the page.
+  function detectCurrency() {
+    fetch(apiUrl('api/currency'), {
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json' }
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (out) {
+        if (out && out.ok && out.currency && out.currency.rate > 0) {
+          useCurrency({
+            c: out.currency.code,
+            s: out.currency.symbol,
+            r: out.currency.rate,
+            d: out.currency.decimals,
+            t: out.currency.step
+          }, !!out.chosen);
+        }
+      })
+      .catch(function () { /* the base price is already on the page */ });
+  }
+
+  function initCurrencyPicker() {
+    var picker = $('[data-curpick]');
+    if (!picker) { return; }
+    var openBtn = $('[data-curpick-open]', picker);
+    var menu = $('[data-curpick-menu]', picker);
+    var search = $('[data-curpick-search]', picker);
+    var empty = $('[data-curpick-empty]', picker);
+
+    function close() {
+      menu.hidden = true;
+      openBtn.setAttribute('aria-expanded', 'false');
+    }
+
+    function filter() {
+      var want = (search ? search.value : '').trim().toLowerCase();
+      var seen = 0;
+      $$('[data-cur]', picker).forEach(function (opt) {
+        var hit = want === '' || (opt.getAttribute('data-find') || '').indexOf(want) !== -1;
+        opt.hidden = !hit;
+        if (hit) { seen++; }
+      });
+      if (empty) { empty.hidden = seen > 0; }
+    }
+
+    function open() {
+      menu.hidden = false;
+      openBtn.setAttribute('aria-expanded', 'true');
+      if (search) { search.value = ''; filter(); search.focus(); }
+    }
+
+    openBtn.addEventListener('click', function () {
+      if (menu.hidden) { open(); } else { close(); }
+    });
+    if (search) { search.addEventListener('input', filter); }
+
+    document.addEventListener('click', function (event) {
+      if (!picker.contains(event.target) && !menu.hidden) { close(); }
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !menu.hidden) { close(); openBtn.focus(); }
+    });
+
+    // Everything needed to switch is already in the markup, so a guest
+    // changing currency costs no request at all. A signed-in customer's
+    // choice is sent on as well so it follows them to another device, and
+    // nothing on screen waits for that to come back.
+    picker.addEventListener('click', function (event) {
+      var opt = event.target.closest('[data-cur]');
+      if (!opt) { return; }
+      useCurrency({
+        c: opt.getAttribute('data-cur'),
+        s: opt.getAttribute('data-symbol'),
+        r: parseFloat(opt.getAttribute('data-rate')) || 1,
+        d: parseInt(opt.getAttribute('data-dec'), 10),
+        t: parseFloat(opt.getAttribute('data-step')) || 0
+      }, true);
+      close();
+
+      var token = $('input[name="_token"]');
+      if (!token) { return; }
+      var body = new FormData();
+      body.append('_token', token.value);
+      body.append('code', visitorMoney.c);
+      fetch(apiUrl('api/currency'), {
+        method: 'POST', body: body, credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'fetch' }
+      }).catch(function () {});
+    });
+  }
+
+  visitorMoney = readCurrencyCookie();
+  initCurrencyPicker();
   boot(document);
   watchNavigation();
+  // Only when we have never met this visitor. A choice already made is never
+  // guessed over - that is the whole reason it is written down.
+  if (!visitorMoney) { detectCurrency(); }
 })();

@@ -76,7 +76,7 @@ $balance = $user ? (float) $user['balance'] : 0.0;
     <?php endif; ?>
     <div class="osum-txt">
       <b><?= e(trim(($service['name'] ?? ($rental ? 'Rental number' : '')) . ($country ? ' · ' . $country['name'] : ''))) ?></b>
-      <small><?= $country && $country['dial'] !== '' ? '+' . e($country['dial']) . ' · ' : '' ?>from <?= e(money($cheap)) ?></small>
+      <small><?= $country && $country['dial'] !== '' ? '+' . e($country['dial']) . ' · ' : '' ?>from <?= price($cheap) ?></small>
     </div>
   </div>
 
@@ -90,7 +90,7 @@ $balance = $user ? (float) $user['balance'] : 0.0;
                data-money="<?= e(money($option['price'])) ?>" data-quality="<?= e($option['quality']) ?>" <?= $chosen ? 'checked' : '' ?>>
         <span class="opt-radio" aria-hidden="true"></span>
         <span class="olabel"><?= e($option['label']) ?><small><?= e($option['note']) ?></small></span>
-        <span class="oprice"><?= e(money($option['price'])) ?>
+        <span class="oprice"><?= price($option['price']) ?>
           <?php if ($option['product'] === 'premium'): ?><em class="obadge obadge-p">Premium</em>
           <?php elseif ($option['quality'] === 'best'): ?><em class="obadge obadge-best">Best delivery</em>
           <?php elseif ($option['quality'] === 'budget'): ?><em class="obadge obadge-budget">Budget</em><?php endif; ?>
@@ -126,7 +126,7 @@ $balance = $user ? (float) $user['balance'] : 0.0;
         <?php if ($better): ?>
           For an account that matters, a <?= $better['quality'] === 'best' ? 'Best delivery' : 'standard' ?> number is the safer buy.
           <button type="button" class="opt-switch" data-pick-option="<?= (int) $better['id'] ?>">
-            Switch to <?= e($better['label']) ?> &middot; <?= e(money($better['price'])) ?></button>
+            Switch to <?= e($better['label']) ?> &middot; <?= price($better['price']) ?></button>
         <?php else: ?>
           It is the only kind on sale for this right now. If no SMS comes, you get a free new number.
         <?php endif; ?>
@@ -157,7 +157,7 @@ $balance = $user ? (float) $user['balance'] : 0.0;
             data-wallet-label="Pay {price} from wallet" data-label="Pay {price}"
             data-balance="<?= e((string) $balance) ?>" data-gateway="<?= $canGateway ? '1' : '0' ?>"
             data-wait="<?= $covers ? 'Getting your number…' : 'Placing your order…' ?>">
-      <?= $covers ? 'Pay ' . e(money($first['price'])) . ' from wallet' : 'Pay ' . e(money($first['price'])) ?>
+      <?= $covers ? 'Pay ' . price($first['price']) . ' from wallet' : 'Pay ' . price($first['price']) ?>
     </button>
     <p class="obal" data-wallet-note>Wallet balance <b><?= e(money($balance)) ?></b>
       <span data-wallet-short <?= $covers ? 'hidden' : '' ?>>&middot; not enough for this one, so pay directly</span></p>
@@ -192,7 +192,7 @@ $balance = $user ? (float) $user['balance'] : 0.0;
     <?php endif; ?>
     <button class="btn btn-primary btn-block btn-lg" type="submit" name="pay" value="gateway" data-buy
             data-label="Buy now · {price}" data-wait="Placing your order…">
-      Buy now &middot; <?= e(money($first['price'])) ?>
+      Buy now &middot; <?= price($first['price']) ?>
     </button>
     <p class="obal">Buying often? <a href="<?= e(url('login?next=' . rawurlencode($next))) ?>">Sign in</a> to pay from a wallet in one tap,
       with automatic refunds.</p>

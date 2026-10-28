@@ -87,6 +87,9 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     set_setting('price_rounding', in_array($rounding, ['0', '0.5', '1', '5', '10'], true) ? $rounding : '1');
 
     set_setting('sync_on_cron', isset($_POST['sync_on_cron']) ? '1' : '0');
+    // A checkbox that reads "wait for me", stored as its opposite, because
+    // the setting the sync asks is "may this go on sale".
+    set_setting('new_services_active', isset($_POST['hold_new_services']) ? '0' : '1');
     set_setting('sync_batch', (string) max(1, min(500, (int) ($_POST['sync_batch'] ?? 144))));
 
     foreach (['1', '2', '3', '4', '5', '6', 'premium', 'cheap'] as $server) {

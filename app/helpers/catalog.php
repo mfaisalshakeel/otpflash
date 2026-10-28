@@ -447,7 +447,7 @@ function service_for_name(string $name): ?int
                 'site_domain' => '',
                 'is_popular'  => !empty($known['popular']) ? 1 : 0,
                 'sort_order'  => 0,
-                'is_active'   => 1,
+                'is_active'   => new_services_active() ? 1 : 0,
                 'created_at'  => date('Y-m-d H:i:s'),
             ]);
         } catch (PDOException $e) {
@@ -462,6 +462,29 @@ function service_for_name(string $name): ?int
     }
 
     return $seen[$match] = $id ? (int) $id : null;
+}
+
+/**
+ * Does an app OTPGet has just started listing go on sale by itself?
+ *
+ * On, which is what the shop has always done: the catalogue is OTPGet's and a
+ * new app in it is a new thing to sell. Off, and a new app arrives switched
+ * off and waits for an admin to turn it on from Services.
+ *
+ * That is a trademark decision as much as a merchandising one. A landing page
+ * is built for every app under the app's own name and logo, and the brands
+ * that mind - banks, crypto exchanges, payment apps - find a new domain
+ * within a day through certificate transparency logs. Switching this off
+ * means nothing is ever published under a brand's name without somebody
+ * having said so.
+ *
+ * It only governs apps discovered from now on. Everything already in the
+ * catalogue keeps whatever Services says about it, so turning this off never
+ * empties a shop that is selling.
+ */
+function new_services_active(): bool
+{
+    return setting('new_services_active', '1') !== '0';
 }
 
 /** The service a website belongs to, for email server 2's "site". */
@@ -573,15 +596,28 @@ function reprice_offers(): int
     // offers that move are written in groups by their new price - one
     // statement per few hundred rows, in one transaction. Row by row it took
     // twenty-five seconds, which a shared host cuts off in the middle.
+    //
+    // The rows are read one at a time and never collected into an array.
+    // fetchAll() on this query was 84 MB at 185,000 offers, against the
+    // 128 MB a shared host usually allows - so the screen that saves a markup
+    // died of memory exhaustion rather than of anything it did, and the
+    // bigger the catalogue grew the more certain it became. Only the ids that
+    // actually move are kept, which is a list of integers rather than of rows.
     $priced = [];
     $moves  = [];
-    foreach (all('SELECT id, product, cost, cost_currency, price FROM offers') as $offer) {
+    $rows   = q('SELECT id, product, cost, cost_currency, price FROM offers');
+    while ($offer = $rows->fetch()) {
         $key = $offer['product'] . '|' . $offer['cost'] . '|' . $offer['cost_currency'];
         $price = $priced[$key] ??= offer_price($offer['product'], (float) $offer['cost'], (string) $offer['cost_currency']);
         if (abs($price - (float) $offer['price']) >= 0.005) {
             $moves[(string) $price][] = (int) $offer['id'];
         }
     }
+    // Drained before a single UPDATE is sent: the writes below go to the same
+    // connection, and a cursor still open over the table being written is the
+    // one thing neither driver promises anything about.
+    $rows->closeCursor();
+    unset($rows, $priced);
 
     $changed = 0;
     $pdo = db();
@@ -1501,10 +1537,45 @@ function store_cached(string $name, string $tab, callable $build): array
         return $memo[$key];
     }
     $rows = catalogue_cache_read($key, 300);
-    if ($rows === null) {
+    if ($rows !== null) {
+        return $memo[$key] = $rows;
+    }
+
+    // Past its five minutes. Building it again takes seconds on a real
+    // catalogue - measured at 3.3 of them over 185,000 offers - and the
+    // naive thing to do here is just build it, which is what this used to
+    // do. The trouble is that every request arriving during those seconds
+    // finds the cache equally expired and starts its own identical rebuild.
+    // At even one request a second that is a handful of multi-second GROUP
+    // BYs stacked on one database, every five minutes, for ever: the cache
+    // misses in a herd rather than one at a time.
+    //
+    // So exactly one caller rebuilds, and everybody else is handed the copy
+    // that just went stale. A list of apps that is five minutes and a moment
+    // old is not wrong in any way a customer could notice, and it is served
+    // instantly. Cron normally gets there first and nobody sees any of this;
+    // this is what happens on a shop with no cron, which is most of them.
+    require_once APP_PATH . '/helpers/guard.php';
+    $stale = catalogue_cache_read($key);
+
+    if (!lock_acquire('picker-' . $key, 120)) {
+        if ($stale !== null) {
+            return $memo[$key] = $stale;
+        }
+        // Nothing to serve at all - a cold cache on a busy shop. Building it
+        // is the only honest answer, however long it takes.
+        return $memo[$key] = $build();
+    }
+
+    try {
         $rows = $build();
         catalogue_cache_write($key, $rows);
+    } catch (Throwable $e) {
+        lock_release('picker-' . $key);
+        throw $e;
     }
+    lock_release('picker-' . $key);
+
     return $memo[$key] = $rows;
 }
 

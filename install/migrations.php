@@ -131,4 +131,17 @@ return [
                      'ALTER TABLE "users" ADD COLUMN "google_id" TEXT',
                      'CREATE UNIQUE INDEX IF NOT EXISTS "uq_users_google" ON "users" ("google_id")'],
     ],
+    // Prices are shown in the visitor's own money. A guest's choice lives in
+    // a cookie; a customer's lives here as well, so it follows them to their
+    // phone. Everything stored stays in the base currency - this is the
+    // currency a price is *read* in, never the one it is charged in.
+    '2026_10_visitor_currency' => [
+        'label'  => 'Show prices in the money the visitor reads, and remember their choice',
+        'mysql'  => ["ALTER TABLE `users` ADD COLUMN `currency` VARCHAR(3) NOT NULL DEFAULT '' AFTER `google_id`"],
+        'sqlite' => ['ALTER TABLE "users" ADD COLUMN "currency" TEXT NOT NULL DEFAULT \'\''],
+        'both'   => ["INSERT INTO settings (`k`, `v`) VALUES ('geo_provider', 'auto')",
+                     "INSERT INTO settings (`k`, `v`) VALUES ('geo_behind_cdn', '0')",
+                     "INSERT INTO settings (`k`, `v`) VALUES ('currency_auto_add', '1')",
+                     "INSERT INTO settings (`k`, `v`) VALUES ('currency_switcher', '1')"],
+    ],
 ];

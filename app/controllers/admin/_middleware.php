@@ -67,4 +67,15 @@ $GLOBALS['__update_available'] = false;
 if (!in_array($adminAction, $publicActions, true)) {
     require_once APP_PATH . '/helpers/update.php';
     $GLOBALS['__update_available'] = update_available();
+    // Same bargain as the update banner: worked out here, drawn by the
+    // layout, and wrapped because a database behind the code has no
+    // currencies table to ask and the panel still has to open.
+    try {
+        $GLOBALS['__currency_notice'] = currency_setup_notice();
+    } catch (PDOException $e) {
+        if (!is_missing_schema($e)) {
+            throw $e;
+        }
+        $GLOBALS['__currency_notice'] = '';
+    }
 }

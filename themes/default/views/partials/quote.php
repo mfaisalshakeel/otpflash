@@ -20,27 +20,27 @@ $thing  = $order['product'] === 'email' ? 'inbox' : 'number';
   <div class="quote-head">
     <span class="quote-ico"><svg class="icon"><use href="#i-tag"></use></svg></span>
     <div>
-      <b>Not available at <?= e(money((float) $order['price'])) ?></b>
+      <b>Not available at <?= price((float) $order['price']) ?></b>
       <small><?= e(order_label($order)) ?></small>
     </div>
   </div>
 
   <p>The price moved a moment ago. We found your <?= e($thing) ?> and it costs
-    <b><?= e(money($quote)) ?></b> right now. It is held for you for
+    <b><?= price($quote) ?></b> right now. It is held for you for
     <b class="quote-clock" data-hold-left="<?= (int) $state['hold_left'] ?>"><?= e(sprintf('%d:%02d', intdiv((int) $state['hold_left'], 60), (int) $state['hold_left'] % 60)) ?></b>
     - nothing has been charged.</p>
 
   <div class="quote-price">
-    <span><small>Was</small><s><?= e(money((float) $order['price'])) ?></s></span>
+    <span><small>Was</small><s><?= price((float) $order['price']) ?></s></span>
     <span class="quote-arrow" aria-hidden="true">&rarr;</span>
-    <span><small>Now</small><b><?= e(money($quote)) ?></b></span>
+    <span><small>Now</small><b><?= price($quote) ?></b></span>
   </div>
 
   <form method="post" action="<?= e(url('order/' . $order['code'] . '/accept')) ?>" data-quote-accept>
     <?= csrf_field() ?>
     <?php if ($wallet): ?><input type="hidden" name="pay" value="wallet"><?php endif; ?>
     <button class="btn btn-primary btn-block" type="submit">
-      Pay <?= e(money($quote)) ?><?= $wallet ? ' from your wallet' : '' ?></button>
+      Pay <?= price($quote) ?><?= $wallet ? ' from your wallet' : '' ?></button>
   </form>
   <form method="post" action="<?= e(url('order/' . $order['code'] . '/cancel')) ?>" data-quote-decline>
     <?= csrf_field() ?>

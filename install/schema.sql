@@ -171,6 +171,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `last_login_ip` VARCHAR(45) NOT NULL DEFAULT '',
   `two_factor` TINYINT(1) NOT NULL DEFAULT 0,
   `google_id` VARCHAR(64) NULL,
+  `currency` VARCHAR(3) NOT NULL DEFAULT '',
   `created_at` DATETIME NOT NULL,
   `updated_at` DATETIME NULL,
   PRIMARY KEY (`id`),
@@ -647,6 +648,10 @@ INSERT INTO `settings` (`k`, `v`) VALUES
   ('number_lifetime',       '20'),
   ('sync_on_cron',          '1'),
   ('sync_batch',            '144'),
+  ('geo_provider',          'auto'),
+  ('geo_behind_cdn',        '0'),
+  ('currency_auto_add',     '1'),
+  ('currency_switcher',     '1'),
   ('app_version',           '')
 ON DUPLICATE KEY UPDATE `k` = `k`;
 

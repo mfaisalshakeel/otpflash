@@ -221,6 +221,12 @@ $nav = [
           <a href="<?= e(url('admin/update')) ?>">Run the database update</a> to finish it.
         </div>
       <?php endif; ?>
+      <?php if (!empty($GLOBALS['__currency_notice']) && $active !== 'settings'): ?>
+        <div class="alert alert-warning">
+          <?= e((string) $GLOBALS['__currency_notice']) ?>
+          <a href="<?= e(url('admin/settings')) ?>">Currency and region settings</a>
+        </div>
+      <?php endif; ?>
       <?php foreach (flashes() as $message): ?>
         <div class="alert alert-<?= e($message['type']) ?>"><?= e($message['message']) ?></div>
       <?php endforeach; ?>

@@ -1,8 +1,20 @@
 <?php
 /**
- * The QR payment screen, whatever gateway drew the code
+ * The watch screen for a payment that confirms itself.
+ *
+ * Two shapes, one page. A code to scan - a Raast QR, a UPI intent - is drawn
+ * here and the page waits for the money. A wallet push is already on the
+ * customer's phone, so there is nothing to draw: the gateway says so with
+ * `await`, and the same page shows what to approve and waits the same way.
+ *
  * Clean, minimalistic design matching exact mobile specifications.
  * No headers, no footers, centered white card on light background.
+ *
+ * Nothing that goes wrong here ends on this page. A payment that failed, or a
+ * code that ran out, sends the customer back to where the methods are with
+ * the reason said beside them, because choosing again is the only useful
+ * thing left to do and a screen with one "Return to Home" button on it is
+ * not that.
  *
  * @var array  $order   @var array $method  @var array $qr  @var string $svg
  */
@@ -12,9 +24,23 @@ $amount = $qr['amount'] !== '' ? $qr['amount'] : money((float) $order['price']);
 // the only number worth putting in front of a customer.
 $orderId = (string) $order['code'];
 
+// Nothing to scan: the request is on the customer's phone already.
+$await = !empty($qr['await']);
+$steps = is_array($qr['steps'] ?? null) ? $qr['steps'] : [];
+
+// The gateway's own window, so the clock on screen is the one the payment
+// really has rather than a number written into a view. A push has no window
+// of its own - it lasts as long as the wallet app gives it - so it is not
+// counted down at all; it offers a way out instead.
+$window = max(60, (int) ($qr['expires_in'] ?? 0) ?: 1800);
+
 // Where the popup sends them: the order itself, which is the number and its
 // code - the thing they paid for, with nothing to look up or press first.
 $trackUrl = url('order/' . rawurlencode($orderId));
+
+// And where anything that went wrong sends them: the pay step of the same
+// order, which is the grid of methods.
+$backUrl = url('order/' . rawurlencode($orderId)) . '?pay=1';
 ?><!doctype html>
 <html lang="en">
 <head>
@@ -291,107 +317,68 @@ $trackUrl = url('order/' . rawurlencode($orderId));
       text-decoration: none;
     }
 
-    /* Success & Expired Screens */
-    .state-screen {
-      padding: 10px 4px 6px;
+    /* Nothing to scan: the request is on the customer's phone, so the card
+       shows one waiting shape where the code would have been. Two rings
+       going out rather than a spinner going round - the page is waiting on a
+       person, not on a server. */
+    .await-box {
+      position: relative;
+      width: 150px;
+      height: 150px;
+      margin: 6px auto 2px;
+      display: grid;
+      place-items: center;
     }
-    .icon-circle {
-      width: 64px;
-      height: 64px;
+    .await-ring,
+    .await-ring i {
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      width: 86px;
+      height: 86px;
       border-radius: 50%;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 14px;
+      border: 2px solid #c7d2fe;
     }
-    .icon-circle.success {
-      background: #dcfce7;
-      color: #16a34a;
+    .await-ring i {
+      animation: awaitOut 2.4s ease-out infinite;
     }
-    .icon-circle.expired {
-      background: #fef3c7;
-      color: #d97706;
+    .await-ring i:last-child {
+      animation-delay: 1.2s;
     }
-    .icon-circle svg {
-      width: 32px;
-      height: 32px;
+    @keyframes awaitOut {
+      0%   { transform: scale(1);    opacity: 0.75; }
+      100% { transform: scale(1.65); opacity: 0; }
+    }
+    .await-icon {
+      position: relative;
+      width: 44px;
+      height: 44px;
       fill: none;
-      stroke: currentColor;
-      stroke-width: 2.5;
+      stroke: #4338ca;
+      stroke-width: 1.7;
       stroke-linecap: round;
       stroke-linejoin: round;
     }
-    .screen-title {
-      font-size: 21px;
+    .await-title {
+      font-size: 19px;
       font-weight: 800;
       color: #0f172a;
-      margin-bottom: 6px;
+      margin: 10px 0 0;
     }
-    .screen-desc {
-      font-size: 13.5px;
-      color: #64748b;
-      margin-bottom: 20px;
-      line-height: 1.5;
-    }
-    .order-id-box {
-      background: #f8fafc;
-      border: 1.5px dashed #cbd5e1;
-      border-radius: 14px;
-      padding: 14px 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 22px;
-    }
-    .order-id-box .lbl {
-      font-size: 12px;
-      color: #64748b;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      text-align: left;
-    }
-    .order-id-box .val {
-      font-size: 18px;
-      font-weight: 800;
-      color: #0f172a;
-      letter-spacing: 0.02em;
-      text-align: left;
-    }
-    .copy-btn {
-      background: #e0e7ff;
-      color: #4338ca;
-      border: none;
-      border-radius: 8px;
-      padding: 8px 14px;
+
+    /* The way out, once waiting has gone on long enough to deserve one. */
+    .qr-bail {
+      margin: 12px 0 0;
       font-size: 13px;
+    }
+    .qr-bail[hidden] { display: none; }
+    .qr-bail a {
+      color: #4338ca;
       font-weight: 700;
-      cursor: pointer;
-      transition: all 0.15s ease;
-    }
-    .copy-btn:hover {
-      background: #6366f1;
-      color: #ffffff;
-    }
-    .action-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      padding: 13px;
-      background: #0f172a;
-      color: #ffffff;
       text-decoration: none;
-      border-radius: 12px;
-      font-size: 14px;
-      font-weight: 700;
-      transition: opacity 0.2s ease;
-      border: none;
-      cursor: pointer;
     }
-    .action-btn:hover {
-      opacity: 0.9;
-    }
+    .qr-bail a:hover { text-decoration: underline; }
+
     [hidden] {
       display: none !important;
     }
@@ -408,13 +395,33 @@ $trackUrl = url('order/' . rawurlencode($orderId));
       <p class="payable-subtitle">Payable Amount</p>
       <div class="payable-amount"><?= e($amount) ?></div>
 
-      <div class="qr-box-wrapper">
-        <?= $svg /* Built by qr_svg() helper */ ?>
-      </div>
+      <?php if (!$await): ?>
+        <div class="qr-box-wrapper">
+          <?= $svg /* Built by qr_svg() helper */ ?>
+        </div>
 
-      <div class="timer-display" id="timerDisplay">30:00</div>
+        <div class="timer-display" id="timerDisplay"><?= e(sprintf('%d:%02d',
+            intdiv($window, 60), $window % 60)) ?></div>
+      <?php else: ?>
+        <?php /* The phone is where the payment is. So the card shows the one
+                 thing to do and nothing that looks like an alternative - no
+                 code, no clock counting down something this payment does not
+                 have. */ ?>
+        <div class="await-box">
+          <span class="await-ring" aria-hidden="true"><i></i><i></i></span>
+          <svg class="await-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="6" y="2" width="12" height="20" rx="2.5"></rect>
+            <path d="M10.5 18.5h3"></path>
+          </svg>
+        </div>
+        <?php if (($qr['title'] ?? '') !== ''): ?>
+          <h2 class="await-title"><?= e((string) $qr['title']) ?></h2>
+        <?php endif; ?>
+      <?php endif; ?>
+
       <p class="status-note" id="statusNote">
-        <span class="pulse-dot"></span> Waiting for payment confirmation...
+        <span class="pulse-dot"></span>
+        <?= $await ? 'Waiting for you to approve it…' : 'Waiting for payment confirmation...' ?>
       </p>
 
       <?php /* Two ways to take the code away with you, because the phone
@@ -425,6 +432,7 @@ $trackUrl = url('order/' . rawurlencode($orderId));
                Android intent an iPhone cannot follow, and a second way to pay
                only asks the customer to choose between two things that do the
                same job. */ ?>
+      <?php if (!$await): ?>
       <div class="qr-actions">
         <button type="button" class="qr-action" id="saveQrBtn">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -454,8 +462,37 @@ $trackUrl = url('order/' . rawurlencode($orderId));
         <li><b>Pay <?= e($amount) ?></b> &mdash; the amount is already in the code, so there is
           nothing to type.</li>
       </ol>
+      <?php endif; ?>
+
+      <?php /* A push payment's steps are the gateway's own - which app, where
+               the request shows up, what to enter - so they are written where
+               the channel is, not here. */ ?>
+      <?php if ($await && $steps): ?>
+        <ol class="qr-steps">
+          <?php foreach ($steps as $step): ?>
+            <?php /* The gateway's own line. It is ours, written in the
+                     payment file beside the call it describes, and it marks
+                     up a word or two - the same trust as a page's content and
+                     for the same reason: nothing here came from a request. */ ?>
+            <li><?= $step ?></li>
+          <?php endforeach; ?>
+        </ol>
+      <?php endif; ?>
+
+      <?php if (($qr['caption'] ?? '') !== '' && $await): ?>
+        <p class="qr-steps-note"><?= e((string) $qr['caption']) ?></p>
+      <?php endif; ?>
+
       <p class="qr-steps-note">Keep this page open. It confirms by itself the moment the
         payment lands &mdash; you do not have to send us anything.</p>
+
+      <?php /* Hidden until the waiting has gone on long enough to be worth
+               calling long. Never offered at once: a customer who has this in
+               front of them for three seconds should be reaching for their
+               phone, not for another payment method. */ ?>
+      <p class="qr-bail" id="qrBail" hidden>
+        <a href="<?= e($backUrl) ?>">Nothing arrived? Choose another way to pay</a>
+      </p>
 
       <hr class="divider-line">
       <div class="secure-note">
@@ -467,22 +504,6 @@ $trackUrl = url('order/' . rawurlencode($orderId));
         <span>🔒</span> Secure payment<?= ($method['name'] ?? '') !== ''
             ? ' &middot; ' . e($method['name']) : '' ?>
       </div>
-    </div>
-
-    <!-- 3. PAYMENT EXPIRED / FAILED STATE -->
-    <div id="expiredPaymentState" class="state-screen" hidden>
-      <div class="icon-circle expired">
-        <svg viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="10"></circle>
-          <polyline points="12 6 12 12 16 14"></polyline>
-        </svg>
-      </div>
-      <h2 class="screen-title" id="failTitle">Payment Expired</h2>
-      <p class="screen-desc" id="failDesc">This payment session has timed out. If you have already sent money, please wait a minute or contact support with your reference.</p>
-
-      <a href="<?= e(url('')) ?>" class="action-btn">
-        Return to Home
-      </a>
     </div>
 
   </div>
@@ -512,27 +533,46 @@ $trackUrl = url('order/' . rawurlencode($orderId));
   var csrfToken = '<?= e(csrf_token()) ?>';
 
   var trackUrl = '<?= e($trackUrl) ?>';
+  // Where anything that goes wrong goes: the pay step of this order, which
+  // is the grid of methods. Never a screen of its own on this page.
+  var backUrl = '<?= e($backUrl) ?>';
+  var isAwait = <?= $await ? 'true' : 'false' ?>;
 
-  var liveState = document.getElementById('livePaymentState');
-  var expiredState = document.getElementById('expiredPaymentState');
   var paidPopup = document.getElementById('paidPopup');
   var paidCount = document.getElementById('paidCount');
   var timerEl = document.getElementById('timerDisplay');
   var noteEl = document.getElementById('statusNote');
+  var bailEl = document.getElementById('qrBail');
 
-  // --- Countdown Timer (30:00 -> 1800 seconds) ---
-  var totalSeconds = 1800; // 30 minutes
-  var timerInterval = setInterval(function () {
-    totalSeconds--;
-    if (totalSeconds <= 0) {
-      clearInterval(timerInterval);
-      showExpired('Payment Expired', 'The QR code session has expired. Please place a new order if you have not paid yet.');
-      return;
-    }
-    var mins = Math.floor(totalSeconds / 60);
-    var secs = totalSeconds % 60;
-    timerEl.textContent = (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
-  }, 1000);
+  // --- The gateway's own window ---
+  // A code dies at a time the gateway named, so that is what is counted
+  // down. A wallet push has no window of ours to count: it lasts as long as
+  // the app gives it, so the page keeps waiting and offers a way out instead
+  // of pretending to know when it ended.
+  var totalSeconds = <?= (int) $window ?>;
+  var timerInterval = null;
+
+  if (timerEl) {
+    timerInterval = setInterval(function () {
+      totalSeconds--;
+      if (totalSeconds <= 0) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+        // The code is gone and nothing can be done with this page any more.
+        // The next press needs a payment of its own, which is what choosing
+        // again gives it.
+        leave();
+        return;
+      }
+      var mins = Math.floor(totalSeconds / 60);
+      var secs = totalSeconds % 60;
+      timerEl.textContent = (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+    }, 1000);
+  }
+
+  // Long enough to be worth calling long - not at once, because a customer
+  // three seconds into this should be reaching for their phone.
+  setTimeout(function () { if (bailEl) { bailEl.hidden = false; } }, isAwait ? 75000 : 120000);
 
   // The popup, then tracking by itself. The countdown is on screen rather
   // than silent, because five seconds with nothing moving reads as a page
@@ -555,14 +595,13 @@ $trackUrl = url('order/' . rawurlencode($orderId));
     }, 1000);
   }
 
-  function showExpired(title, desc) {
-    clearInterval(timerInterval);
-    if (liveState) { liveState.hidden = true; }
-    if (expiredState) {
-      document.getElementById('failTitle').textContent = title || 'Payment Expired';
-      document.getElementById('failDesc').textContent = desc || 'The payment session has ended.';
-      expiredState.hidden = false;
-    }
+  // Back to where the methods are. The server has already written down why
+  // (pay_notice), so it is said beside the buttons it is about - and when the
+  // page worked it out by itself, the reason goes along in the URL.
+  function leave(where) {
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+    totalSeconds = 0;
+    window.location.href = where || (backUrl + '&expired=1');
   }
 
   // --- Taking the code away with you --------------------------------------
@@ -702,7 +741,7 @@ $trackUrl = url('order/' . rawurlencode($orderId));
           return;
         }
         if (out && out.state === 'failed') {
-          showExpired('Payment Failed', out.message || 'Payment could not be verified.');
+          leave(out.redirect);
           return;
         }
         // Still waiting - poll again

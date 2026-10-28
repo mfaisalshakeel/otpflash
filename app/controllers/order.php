@@ -109,6 +109,7 @@ $takePayment = static function (array $order, ?array $user, string $pay, bool $w
         'gateways'  => payment_gateways(),
         'chat'      => chat_channels('order'),
         'payErrors' => [],
+        'payNotice' => '',
     ]) : '';
     $state = in_array($order['product'], NUMBER_PRODUCTS, true) ? number_state($order) : null;
 
@@ -492,7 +493,17 @@ if (($params[1] ?? '') === 'start' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'That payment method is not available right now. Please choose another one.');
     }
 
-    $start = payment_start($method, $order);
+    $start = payment_start($method, $order, $_POST);
+
+    // Something only the customer can put right - the wallet number they
+    // typed, or a refusal from their own wallet. Said as the gateway wrote
+    // it, in the box they are standing in, because PAYMENT_TROUBLE's advice
+    // ("choose another method") is wrong for a mistyped digit.
+    if (!empty($start['ask_error'])) {
+        $told = (string) $start['ask_error'];
+        $answer(['ok' => false, 'error' => $told,
+                 'fields' => is_array($start['fields'] ?? null) ? $start['fields'] : []], $told);
+    }
 
     if (!empty($start['error'])) {
         $told = payment_trouble($method, $order, (string) $start['error']);
@@ -507,7 +518,7 @@ if (($params[1] ?? '') === 'start' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!empty($start['redirect']) && str_contains((string) $start['redirect'], '/qr')) {
         $drawing = payment_qr($method, $order);
 
-        if (($drawing['error'] ?? '') !== '' || trim((string) ($drawing['text'] ?? '')) === '') {
+        if (!payment_qr_showable($drawing)) {
             $told = payment_trouble($method, $order, (string) ($drawing['error'] ?? 'no code came back'));
             $answer(['ok' => false, 'error' => $told], $told);
         }
@@ -549,25 +560,31 @@ if (($params[1] ?? '') === 'qr') {
 
     $drawing = $method ? payment_qr($method, $order) : [];
 
-    // Reached straight from a kept link, or the code has since expired and
-    // the gateway will not make another. The customer gets the same sentence
-    // they would have got in the modal, and the reason is written down.
-    if (!$drawing || $drawing['text'] === '' || $drawing['error'] !== '') {
-        flash('error', $method
+    // Reached straight from a kept link, or the attempt has since ended and
+    // the gateway will not start another by itself. Back to where the methods
+    // are, with the reason said there - never a dead end of its own.
+    if (!payment_qr_showable($drawing)) {
+        pay_notice($method
             ? payment_trouble($method, $order, (string) ($drawing['error'] ?? 'no code came back'))
-            : 'That payment method cannot show a QR code. Please pay from this page instead.');
-        redirect('order/' . $order['code']);
+            : 'That payment method cannot be watched from here. Please pay from this page instead.');
+        redirect('order/' . $order['code'] . '?pay=1');
     }
+
+    // Nothing to draw, because the request is already on the customer's
+    // phone: the page says what to approve instead, and waits the same way.
+    $svg = '';
 
     // The encoder stops at 271 bytes. Nothing we build comes close, but a
     // gateway's own text is a gateway's own business, so a refusal lands here
     // rather than as a 500 on a page the customer is trying to pay from.
-    try {
-        $svg = qr_svg($drawing['text'], 230, 'QR code to pay order ' . $order['code']);
-    } catch (RuntimeException $e) {
-        log_line('QR for order ' . $order['code'] . ' could not be drawn: ' . $e->getMessage());
-        flash('error', 'The payment QR could not be drawn. Please pay from this page instead.');
-        redirect('order/' . $order['code']);
+    if ($drawing['text'] !== '') {
+        try {
+            $svg = qr_svg($drawing['text'], 230, 'QR code to pay order ' . $order['code']);
+        } catch (RuntimeException $e) {
+            log_line('QR for order ' . $order['code'] . ' could not be drawn: ' . $e->getMessage());
+            pay_notice('The payment QR could not be drawn. Please choose a way to pay below.');
+            redirect('order/' . $order['code'] . '?pay=1');
+        }
     }
 
     echo render('order-qr', [
@@ -601,17 +618,34 @@ if (($params[1] ?? '') === 'check' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($asJson) {
         session_write_close();
     }
+    // A failed payment is not a page of its own. There is exactly one useful
+    // thing to do about it - pick a way to pay again - so the answer carries
+    // the page where the methods are and the reason is put beside them. The
+    // script follows the redirect; the path without it is sent there too.
     $answer = static function (array $payload) use ($asJson, $order): never {
+        $failed = ($payload['state'] ?? '') === 'failed';
+        if ($failed && ($payload['message'] ?? '') !== '') {
+            // Written to the session, which this request closed for the
+            // script's path, so it is reopened just long enough to say it.
+            if (session_status() !== PHP_SESSION_ACTIVE) {
+                session_start();
+            }
+            pay_notice((string) $payload['message']);
+            session_write_close();
+        }
+        if ($failed) {
+            $payload['redirect'] ??= url('order/' . $order['code'] . '?pay=1');
+        }
         if ($asJson) {
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode($payload);
             exit;
         }
-        if (($payload['message'] ?? '') !== '') {
+        if (!$failed && ($payload['message'] ?? '') !== '') {
             flash($payload['state'] === 'paid' ? 'success' : 'warning', (string) $payload['message']);
         }
-        redirect($payload['state'] === 'paid'
-            ? 'order/' . $order['code']
+        redirect($payload['state'] === 'paid' || $failed
+            ? (string) ($payload['redirect'] ?? url('order/' . $order['code']))
             : 'order/' . $order['code'] . '/qr');
     };
 
@@ -774,4 +808,13 @@ view('order', [
         unset($_SESSION['_pay_errors']);
         return is_array($errors) ? $errors : [];
     })(),
+    // Why the last attempt to pay came to nothing, said beside the methods
+    // rather than on a page of its own. Read once, so a reload does not keep
+    // announcing an attempt that is over. `?expired=1` is the watch page
+    // having worked it out for itself - its clock ran out, so nothing was
+    // written down for it on the way here.
+    'payNotice'   => pay_notice() ?: (isset($_GET['expired'])
+        ? 'That payment window has closed. Nothing has been charged - choose how to pay and '
+        . 'we will start a fresh one.'
+        : ''),
 ]);

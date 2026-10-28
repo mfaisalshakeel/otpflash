@@ -233,6 +233,25 @@ if ($step === 3) {
             and you can add it later under OTPGet in the admin</span>
             <input name="otpget_api_key" value="' . h($_POST['otpget_api_key'] ?? '') . '"
                    autocomplete="off" spellcheck="false"></label>
+          <label>Show prices in each visitor&rsquo;s own currency
+            <span class="hint">Prices are always stored and charged in your base currency; this
+              only changes what a visitor reads. Everything here can be changed later under
+              Settings &rarr; Currency and region.</span>
+            <select name="geo_provider">
+              <option value="auto"' . (($_POST['geo_provider'] ?? 'auto') === 'auto' ? ' selected' : '') . '>
+                Yes &mdash; detect their country automatically</option>
+              <option value="cdn"' . (($_POST['geo_provider'] ?? '') === 'cdn' ? ' selected' : '') . '>
+                Yes, but only from my CDN&rsquo;s country header</option>
+              <option value="off"' . (($_POST['geo_provider'] ?? '') === 'off' ? ' selected' : '') . '>
+                No &mdash; show everyone the base currency</option>
+            </select></label>
+          <label class="check">
+            <input type="checkbox" name="geo_behind_cdn" value="1"' .
+              (!empty($_POST['geo_behind_cdn']) ? ' checked' : '') . '>
+            This site is behind Cloudflare or another CDN
+            <span class="hint">Only tick this if it is true. With no CDN in front, the country
+              header is one anybody can send and choose what country you think they are in.</span>
+          </label>
         </div>
         ' . runner_html('Finish installation') . '
       </form>');
@@ -532,6 +551,10 @@ function validate_admin(array $input): array
         // Optional: the shop installs and opens without it, it just has
         // nothing to sell until the key is there.
         'api_key'  => trim((string) ($input['otpget_api_key'] ?? '')),
+        // What a visitor reads prices in. Never what they are charged.
+        'geo'      => in_array($input['geo_provider'] ?? 'auto', ['auto', 'cdn', 'off'], true)
+                        ? (string) $input['geo_provider'] : 'auto',
+        'cdn'      => !empty($input['geo_behind_cdn']),
     ];
     $confirm = (string) ($input['password_confirm'] ?? '');
 
@@ -615,6 +638,8 @@ function run_admin_task(string $key): array
             if (($data['api_key'] ?? '') !== '') {
                 put_setting($pdo, 'otpget_api_key', $data['api_key']);
             }
+            put_setting($pdo, 'geo_provider', (string) ($data['geo'] ?? 'auto'));
+            put_setting($pdo, 'geo_behind_cdn', !empty($data['cdn']) ? '1' : '0');
             return ['ok' => true, 'note' => 'Done'];
         }
 
@@ -1164,6 +1189,14 @@ h2{margin:0 0 6px;font-size:19px;letter-spacing:-.02em}
 input{display:block;width:100%;margin-top:7px;padding:11px 13px;font-size:15px;font-weight:400;
   border:1px solid var(--line);border-radius:9px;background:#f9fafc;outline:none;color:var(--ink)}
 input:focus{border-color:var(--acc);background:#fff}
+select{display:block;width:100%;margin-top:7px;padding:11px 13px;font:inherit;font-size:15px;
+  font-weight:400;border:1px solid var(--line);border-radius:9px;background:#f9fafc;color:var(--ink)}
+select:focus{border-color:var(--acc);background:#fff;outline:none}
+/* A tick and its words on one line: without this the box takes the full
+   width every other control here gets, and reads as a broken text field. */
+.fields label.check{display:flex;flex-wrap:wrap;align-items:flex-start;gap:9px}
+.fields label.check input{width:auto;display:inline-block;margin:2px 0 0;flex:none}
+.fields label.check .hint{flex-basis:100%;margin:0;font-size:12.5px;line-height:1.5}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:9px;margin-top:6px;
   background:var(--acc);color:#fff;border:0;border-radius:9px;padding:12px 22px;font:inherit;
   font-size:15px;font-weight:600;cursor:pointer;text-decoration:none}

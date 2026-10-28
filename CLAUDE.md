@@ -95,7 +95,7 @@ Loaded by the controllers that need them:
 - `storefront.php` — the picker's state and its landing-page URLs
 - `users.php` — sign-up, sign-in, password resets
 - `seo.php`, `blog.php` — the head tags and JSON-LD; what is published, contents lists, related posts
-- `crud.php`, `paging.php`, `upload.php`, `audit.php`, `notify.php`, `stats.php`, `charts.php`, `currency.php`, `rebase.php`, `impact.php`, `payments.php`, `payfields.php`, `qr.php`, `theme.php`, `mail.php`, `guard.php`, `cron.php`, `migrate.php`, `update.php`
+- `crud.php`, `paging.php`, `upload.php`, `audit.php`, `notify.php`, `stats.php`, `charts.php`, `currency.php`, `rebase.php`, `impact.php`, `payments.php`, `payfields.php`, `zurvapay.php` (shared by its two channels), `qr.php`, `theme.php`, `mail.php`, `guard.php`, `cron.php`, `migrate.php`, `update.php`
 
 `countries-data.php` and `services-data.php` are data, generated once: every
 ISO country with its dialling code and the names OTPGet writes it under, and
@@ -195,6 +195,23 @@ OTPGet reply.
   it finishes drops the query, or it would start again.
 - An offer OTPGet stops listing is marked `missing`, not deleted - orders point
   at it - and is sold again the moment it reappears.
+- **An app can be taken off sale, and stay off.** `services.is_active` is the
+  one switch - Services has a power button on every row - and switching it off
+  hides the app from the picker, 404s its landing page (`_fallback.php` looks
+  services up `AND is_active = 1`) and drops it from the sitemap, in one move.
+  Its offers are kept, so past orders still read. **A sync never writes
+  `is_active` on a row that already exists**: it is set once, when the app is
+  first seen, so an app switched off by hand can never drift back on.
+- **What a newly discovered app arrives as is a setting**
+  (`new_services_active`, on Connection & sync). On by default - a new app in
+  OTPGet's catalogue is a new thing to sell, which is what the shop has always
+  done. Off, and it arrives switched off and waits for an admin. That is a
+  trademark decision as much as a merchandising one: a landing page is built
+  for every app under the app's own name and logo, brand-protection firms find
+  a new domain within a day through certificate transparency logs, and this is
+  what stops a brand being published without anyone having said so. It governs
+  apps discovered from then on only, so turning it on never empties a shop
+  that is already selling.
 - **`offer_sellable_sql()` is the one answer** to "may a customer buy this
   offer": the picker, the landing pages, the sitemap and `order.php` all ask
   it, because an offer the picker hides but the order form accepts is a price
@@ -514,6 +531,88 @@ full load.
   `/track?CODE` all go to the order, and a code that matches nothing is said
   on the same page.
 
+## The money the visitor reads
+
+Every price in the database is in the base currency, and every order is
+placed, charged, refunded and reported in it. What the shop does on top is
+translate, at the last possible moment, for the person reading the page.
+`money()` was deliberately left alone - fifty-two of its call sites are order
+logs, wallet notes and audit lines, and a converted figure in one of those is
+a lie about what was charged. `price()` is the one that converts.
+
+- **`price(310)` prints `<span class="pr" data-price="310">Rs 310</span>`**
+  and `app.js` rewrites the *text* into the visitor's currency, never the
+  attribute. It returns HTML, so a view prints it bare, never through `e()`;
+  anywhere a plain string is needed - a title, an email, JSON - `money()` is
+  still right, because those are not converted.
+- **The conversion happens in the browser, and that is the whole point.** A
+  page rendered in the visitor's currency is a different page per visitor, so
+  anything caching in front of us has to keep one copy per currency. A page
+  rendered in base with the figures marked up is *the same bytes for every
+  visitor on earth* - cacheable at the edge - while each person still sees
+  their own money. It is also why the chosen currency lives in a cookie and
+  is never printed into the HTML: printing it would bake one visitor's choice
+  into the copy the next one is served.
+- **What converts and what does not.** A catalogue price is a guide, so it
+  converts. Money the customer *holds or was charged* - the wallet, its
+  statement, a refund, a deposit - stays in the currency it really is.
+  Converting a ledger would make the lines stop adding up to the balance.
+- **Without JavaScript the base price shows**, which is a true price rather
+  than a broken one, and it is what a crawler indexes - so search results can
+  never disagree with the shop.
+
+**Detection runs once per visitor, never on a rendered page.** `app.js` asks
+`/api/currency` only when there is no cookie yet; nothing on the rendering
+path waits for it and no cached page carries its answer. `geo.php` then walks
+the chain the admin chose (`geo_provider`): a CDN header first because it was
+set before PHP started and cannot fail, then a free lookup service with a two
+second timeout and a fifteen-minute circuit breaker, then `Accept-Language`,
+then nothing. **A crawler is refused a lookup outright** - it keeps no cookie
+and arrives tens of thousands of times, so one would mean a lookup per
+request for ever.
+
+**A CDN header is only read when the admin says there is a CDN**
+(`geo_behind_cdn`, off by default). `CF-IPCountry` is an ordinary request
+header: on a site that is not behind Cloudflare anybody can send one and
+choose what country we think they are in, which would let a stranger make the
+shop add a currency and go and fetch a rate for it. Off is the state that
+cannot be abused, so off is the default.
+
+**A currency the shop has never sold in is added when somebody needs it**
+(`currency_ensure()`): only a code ISO 4217 actually defines, only through a
+lock so fifty arrivals add it once, and **never without a rate** - a currency
+with no rate would price the whole shop at zero. `currencies-data.php` holds
+what money looks like, generated once: 155 currencies with their symbol, the
+decimals they really have, and all 250 countries mapped to one.
+
+**The rounding step is the currency's own smallest unit and nothing
+cleverer.** Rounding up to a prettier step quietly marks small prices up - at
+a 0.05 step Rs 33 became EUR 0.15, which is 41% over - and a conversion is
+meant to be a translation, not a price change.
+
+Switching currency costs **no request at all**: every rate, symbol and
+rounding is in the switcher's markup, which is the same for everyone, so the
+browser rewrites the prices and writes the cookie by itself. A signed-in
+customer's choice is also sent to `users.currency` so it follows them to
+another device. **A choice once made is never guessed over** - that is the
+whole reason it is written down.
+
+## The picker's lists miss as a herd
+
+`store_cached()` keeps the unnarrowed lists for five minutes, and rebuilding
+them is slow - measured at **3.3 seconds** over 185,000 offers. The trap is
+that every request arriving during those seconds finds the cache equally
+expired and starts its own identical rebuild, so the cache misses in a herd
+rather than one at a time: at one request a second that is a handful of
+multi-second `GROUP BY`s stacked on one database, every five minutes, for
+ever.
+
+So exactly one caller rebuilds and **everybody else is served the copy that
+just went stale**. A list of apps five minutes and a moment old is not wrong
+in any way a customer could notice, and it is served in a tenth of a
+millisecond. Cron normally gets there first and nobody sees any of this; the
+lock is what happens on a shop with no cron, which is most of them.
+
 ## Blog and SEO
 
 - **`post_live_sql()` is the one rule for "published"**: status published and
@@ -640,7 +739,11 @@ when the payment can be **watched instead of typed**:
 
 - `qr` returns the text to encode and the amount to print. An `error` instead
   of them means there is nothing honest to draw, and the page says so rather
-  than showing a QR that collects the wrong number.
+  than showing a QR that collects the wrong number. A payment that is already
+  on the customer's phone has nothing to draw and is not an error: `await`
+  with no `text` says so, and the same page shows `title`, `caption` and
+  `steps` where the code would have been. `payment_qr_showable()` is the one
+  test for "is there anything to put on that page".
 - `poll` answers `paid`, `failed` or `waiting`. **Anything a gateway does not
   recognise is `waiting`, never `paid`** - the same rule as
   `map_provider_status()`, for the same reason: waiting too long costs a
@@ -650,6 +753,31 @@ when the payment can be **watched instead of typed**:
 by `qr_svg()` and the page asks `/order/{CODE}/check` every few seconds, one
 request at a time. Without the script that page is a button that does the
 same thing in one round trip.
+
+**`ask` is what a gateway needs before it can start** - a wallet number for a
+push payment. The fields are drawn on the pay step beside the method, posted
+with it, and handed to `start` as its third argument, so the number is given
+once and the payment begins on the same press. The browser never says what
+the fields are (`payment_ask()`, the same rule as `payfields()`), and a
+gateway reads one with `payment_ask_value()`. A gateway with an `ask` is never
+started for the customer automatically: `sole_redirect_method()` passes it
+over, because a question nobody has been asked cannot be answered.
+
+**Nothing that goes wrong on a payment ends on a page of its own.** A refusal,
+a window that closed, a code that could not be drawn - all of them put a
+sentence in `pay_notice()` and send the customer to `/order/{CODE}?pay=1`,
+which is the grid of methods, and `partials/pay` prints it above them. There
+is exactly one useful thing to do about a failed payment, and it is to choose
+again; a screen whose only button is *Return to Home* is not that. `/check`
+answers `failed` with the `redirect` to go with it, so the script and the
+scriptless path land in the same place. The notice is read once, so a reload
+does not keep announcing an attempt that is over.
+
+`payment_ipn_url()` is the webhook URL; **`payment_ipn_public()` is the one to
+send**. A shop on localhost or a private address has a URL nothing outside can
+call, and some gateways check it before they will create the payment at all
+and refuse the lot over it. A URL nobody could call is left off, and polling
+was covering that case anyway.
 
 `confirm_order_payment()` in `helpers/orders.php` is the **only** place a
 gateway's yes turns into a paid order. It claims the status rather than
@@ -683,6 +811,53 @@ that id. **A reported amount short of the order's is not a payment** - the
 order stays where it is with both figures in its log. TLS verification stays
 on; a payment status read over a connection nobody checked is one anybody in
 the way can write.
+
+### ZurvaPay, and two channels out of one API
+
+ZurvaPay's Direct API is one pair of keys and three channels: `dqrc` is a
+Raast QR to scan, `jazzcash` and `easypaisa` are a push the customer approves
+in the wallet app. They ship as **two payment methods, two files** -
+`zurvapay.php` and `zurvapay-jazzcash.php` - because they are two different
+answers to "how would you like to pay", and because an admin may be approved
+for one channel and not the other and holds separate credentials for each.
+Everything the channels agree about is in **`helpers/zurvapay.php`**: the
+call, the signatures, the attempt numbering, the amount test, what a refusal
+means. Neither file reads a reply its own way.
+
+- **An identifier is used once, ever.** ZurvaPay will not take one twice, so
+  each attempt carries its own (`OF8F42KD3M`, then `-2`, `-3`) and
+  `zurvapay_attempt()` is the one place that decides whether the attempt
+  written down can still be paid: same channel, not finished, not past its own
+  expiry. Anything else means the next press is a new payment. **A refusal
+  ends the attempt the moment it is believed** (`zurvapay_finish()`, from the
+  poll and from the webhook) - a declined payment handed back under its own
+  identifier can only read out the same refusal again, which is what the
+  customer's second try used to do.
+- **The attempt is written down before the call, not after.** A create that
+  runs out of time has very likely created the payment, and the poll has to
+  know what to ask about. So a timeout on a wallet push is pending, not
+  failed; `ZURVAPAY_CREATE_WAIT` bounds the wait because ZurvaPay asks for 170
+  seconds and a shared host does not have them.
+- **`zurvapay_remember()` reads the row, never the caller's copy** of it. One
+  request writes twice - reserve the identifier, then store what came back -
+  and merging the second write onto an `$order` loaded before the first is how
+  it quietly deletes it.
+- A payment ZurvaPay has never heard of is waited out for
+  `ZURVAPAY_UNKNOWN_GRACE` and then written off: moments after a timed-out
+  create that is the two sides catching up, and long after one it means the
+  create never landed. Leaving the customer watching a payment that does not
+  exist is worse than sending them back to choose.
+- An attempt already read as over is **not polled again**. ZurvaPay does not
+  un-fail a payment, and cron would otherwise ask about it every minute for a
+  day. An attempt that merely ran out of time is not this: nobody has said it
+  failed, and a code scanned in its last second is still a payment to find.
+- **The customer never reads ZurvaPay's words, or the wallet's.**
+  "Insufficient balance" is between them and their bank;
+  `zurvapay_declined_words()` is what they see and the real reason goes to the
+  order log and the call log.
+- The sandbox (`mode` on each method) needs no approval and takes no money,
+  so the whole thing can be walked without one: an amount ending `.01` is
+  declined, `.02` stays pending, anything else pays.
 
 ## Versions and updating
 

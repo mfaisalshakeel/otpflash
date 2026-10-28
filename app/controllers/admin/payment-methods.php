@@ -31,7 +31,8 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $config = [];
     foreach ($gateways[$driver]['fields'] as $key => $field) {
-        $value = trim((string) ($_POST['cfg_' . $key] ?? ''));
+        $posted = payment_field_name($driver, $key);
+        $value  = trim((string) ($_POST[$posted] ?? ''));
 
         // An empty password box means "keep what is there".
         if ($value === '' && ($field['type'] ?? 'text') === 'password' && $id > 0) {
@@ -39,7 +40,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $value    = (string) (payment_config($existing ?? [])[$key] ?? '');
         }
         if ($value === '' && !empty($field['required'])) {
-            $errors['cfg_' . $key] = ($field['label'] ?? $key) . ' is required for ' . $gateways[$driver]['name'] . '.';
+            $errors[$posted] = ($field['label'] ?? $key) . ' is required for ' . $gateways[$driver]['name'] . '.';
         }
         $config[$key] = $value;
     }

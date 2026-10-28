@@ -130,6 +130,7 @@ CREATE TABLE IF NOT EXISTS "users" (
   "last_login_ip" TEXT NOT NULL DEFAULT '',
   "two_factor" INTEGER NOT NULL DEFAULT 0,
   "google_id" TEXT,
+  "currency" TEXT NOT NULL DEFAULT '',
   "created_at" TEXT NOT NULL,
   "updated_at" TEXT
 );
@@ -531,6 +532,10 @@ INSERT OR IGNORE INTO "settings" ("k", "v") VALUES
   ('number_lifetime',       '20'),
   ('sync_on_cron',          '1'),
   ('sync_batch',            '144'),
+  ('geo_provider',          'auto'),
+  ('geo_behind_cdn',        '0'),
+  ('currency_auto_add',     '1'),
+  ('currency_switcher',     '1'),
   ('app_version',           '');
 
 INSERT OR IGNORE INTO "currencies" ("code", "name", "symbol", "rate_to_base", "is_base", "is_active", "sort_order", "updated_at") VALUES

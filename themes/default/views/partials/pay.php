@@ -16,11 +16,18 @@
  * exactly as markup that arrived with the page.
  *
  * @var array $order  @var array $methods  @var array $gateways
- * @var array $chat   @var array $payErrors
+ * @var array $chat   @var array $payErrors  @var string $payNotice
  */
+$payNotice = (string) ($payNotice ?? '');
 ?>
 <div class="panel">
-  
+  <?php /* Why the last try came to nothing. It belongs here, beside the
+           buttons it is about, rather than as a strip at the top of the page
+           or a screen of its own: the only useful next step is to choose
+           again, and this is where choosing happens. */ ?>
+  <?php if ($payNotice !== ''): ?>
+    <div class="form-err" role="status"><?= e($payNotice) ?></div>
+  <?php endif; ?>
 
   <?php if (!$methods): ?>
     <div class="psubtitle">No payment methods are set up yet.</div>
@@ -72,6 +79,35 @@
         <div class="paystep<?= $i === 0 ? ' on' : '' ?>" data-pay-for="<?= (int) $method['id'] ?>">
 
           <?php if (($gateway['kind'] ?? 'manual') !== 'manual'): ?>
+            <?php /* What this gateway has to know before it can start - a
+                     wallet number for a push payment. Inside the same
+                     [data-pf-for] group the manual questions use, so the
+                     script disables the methods nobody chose and a hidden
+                     required box cannot block the submit. */ ?>
+            <?php if ($ask = payment_ask($method)): ?>
+              <div class="pf-ask" data-pf-for="<?= (int) $method['id'] ?>">
+                <?php foreach ($ask as $askKey => $field): ?>
+                  <?php $id = 'ask-' . (int) $method['id'] . '-' . $askKey; ?>
+                  <div class="field">
+                    <label for="<?= e($id) ?>">
+                      <?= e($field['label']) ?><?= $field['required'] ? '' : ' (optional)' ?>
+                    </label>
+                    <input id="<?= e($id) ?>" type="<?= e($field['type']) ?>"
+                           name="<?= e(payment_ask_name($method, $askKey)) ?>"
+                           data-ask-key="<?= e($askKey) ?>"
+                           <?= $field['type'] === 'tel' ? 'inputmode="tel" autocomplete="tel"' : '' ?>
+                           <?= $field['placeholder'] !== ''
+                               ? 'placeholder="' . e($field['placeholder']) . '"' : '' ?>
+                           value="<?= e(old(payment_ask_name($method, $askKey), '')) ?>"
+                           <?= $field['required'] ? 'data-pf-required' : '' ?>>
+                    <?php if ($field['hint'] !== ''): ?>
+                      <small class="hint"><?= e($field['hint']) ?></small>
+                    <?php endif; ?>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            <?php endif; ?>
+
             <button class="btn btn-primary btn-block btn-lg" type="submit" data-pay-go
                     data-wait="<?= e((string) ($gateway['wait'] ?? 'Just a moment…')) ?>"
                     formaction="<?= e(url('order/' . $order['code'] . '/start')) ?>">

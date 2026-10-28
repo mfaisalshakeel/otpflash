@@ -132,13 +132,13 @@ $current = (string) $val('driver', 'manual');
         <div class="box-head"><b><?= e($gateway['name']) ?> settings</b></div>
         <div class="pad">
           <?php foreach ($gateway['fields'] as $fieldKey => $field): ?>
-            <?php $name = 'cfg_' . $fieldKey; $type = $field['type'] ?? 'text'; ?>
+            <?php $name = payment_field_name($key, $fieldKey); $type = $field['type'] ?? 'text'; ?>
             <div class="field">
               <label for="f-<?= e($name) ?>"><?= e($field['label'] ?? $fieldKey) ?>
                 <?php if (!empty($field['required'])): ?><span style="color:var(--danger)">*</span><?php endif; ?>
               </label>
               <?php if ($type === 'select'): ?>
-                <?php $chosen = (string) ($config[$fieldKey] ?? ($field['default'] ?? '')); ?>
+                <?php $oldCfg = old($name, null); $chosen = $oldCfg !== null ? (string) $oldCfg : (string) ($config[$fieldKey] ?? ($field['default'] ?? '')); ?>
                 <select id="f-<?= e($name) ?>" name="<?= e($name) ?>">
                   <?php foreach ((array) ($field['options'] ?? []) as $value => $label): ?>
                     <option value="<?= e((string) $value) ?>"
@@ -148,7 +148,7 @@ $current = (string) $val('driver', 'manual');
               <?php else: ?>
                 <input id="f-<?= e($name) ?>" name="<?= e($name) ?>"
                        type="<?= e($type) ?>"
-                       value="<?= $type === 'password' ? '' : e($config[$fieldKey] ?? ($field['default'] ?? '')) ?>"
+                       value="<?= $type === 'password' ? '' : e(old($name, null) !== null ? old($name) : ($config[$fieldKey] ?? ($field['default'] ?? ''))) ?>"
                        <?= !empty($field['placeholder']) ? 'placeholder="' . e($field['placeholder']) . '"' : '' ?>
                        <?= $err($name) ? 'aria-invalid="true"' : '' ?> autocomplete="off">
               <?php endif; ?>

@@ -35,6 +35,9 @@ date_default_timezone_set('UTC');
 $GLOBALS['__config'] = [];
 require APP_PATH . '/helpers/functions.php';
 require APP_PATH . '/helpers/theme.php';
+// price() is printed by storefront views the way money() is printed by
+// everything else, so it has to be here rather than pulled in per controller.
+require APP_PATH . '/helpers/showprice.php';
 
 $configFile = CONFIG_PATH . '/config.php';
 $installed  = is_file($configFile);

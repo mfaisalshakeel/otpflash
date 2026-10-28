@@ -3,6 +3,7 @@
 require_once APP_PATH . '/helpers/crud.php';
 require_once APP_PATH . '/helpers/upload.php';
 require_once APP_PATH . '/helpers/migrate.php';
+require_once APP_PATH . '/helpers/geo.php';   // GEO_PROVIDERS, for the options below
 
 /** group => [key => definition] */
 $GROUPS = [
@@ -41,6 +42,27 @@ $GROUPS = [
             array_keys(CHAT_PLACEMENTS)
         )
     ),
+    // Prices are stored and charged in the base currency; this group is only
+    // about what a visitor *reads*. The options are listed from geo.php so
+    // the screen and the code can never describe the chain differently.
+    'Currency and region' => [
+        'currency_switcher' => ['label' => 'Show the currency switcher in the header', 'type' => 'checkbox',
+            'hint' => 'A searchable list of every currency you have a rate for. It appears only '
+                    . 'when there is more than one to choose between.'],
+        'geo_provider' => ['label' => 'How a visitor\'s country is found', 'type' => 'select',
+            'options' => array_map(static fn (array $p): string => $p['label'], GEO_PROVIDERS),
+            'hint' => 'Worked out once per visitor, never on a page a crawler can reach, and '
+                    . 'never on the rendering path - so it cannot slow the shop down.'],
+        'geo_behind_cdn' => ['label' => 'This site is behind Cloudflare or another CDN', 'type' => 'checkbox',
+            'hint' => 'Only tick this if it is true. The country header a CDN sets is an ordinary '
+                    . 'request header: with no CDN in front, anyone can send one and choose what '
+                    . 'country you think they are in. Ticked, it is free and instant; unticked, a '
+                    . 'lookup service is used instead.'],
+        'currency_auto_add' => ['label' => 'Add a currency by itself when a visitor needs one', 'type' => 'checkbox',
+            'hint' => 'A visitor from a country whose money you do not yet sell in gets it added '
+                    . 'with a live rate. Only real ISO 4217 currencies, only one at a time, and '
+                    . 'never without a rate. Off means they see your base currency.'],
+    ],
     'Customers and checkout' => [
         'guest_checkout'    => ['label' => 'Let guests buy numbers without an account', 'type' => 'checkbox',
             'hint' => 'A guest pays for each number and keeps an order code. Rentals and the '

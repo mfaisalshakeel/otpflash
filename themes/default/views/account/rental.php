@@ -39,7 +39,7 @@
                   <input type="radio" name="offer_id" value="<?= (int) $option['id'] ?>" <?= $i === 0 ? 'checked' : '' ?>>
                   <span class="opt-radio" aria-hidden="true"></span>
                   <span class="olabel"><?= e($option['label']) ?></span>
-                  <span class="oprice"><?= e(money($option['sale_price'])) ?></span>
+                  <span class="oprice"><?= price($option['sale_price']) ?></span>
                 </label>
               <?php endforeach; ?>
             </div>

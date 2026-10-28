@@ -52,6 +52,12 @@ $links[] = ['faq', 'FAQ'];
           <svg class="icon"><use href="#<?= e($channel['icon']) ?>"></use></svg>
         </a>
       <?php endforeach; ?>
+      <?php /* The same markup for every visitor - which one is current is
+               decided in the browser, from the cookie, so this does not make
+               the page personal. */ ?>
+      <?php if (setting('currency_switcher', '1') === '1'): ?>
+        <?php partial('partials/currency-switcher', ['choices' => currency_choices()]); ?>
+      <?php endif; ?>
       <a class="btn btn-ghost btn-sm hide-sm" href="<?= e(url('track')) ?>" data-track-open>
         <svg class="icon"><use href="#i-search"></use></svg> Track
       </a>
