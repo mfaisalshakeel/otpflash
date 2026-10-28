@@ -144,4 +144,12 @@ return [
                      "INSERT INTO settings (`k`, `v`) VALUES ('currency_auto_add', '1')",
                      "INSERT INTO settings (`k`, `v`) VALUES ('currency_switcher', '1')"],
     ],
+    // A page per app and per country is what brand-protection firms find, and
+    // the catalogue sells perfectly well from the picker without them. The
+    // setting arrives off; an admin who wants them back turns them on under
+    // SEO. The old key is left where it is - reading it is nobody's job now.
+    '2026_10_landing_pages_off' => [
+        'label' => 'Stop publishing a page per app and per country',
+        'both'  => ["INSERT INTO settings (`k`, `v`) VALUES ('landing_pages', '0')"],
+    ],
 ];

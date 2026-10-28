@@ -516,6 +516,18 @@
       var base = CFG.base.replace(/\/$/, '');
       var service = pane === 'service' ? row : findChosen('service');
       var country = pane === 'country' ? row : findChosen('country');
+
+      // No page of its own: the choice is a query on this one, carried by id
+      // rather than by slug so no brand name ends up in an address. This has
+      // to match choice_url() on the server, or Back lands on a 404.
+      if (!CFG.landing) {
+        var parts = [];
+        if (tab !== 'numbers') { parts.push('tab=' + encodeURIComponent(tab)); }
+        if (service) { parts.push('service=' + encodeURIComponent(service.id)); }
+        if (country) { parts.push('country=' + encodeURIComponent(country.id)); }
+        return base + '/' + (parts.length ? '?' + parts.join('&') : '');
+      }
+
       if (tab === 'email') { return base + '/temporary-email/' + (service ? service.slug : ''); }
       if (tab === 'rental') { return base + '/rent-number/' + (country ? country.slug : ''); }
       if (service && country) { return base + '/' + service.slug + '/' + country.slug; }

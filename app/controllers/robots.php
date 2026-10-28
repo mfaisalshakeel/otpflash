@@ -10,8 +10,12 @@
 header('Content-Type: text/plain; charset=utf-8');
 
 echo "User-agent: *\n";
+// The picker's own state is a query on the home page, and every one of those
+// is the same page: crawling them would index the home page a hundred
+// thousand times over under a hundred thousand addresses.
 foreach (['/admin', '/order', '/track', '/api', '/install', '/account', '/login', '/register',
-          '/forgot', '/reset', '/hook', '/cron', '/*?q='] as $path) {
+          '/forgot', '/reset', '/hook', '/cron', '/*?q=', '/*?tab=', '/*?service=',
+          '/*?country='] as $path) {
     echo 'Disallow: ' . $path . "\n";
 }
 echo "Allow: /\n";

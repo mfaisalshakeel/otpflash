@@ -532,6 +532,7 @@ INSERT OR IGNORE INTO "settings" ("k", "v") VALUES
   ('number_lifetime',       '20'),
   ('sync_on_cron',          '1'),
   ('sync_batch',            '144'),
+  ('landing_pages',         '0'),
   ('geo_provider',          'auto'),
   ('geo_behind_cdn',        '0'),
   ('currency_auto_add',     '1'),

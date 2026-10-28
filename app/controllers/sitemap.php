@@ -25,7 +25,10 @@ header('X-Robots-Tag: noindex');
 const SITEMAP_PAIRS_PER_PART = 20000;
 
 $part     = (string) ($_GET['part'] ?? '');
-$landing  = setting('seo_landing_pages', '1') === '1';
+// Nothing a landing page would have carried is submitted when the shop does
+// not publish them: not the apps, not the countries, and not the ninety
+// thousand pairs of the two.
+$landing  = landing_pages_on();
 $now      = date('c');
 [$sellable, $sellParams] = offer_sellable_sql('o');
 
@@ -46,9 +49,15 @@ $urlset = static function (array $urls): never {
 
 if ($part === 'pages') {
     $urls = [['loc' => url(''), 'priority' => '1.0', 'freq' => 'daily', 'mod' => setting('catalogue_synced_at', '')]];
-    foreach (array_keys(store_tabs()) as $tab) {
-        if ($tab !== 'numbers') {
-            $urls[] = ['loc' => tab_url($tab), 'priority' => '0.9', 'freq' => 'daily'];
+    // A tab has an address of its own only where landing pages are published.
+    // Otherwise it is a query on the home page, which robots.txt keeps out of
+    // the index - and submitting a URL we also ask not to be crawled is the
+    // shop contradicting itself.
+    if ($landing) {
+        foreach (array_keys(store_tabs()) as $tab) {
+            if ($tab !== 'numbers') {
+                $urls[] = ['loc' => tab_url($tab), 'priority' => '0.9', 'freq' => 'daily'];
+            }
         }
     }
     foreach (all('SELECT slug FROM pages WHERE is_active = 1 AND noindex = 0 ORDER BY sort_order, id') as $page) {

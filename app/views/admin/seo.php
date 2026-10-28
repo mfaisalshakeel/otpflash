@@ -1,6 +1,6 @@
 <?php /** SEO settings. @var array $settings @var array $counts @var string $sample */
 $value = static fn (string $key, string $fallback = ''): string => (string) ($settings[$key] ?? $fallback);
-$landing = $value('seo_landing_pages', '1') === '1';
+$landing = $value('landing_pages', '0') === '1';
 $urls = 1 + $counts['pages'] + $counts['posts'] + ($landing ? $counts['services'] + $counts['countries'] + $counts['pairs'] : 0);
 ?>
 <form method="post" action="<?= e(url('admin/seo/save')) ?>" enctype="multipart/form-data" class="split2 split-wide">
@@ -27,12 +27,17 @@ $urls = 1 + $counts['pages'] + $counts['posts'] + ($landing ? $counts['services'
       <div class="box-head"><b>Landing pages</b></div>
       <div class="pad">
         <label class="switch block">
-          <input type="checkbox" name="seo_landing_pages" value="1" <?= $landing ? 'checked' : '' ?>>
-          <span class="track"></span> Give every service, country and pair its own indexable page
+          <input type="checkbox" name="landing_pages" value="1" <?= $landing ? 'checked' : '' ?>>
+          <span class="track"></span> Give every service, country and pair its own address
         </label>
-        <p class="muted">Pages like <b>/whatsapp</b>, <b>/country/pakistan</b> and <b>/whatsapp/pakistan</b> - each with its own
-          title, description, price range in search results and a place in the sitemap. This is what people actually search
-          for, so leave it on unless you have a reason. Write each service's and country's own words on
+        <p class="muted"><b>Off, and the shop is one page.</b> <b>/whatsapp</b>, <b>/country/pakistan</b> and
+          <b>/whatsapp/pakistan</b> all answer 404, nothing links to them, and the sitemap carries your own
+          pages and the blog and nothing else. The whole catalogue is still on sale - from the picker on the
+          home page, which is where it was always bought from.</p>
+        <p class="muted">On, each of those is an indexable page with its own title and price range. It is
+          better for search, and it is also what gets a shop taken down: every page carries an app's name
+          and its logo, and brand-protection firms find a new domain within a day through certificate
+          transparency logs. Off is the default for that reason. Their words live on
           <a class="lnk" href="<?= e(url('admin/services')) ?>">Services</a> and
           <a class="lnk" href="<?= e(url('admin/countries')) ?>">Countries</a>.</p>
       </div>

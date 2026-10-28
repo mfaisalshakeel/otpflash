@@ -40,8 +40,9 @@ File-based, no route table.
 | URL | runs |
 |---|---|
 | `/` | `home.php` - the picker |
-| `/whatsapp`, `/whatsapp/pakistan`, `/refund-policy` | `_fallback.php`: a page first, then a service (and country) landing page, which re-enters `home.php` |
-| `/country/pakistan`, `/temporary-email/facebook`, `/rent-number/united-kingdom` | `country.php`, `temporary-email.php`, `rent-number.php` - landing pages, also through `home.php` |
+| `/refund-policy` | `_fallback.php`: a content page; then a service landing page **only where `landing_pages` is on** |
+| `/country/pakistan`, `/temporary-email/facebook`, `/rent-number/united-kingdom` | `country.php`, `temporary-email.php`, `rent-number.php` - **404 unless `landing_pages` is on**; see *One page, not ninety thousand* |
+| `/?tab=rental`, `/?service=384&country=167` | `home.php` - how a choice is carried when landing pages are off |
 | `/api/picker`, `/api/track` | `api.php` - JSON for the picker and the tracker |
 | `/order`, `/order/OF-8F42KD3M`, `/order/OF-…/pay`, `/status`, `/change`, `/cancel`, `/retry` | `order.php` |
 | `/login`, `/register`, `/forgot`, `/reset/{token}`, `/logout` | one file each |
@@ -530,6 +531,42 @@ full load.
 - `/track` is a page of its own: `?code=`, `/track/CODE` and a bare
   `/track?CODE` all go to the order, and a code that matches nothing is said
   on the same page.
+
+## One page, not ninety thousand
+
+`landing_pages` is off by default and `landing_pages_on()` is the only thing
+that reads it. Off:
+
+- `/whatsapp`, `/whatsapp/pakistan`, `/country/pakistan`, `/temporary-email`
+  and `/rent-number` all answer **404** - the tab pages too, not only the
+  branded ones.
+- Nothing links to them. `choice_url()` and `tab_url()` return the home page
+  with a query, the footer draws no service or country column, and the header
+  takes its tab links from `tab_url()`.
+- The sitemap carries the shop's own pages and the blog. Not the apps, not
+  the countries, not the ninety thousand pairs of the two - and not the tab
+  URLs either, because robots.txt keeps `?tab=`, `?service=` and `?country=`
+  out of the index and submitting a URL we ask not to be crawled is the shop
+  contradicting itself.
+- A choice is carried **by id, never by slug**: `?service=384`, not
+  `?service=whatsapp`. A query string with the brand's name in it is still
+  the brand's name in a URL, and not publishing those is the whole point.
+  `home.php` reads the id back out of the database; nothing trusts it beyond
+  "which row to look at".
+- Every state is the same page, so the canonical is the home page and
+  anything but the bare home page is `noindex, follow`. No product schema is
+  emitted under an app's name where that app has no page of its own.
+
+`app.js`'s `hrefFor()` has to agree with `choice_url()` exactly - it is told
+which mode it is in by `OTPF.landing` - because a Back button that lands on a
+404 is the one way this breaks in front of a customer.
+
+**Why it is off.** On, each of those is an indexable page with its own title
+and price range, and it is genuinely better for search. It is also what gets
+a shop taken down: every one of them carries an app's name and its logo, and
+brand-protection firms find a new domain within a day through certificate
+transparency logs. The catalogue sells perfectly well from the picker, which
+is where it was always bought from.
 
 ## The money the visitor reads
 

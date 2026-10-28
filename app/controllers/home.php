@@ -21,7 +21,30 @@ require_once APP_PATH . '/helpers/seo.php';
 
 $choice  = $GLOBALS['__picker'] ?? [];
 $tabs    = store_tabs();
-$tab     = (string) ($choice['tab'] ?? 'numbers');
+
+// With landing pages off there is no /whatsapp to arrive on, so a choice
+// arrives as a query on this page instead. Ids, not slugs, and read back out
+// of the database - nothing here trusts the number in the URL for anything
+// beyond "which row to look at".
+if (!$choice && !landing_pages_on()) {
+    $wantTab = (string) ($_GET['tab'] ?? 'numbers');
+    $choice  = ['tab' => isset($tabs[$wantTab]) ? $wantTab : 'numbers'];
+
+    if (ctype_digit((string) ($_GET['service'] ?? ''))) {
+        $row = one('SELECT * FROM services WHERE id = ? AND is_active = 1', [(int) $_GET['service']]);
+        if ($row) {
+            $choice['service'] = $row;
+        }
+    }
+    if (ctype_digit((string) ($_GET['country'] ?? ''))) {
+        $row = one('SELECT * FROM countries WHERE id = ? AND is_active = 1', [(int) $_GET['country']]);
+        if ($row) {
+            $choice['country'] = $row;
+        }
+    }
+}
+
+$tab = (string) ($choice['tab'] ?? 'numbers');
 
 if (!$tabs) {
     view('_empty', [
@@ -87,8 +110,14 @@ if ($tab === 'numbers' && $serviceRow && $countryRow) {
 }
 
 // -------------------------------------------------------------------- SEO --
-$canonical = choice_url($tab, $service ?? ($serviceRow ? ['slug' => $serviceRow['slug']] : null),
-    $country ?? ($countryRow ? ['slug' => $countryRow['slug']] : null));
+// With landing pages off every state of the picker is the same page at the
+// same address, so that address is what it points at - and a state reached by
+// query is not a second page to index.
+$published = landing_pages_on();
+$canonical = $published
+    ? choice_url($tab, $service ?? ($serviceRow ? ['slug' => $serviceRow['slug']] : null),
+        $country ?? ($countryRow ? ['slug' => $countryRow['slug']] : null))
+    : url('');
 $isHome    = $tab === 'numbers' && !$serviceRow && !$countryRow;
 
 $metaTitle = match (true) {
@@ -112,10 +141,10 @@ $trail  = [['Home', url('')]];
 if ($tab !== 'numbers') {
     $trail[] = [STORE_TABS[$tab]['label'], tab_url($tab)];
 }
-if ($serviceRow) {
+if ($serviceRow && $published) {
     $trail[] = [$serviceRow['name'], $tab === 'numbers' ? url($serviceRow['slug']) : url('temporary-email/' . $serviceRow['slug'])];
 }
-if ($countryRow) {
+if ($countryRow && $published) {
     $trail[] = [$countryRow['name'], $canonical];
 }
 
@@ -126,9 +155,9 @@ if ($isHome) {
 if (count($trail) > 1) {
     $schema[] = schema_breadcrumbs($trail);
 }
-if ($state['options']) {
+if ($state['options'] && ($published || $isHome)) {
     $schema[] = schema_product($headline, $lead, $canonical, $low, $high, count($state['options']));
-} elseif ($serviceRow && $service) {
+} elseif ($serviceRow && $service && $published) {
     $schema[] = schema_product($headline, $lead, $canonical, (float) $service['from'], (float) $service['from'],
         max(1, (int) $service['count']));
 }
@@ -143,7 +172,9 @@ view('home', [
         'canonical'   => $canonical,
         'schema'      => $schema,
         'type'        => $state['options'] ? 'product' : 'website',
-        'robots'      => $empty ? 'noindex, follow' : null,
+        // A chosen state is the home page wearing a query string. One copy
+        // of it belongs in an index, and that copy is the home page.
+        'robots'      => ($empty || (!$published && !$isHome)) ? 'noindex, follow' : null,
         'home'        => $isHome,
     ],
     'tabs'      => $tabs,

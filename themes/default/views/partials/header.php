@@ -7,6 +7,7 @@
  * most often come back to check - and a way into the portal.
  */
 require_once APP_PATH . '/helpers/catalog.php';
+require_once APP_PATH . '/helpers/storefront.php';
 
 $siteName = setting('site_name', 'OTP Flash');
 $logo     = setting('logo_path', '');
@@ -17,15 +18,17 @@ $tabs     = store_tabs();
 // One answer for both the bar and the drawer: the same link in two places
 // must not be able to disagree about whether it is there.
 $chat  = chat_channels('header');
-$links = [['', 'Buy numbers']];
+// Whole URLs rather than slugs: with landing pages off a tab is a query on
+// the home page, and tab_url() is the one place that knows which it is.
+$links = [[url(''), 'Buy numbers', '']];
 if (isset($tabs['email'])) {
-    $links[] = ['temporary-email', 'Temp email'];
+    $links[] = [tab_url('email'), 'Temp email', landing_pages_on() ? 'temporary-email' : ''];
 }
 if (isset($tabs['rental'])) {
-    $links[] = ['rent-number', 'Rent a number'];
+    $links[] = [tab_url('rental'), 'Rent a number', landing_pages_on() ? 'rent-number' : ''];
 }
-$links[] = ['blog', 'Blog'];
-$links[] = ['faq', 'FAQ'];
+$links[] = [url('blog'), 'Blog', 'blog'];
+$links[] = [url('faq'), 'FAQ', 'faq'];
 ?>
 <header class="site-head">
   <div class="wrap nav">
@@ -39,8 +42,8 @@ $links[] = ['faq', 'FAQ'];
     </a>
 
     <nav class="nav-links" aria-label="Main">
-      <?php foreach ($links as [$path, $label]): ?>
-        <a href="<?= e(url($path)) ?>"<?= $here === $path || ($path !== '' && str_starts_with($here, $path . '/')) ? ' class="active" aria-current="page"' : '' ?>><?= e($label) ?></a>
+      <?php foreach ($links as [$href, $label, $path]): ?>
+        <a href="<?= e($href) ?>"<?= $path !== '' && ($here === $path || str_starts_with($here, $path . '/')) ? ' class="active" aria-current="page"' : '' ?>><?= e($label) ?></a>
       <?php endforeach; ?>
     </nav>
 
@@ -77,8 +80,8 @@ $links[] = ['faq', 'FAQ'];
 
   <div class="drawer" id="drawer">
     <div class="wrap">
-      <?php foreach ($links as [$path, $label]): ?>
-        <a href="<?= e(url($path)) ?>"><?= e($label) ?></a>
+      <?php foreach ($links as [$href, $label, $path]): ?>
+        <a href="<?= e($href) ?>"><?= e($label) ?></a>
       <?php endforeach; ?>
       <a href="<?= e(url('track')) ?>" data-track-open>Track an order</a>
       <?php if ($user): ?>

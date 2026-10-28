@@ -15,7 +15,7 @@ require_once APP_PATH . '/helpers/upload.php';
 require_once APP_PATH . '/helpers/audit.php';
 
 $OWNED = ['seo_title_format', 'seo_description', 'seo_og_image', 'seo_twitter', 'seo_org_name', 'seo_same_as',
-          'seo_google_verify', 'seo_bing_verify', 'seo_landing_pages', 'seo_robots_extra',
+          'seo_google_verify', 'seo_bing_verify', 'landing_pages', 'seo_robots_extra',
           'blog_title', 'blog_description', 'blog_per_page'];
 
 if (($params[0] ?? '') === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -42,7 +42,7 @@ if (($params[0] ?? '') === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         set_setting($name, preg_replace('/[^\w\-.=]/', '', $value));
     }
 
-    set_setting('seo_landing_pages', isset($_POST['seo_landing_pages']) ? '1' : '0');
+    set_setting('landing_pages', isset($_POST['landing_pages']) ? '1' : '0');
     // Only directives a robots.txt understands; anything else is dropped
     // rather than published as a line a crawler might misread.
     set_setting('seo_robots_extra', implode("\n", array_filter(

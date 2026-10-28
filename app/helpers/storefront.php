@@ -23,9 +23,35 @@ const PICKER_PANES = [
     'rental'  => ['country', 'options'],
 ];
 
-/** The address a tab lives at. */
+/**
+ * Does the shop publish a page per app and per country?
+ *
+ * **Off, and it is off for everything**: those URLs 404, nothing links to
+ * them, nothing lists them in the sitemap and no part of the shop builds one.
+ * The whole catalogue is still sold - from the picker on the home page, which
+ * is where it was always sold from - but it is no longer 2,300 pages carrying
+ * other companies' names and logos, which is what brand-protection firms find
+ * within a day of a new domain appearing in certificate transparency logs.
+ *
+ * Absent means off. An install that says nothing publishes nothing.
+ */
+function landing_pages_on(): bool
+{
+    return setting('landing_pages', '0') === '1';
+}
+
+/**
+ * The address a tab lives at.
+ *
+ * With landing pages off, a tab is a query on the home page rather than a
+ * path of its own, so there is no second URL for a search engine to find.
+ */
 function tab_url(string $tab): string
 {
+    if (!landing_pages_on()) {
+        return $tab === 'numbers' ? url('') : url('') . '?tab=' . rawurlencode($tab);
+    }
+
     return match ($tab) {
         'email'  => url('temporary-email'),
         'rental' => url('rent-number'),
@@ -236,6 +262,25 @@ function picker_state(string $tab, ?int $serviceId = null, ?int $countryId = nul
 /** The address of a choice: /whatsapp, /whatsapp/pakistan, /country/pakistan. */
 function choice_url(string $tab, ?array $service, ?array $country): string
 {
+    // With landing pages off a choice is a state of the home page, not an
+    // address. It is carried by **id**, never by slug: a query string with
+    // "whatsapp" in it is still the brand's name in a URL, and the point of
+    // this is that the shop stops publishing those.
+    if (!landing_pages_on()) {
+        $query = [];
+        if ($tab !== 'numbers') {
+            $query['tab'] = $tab;
+        }
+        if ($service) {
+            $query['service'] = (int) $service['id'];
+        }
+        if ($country) {
+            $query['country'] = (int) $country['id'];
+        }
+
+        return $query ? url('') . '?' . http_build_query($query) : url('');
+    }
+
     if ($tab === 'numbers') {
         if ($service && $country) {
             return url($service['slug'] . '/' . $country['slug']);

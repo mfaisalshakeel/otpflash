@@ -5,11 +5,12 @@
  * them is a page a search can arrive on.
  */
 require_once APP_PATH . '/helpers/catalog.php';
+require_once APP_PATH . '/helpers/storefront.php';
 
 $siteName  = setting('site_name', 'OTP Flash');
 $footPages = all('SELECT slug, title FROM pages WHERE is_active = 1 AND show_in_footer = 1
                   ORDER BY sort_order, id');
-$landing   = setting('seo_landing_pages', '1') === '1';
+$landing   = landing_pages_on();
 $topServices  = $landing ? array_slice(store_services('numbers'), 0, 8) : [];
 $topCountries = $landing ? array_slice(store_countries('numbers'), 0, 8) : [];
 $methods   = all('SELECT name FROM payment_methods WHERE is_active = 1 ORDER BY sort_order, id LIMIT 6');

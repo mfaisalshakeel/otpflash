@@ -1,4 +1,12 @@
 <?php
+// Published only where the shop publishes landing pages at all. With them
+// off this address does not exist - the tab lives on the home page, which is
+// where every sale was made from anyway.
+require_once APP_PATH . '/helpers/storefront.php';
+if (!landing_pages_on()) {
+    require CONTROLLER_PATH . '/_404.php';
+    return;
+}
 /**
  * /country/pakistan - every app with a number in one country.
  *

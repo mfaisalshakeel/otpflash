@@ -38,8 +38,11 @@ if ($sub === null) {
     }
 }
 
-// A service landing page, optionally narrowed to a country.
-if (setting('seo_landing_pages', '1') === '1' || $sub === null) {
+// A service landing page, optionally narrowed to a country. Only where the
+// shop publishes them at all - with them off, an app's name is not an address
+// here and never was anything a customer needed.
+require_once APP_PATH . '/helpers/storefront.php';
+if (landing_pages_on()) {
     $service = one('SELECT * FROM services WHERE slug = ? AND is_active = 1', [$slug]);
     if ($service) {
         $country = null;
